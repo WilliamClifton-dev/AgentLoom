@@ -8,8 +8,8 @@ and auditable capabilities. Its first competition scenario is a controlled loop
 from a GitHub-style issue and failing test to a verified patch and evidence report.
 
 > Status: early MVP. Contracts, grant authorization, static detection, task API,
-> SQLite persistence, and migrations work. AgentTeams deployment, the complete
-> repair workflow, Policy Broker MCP endpoint, and TUI are still in progress.
+> optimistic state projection, SQLite persistence, and migrations work. The
+> complete repair workflow, Policy Broker MCP transport, and TUI are still in progress.
 
 ## Competition Scope
 
@@ -49,6 +49,8 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
   protection
 - Fail-closed detection pipeline and deterministic L1 Skill checks
 - FastAPI create/list/get task API
+- Optimistic task state transitions with append-only reasoned events
+- Internal Policy Broker boundary for one-time Grant verification
 - SQLite persistence and reversible Alembic migration
 - Unit and integration test suite
 

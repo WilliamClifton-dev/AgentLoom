@@ -15,6 +15,9 @@ def test_initial_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
 
     engine = create_engine(database_url)
     assert "tasks" in inspect(engine).get_table_names()
+    assert "task_events" in inspect(engine).get_table_names()
+    task_columns = {column["name"] for column in inspect(engine).get_columns("tasks")}
+    assert "plan_version" in task_columns
 
     command.downgrade(config, "base")
 

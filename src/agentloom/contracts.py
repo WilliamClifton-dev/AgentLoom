@@ -10,6 +10,18 @@ RiskLevel = Literal["L0", "L1", "L2", "L3"]
 VerificationVerdict = Literal["PASSED", "FAILED", "UNSAFE", "UNCERTAIN"]
 DetectionStageName = Literal["STATIC", "DYNAMIC", "VERIFICATION"]
 Severity = Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+TaskStatus = Literal[
+    "RECEIVED",
+    "PLANNED",
+    "INVESTIGATING",
+    "BLOCKED",
+    "IMPLEMENTING",
+    "AWAITING_APPROVAL",
+    "VERIFYING",
+    "LEARNING",
+    "COMPLETED",
+    "FAILED",
+]
 
 
 class ContractModel(BaseModel):
@@ -103,20 +115,22 @@ class VerificationResult(ContractModel):
 
 class SkillExecutionGrant(ContractModel):
     schema_version: Literal["agentloom.grant/v1alpha1"] = "agentloom.grant/v1alpha1"
-    grant_id: str = Field(min_length=1)
-    task_id: str = Field(min_length=1)
-    step_id: str = Field(min_length=1)
-    agent_name: str = Field(min_length=1)
-    skill_name: str = Field(min_length=1)
-    skill_version: str = Field(min_length=1)
-    tool_name: str = Field(min_length=1)
+    grant_id: str = Field(alias="grantId", min_length=1)
+    task_id: str = Field(alias="taskId", min_length=1)
+    step_id: str = Field(alias="stepId", min_length=1)
+    agent_name: str = Field(alias="agentName", min_length=1)
+    skill_name: str = Field(alias="skillName", min_length=1)
+    skill_version: str = Field(alias="skillVersion", min_length=1)
+    tool_name: str = Field(alias="toolName", min_length=1)
     action: str = Field(min_length=1)
-    parameter_digest: Sha256Digest = Field(pattern=r"^[a-f0-9]{64}$")
-    risk_level: RiskLevel
-    approval_ref: str | None = None
+    parameter_digest: Sha256Digest = Field(
+        alias="parameterDigest", pattern=r"^[a-f0-9]{64}$"
+    )
+    risk_level: RiskLevel = Field(alias="riskLevel")
+    approval_ref: str | None = Field(default=None, alias="approvalRef")
     nonce: str = Field(min_length=8)
-    issued_at: datetime
-    expires_at: datetime
+    issued_at: datetime = Field(alias="issuedAt")
+    expires_at: datetime = Field(alias="expiresAt")
 
     @model_validator(mode="after")
     def validate_time_window(self) -> "SkillExecutionGrant":
@@ -168,8 +182,32 @@ class TaskCreate(ContractModel):
 
 class TaskRecord(TaskCreate):
     task_id: str = Field(alias="taskId", min_length=1)
-    status: Literal["RECEIVED"] = "RECEIVED"
+    status: TaskStatus = "RECEIVED"
+    plan_version: int = Field(default=0, alias="planVersion", ge=0)
     created_at: datetime = Field(alias="createdAt")
+
+
+class TaskTransition(ContractModel):
+    expected_plan_version: int = Field(alias="expectedPlanVersion", ge=0)
+    status: TaskStatus
+    reason: str = Field(min_length=1)
+
+
+class TaskEventRecord(ContractModel):
+    event_id: str = Field(alias="eventId", min_length=1)
+    task_id: str = Field(alias="taskId", min_length=1)
+    from_status: TaskStatus = Field(alias="fromStatus")
+    to_status: TaskStatus = Field(alias="toStatus")
+    plan_version: int = Field(alias="planVersion", ge=1)
+    reason: str = Field(min_length=1)
+    created_at: datetime = Field(alias="createdAt")
+
+
+class GrantVerificationRequest(ContractModel):
+    signed_grant: SignedSkillExecutionGrant = Field(alias="signedGrant")
+    parameter_digest: Sha256Digest = Field(
+        alias="parameterDigest", pattern=r"^[a-f0-9]{64}$"
+    )
 
 
 class Pagination(ContractModel):

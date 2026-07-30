@@ -35,6 +35,7 @@ async def test_create_and_list_task(client: httpx.AsyncClient) -> None:
     assert created_response.status_code == 201
     created = created_response.json()
     assert created["status"] == "RECEIVED"
+    assert created["planVersion"] == 0
     assert created["title"] == "Fix parser regression"
 
     listed_response = await client.get("/api/tasks?page=1&pageSize=20")
@@ -88,3 +89,65 @@ async def test_create_task_rejects_unknown_fields(client: httpx.AsyncClient) -> 
     response = await client.post("/api/tasks", json=payload)
 
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_task_transition_advances_state_and_plan_version(
+    client: httpx.AsyncClient,
+) -> None:
+    created = (await client.post("/api/tasks", json=task_payload())).json()
+
+    response = await client.post(
+        f"/internal/tasks/{created['taskId']}/transitions",
+        json={
+            "expectedPlanVersion": 0,
+            "status": "PLANNED",
+            "reason": "Coordinator produced an evidence-bound plan.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PLANNED"
+    assert response.json()["planVersion"] == 1
+
+
+@pytest.mark.asyncio
+async def test_task_transition_rejects_stale_plan_version(
+    client: httpx.AsyncClient,
+) -> None:
+    created = (await client.post("/api/tasks", json=task_payload())).json()
+    endpoint = f"/internal/tasks/{created['taskId']}/transitions"
+    request = {
+        "expectedPlanVersion": 0,
+        "status": "PLANNED",
+        "reason": "Coordinator produced a plan.",
+    }
+    assert (await client.post(endpoint, json=request)).status_code == 200
+
+    response = await client.post(
+        endpoint,
+        json={**request, "status": "INVESTIGATING"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "VERSION_CONFLICT"
+    assert response.json()["error"]["details"]["currentPlanVersion"] == 1
+
+
+@pytest.mark.asyncio
+async def test_task_transition_rejects_invalid_state_edge(
+    client: httpx.AsyncClient,
+) -> None:
+    created = (await client.post("/api/tasks", json=task_payload())).json()
+
+    response = await client.post(
+        f"/internal/tasks/{created['taskId']}/transitions",
+        json={
+            "expectedPlanVersion": 0,
+            "status": "COMPLETED",
+            "reason": "Attempt to bypass mandatory verification.",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "INVALID_STATE_TRANSITION"
