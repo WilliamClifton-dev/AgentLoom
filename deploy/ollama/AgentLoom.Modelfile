@@ -1,0 +1,6 @@
+FROM qwen:latest
+
+# The Manager bootstrap prompt is about 11.4K tokens. Offload some layers so
+# the 16K KV cache fits on an 8 GB laptop GPU without changing model weights.
+PARAMETER num_ctx 16384
+PARAMETER num_gpu 28
