@@ -1,0 +1,31 @@
+Metadata-Version: 2.4
+Name: agentloom
+Version: 0.1.0
+Summary: Governed, evidence-first SkillOps for AgentTeams
+License-Expression: Apache-2.0
+Requires-Python: <3.13,>=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: alembic<2,>=1.16
+Requires-Dist: fastapi<1,>=0.116
+Requires-Dist: httpx<1,>=0.28
+Requires-Dist: jinja2<4,>=3.1
+Requires-Dist: mcp<2,>=1.12
+Requires-Dist: opentelemetry-api<2,>=1.36
+Requires-Dist: opentelemetry-sdk<2,>=1.36
+Requires-Dist: pydantic<3,>=2.12
+Requires-Dist: rich<15,>=14
+Requires-Dist: sqlalchemy<3,>=2.0
+Requires-Dist: textual<6,>=5
+Requires-Dist: typer<1,>=0.16
+Provides-Extra: dev
+Requires-Dist: mypy<2,>=1.17; extra == "dev"
+Requires-Dist: pytest<9,>=8.4; extra == "dev"
+Requires-Dist: pytest-asyncio<2,>=1.1; extra == "dev"
+Requires-Dist: ruff<1,>=0.12; extra == "dev"
+
+# AgentLoom
+
+Governed, evidence-first SkillOps for multi-Agent software repair on AgentTeams.
+
+Architecture: `docs/architecture/agentloom-architecture.md`.
+
