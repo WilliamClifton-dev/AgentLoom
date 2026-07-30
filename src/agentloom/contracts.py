@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 Sha256Digest = str
 RiskLevel = Literal["L0", "L1", "L2", "L3"]
 VerificationVerdict = Literal["PASSED", "FAILED", "UNSAFE", "UNCERTAIN"]
+DetectionStageName = Literal["STATIC", "DYNAMIC", "VERIFICATION"]
+Severity = Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
 class ContractModel(BaseModel):
@@ -125,3 +127,27 @@ class SkillExecutionGrant(ContractModel):
 class SignedSkillExecutionGrant(ContractModel):
     grant: SkillExecutionGrant
     signature: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class Finding(ContractModel):
+    rule_id: str = Field(min_length=1)
+    severity: Severity
+    message: str = Field(min_length=1)
+    location: str | None = None
+
+
+class DetectionResult(ContractModel):
+    schema_version: Literal["agentloom.detection/v1alpha1"] = (
+        "agentloom.detection/v1alpha1"
+    )
+    stage: DetectionStageName
+    verdict: VerificationVerdict
+    findings: list[Finding]
+    evidence_refs: list[str]
+    detector_versions: dict[str, str] = Field(min_length=1)
+
+
+class DetectionReport(ContractModel):
+    verdict: VerificationVerdict
+    results: list[DetectionResult] = Field(min_length=1)
+    evidence_refs: list[str]
