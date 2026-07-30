@@ -15,14 +15,16 @@ from agentloom.contracts import (
 
 def test_agent_identity_requires_explicit_decision_boundary() -> None:
     with pytest.raises(ValidationError):
-        AgentIdentity(
-            name="agentloom-investigator",
-            role="root cause investigator",
-            capabilities=["repo.read"],
-            inputs=["Issue"],
-            outputs=["RootCauseReport"],
-            dependencies=["debugging-skill"],
-            trace=["Matrix event"],
+        AgentIdentity.model_validate(
+            {
+                "name": "agentloom-investigator",
+                "role": "root cause investigator",
+                "capabilities": ["repo.read"],
+                "inputs": ["Issue"],
+                "outputs": ["RootCauseReport"],
+                "dependencies": ["debugging-skill"],
+                "trace": ["Matrix event"],
+            }
         )
 
 

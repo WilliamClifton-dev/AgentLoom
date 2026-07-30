@@ -1,0 +1,16 @@
+schema_version: agentloom.provenance/v1alpha1
+sources:
+  - name: agentscope-ai/AgentTeams
+    url: https://github.com/agentscope-ai/AgentTeams
+    relationship: runtime
+    license: Apache-2.0
+    version: v1.1.2
+    commit: a99457830fafb99c991bdb666aa8a1eef2f83b12
+    vendored: false
+  - name: addyosmani/agent-skills
+    url: https://github.com/addyosmani/agent-skills
+    relationship: planned-skill-import
+    license: MIT
+    version: null
+    commit: null
+    vendored: false

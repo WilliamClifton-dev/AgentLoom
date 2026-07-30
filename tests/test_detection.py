@@ -2,7 +2,12 @@ from collections.abc import Awaitable, Callable
 
 import pytest
 
-from agentloom.contracts import DetectionResult, Finding
+from agentloom.contracts import (
+    DetectionResult,
+    DetectionStageName,
+    Finding,
+    VerificationVerdict,
+)
 from agentloom.detection import DetectionPipeline, StaticSkillScanner
 
 
@@ -33,7 +38,7 @@ async def test_static_scanner_passes_bounded_read_only_skill() -> None:
 class FakeStage:
     def __init__(
         self,
-        stage: str,
+        stage: DetectionStageName,
         run: Callable[[], Awaitable[DetectionResult]],
     ) -> None:
         self.stage = stage
@@ -45,7 +50,10 @@ class FakeStage:
         return await self._run()
 
 
-async def result(stage: str, verdict: str) -> DetectionResult:
+async def result(
+    stage: DetectionStageName,
+    verdict: VerificationVerdict,
+) -> DetectionResult:
     return DetectionResult.model_validate(
         {
             "stage": stage,
