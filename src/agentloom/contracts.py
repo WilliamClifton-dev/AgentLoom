@@ -15,7 +15,12 @@ Severity = Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 class ContractModel(BaseModel):
     """Strict base model for data crossing a process boundary."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        populate_by_name=True,
+        str_strip_whitespace=True,
+    )
 
 
 class AgentIdentity(ContractModel):
@@ -151,3 +156,29 @@ class DetectionReport(ContractModel):
     verdict: VerificationVerdict
     results: list[DetectionResult] = Field(min_length=1)
     evidence_refs: list[str]
+
+
+class TaskCreate(ContractModel):
+    title: str = Field(min_length=1, max_length=200)
+    repository_uri: str = Field(alias="repositoryUri", min_length=1)
+    issue: str = Field(min_length=1)
+    acceptance_criteria: list[str] = Field(alias="acceptanceCriteria", min_length=1)
+    allowed_paths: list[str] = Field(alias="allowedPaths", min_length=1)
+
+
+class TaskRecord(TaskCreate):
+    task_id: str = Field(alias="taskId", min_length=1)
+    status: Literal["RECEIVED"] = "RECEIVED"
+    created_at: datetime = Field(alias="createdAt")
+
+
+class Pagination(ContractModel):
+    page: int = Field(ge=1)
+    page_size: int = Field(alias="pageSize", ge=1, le=100)
+    total_items: int = Field(alias="totalItems", ge=0)
+    total_pages: int = Field(alias="totalPages", ge=0)
+
+
+class TaskPage(ContractModel):
+    data: list[TaskRecord]
+    pagination: Pagination
