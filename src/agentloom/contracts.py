@@ -120,3 +120,8 @@ class SkillExecutionGrant(ContractModel):
         if self.expires_at - self.issued_at > timedelta(minutes=15):
             raise ValueError("grant lifetime cannot exceed 15 minutes")
         return self
+
+
+class SignedSkillExecutionGrant(ContractModel):
+    grant: SkillExecutionGrant
+    signature: str = Field(pattern=r"^[a-f0-9]{64}$")
