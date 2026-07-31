@@ -34,6 +34,7 @@ dev = [
 
 [project.scripts]
 agentloom = "agentloom.cli:app"
+agentloom-dev = "agentloom.dev_dispatcher.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -54,4 +55,3 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-
