@@ -34,7 +34,6 @@ dev = [
 
 [project.scripts]
 agentloom = "agentloom.cli:app"
-agentloom-dev = "agentloom.dev_dispatcher.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]

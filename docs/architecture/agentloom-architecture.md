@@ -1145,7 +1145,7 @@ agentloom/
 
 本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型 `qwen3.7-plus` 及其本地回退。
 
-模型在 Codex 任务创建、续接或显式交接边界选择。轻量 Development Dispatcher 自动读取本架构、开发任务账本、Git 状态和验收命令，在任务边界选择目标模型；它不允许运行中的模型自行改写路由。当前分层使用以下准确模型 ID：
+模型在 Codex 任务创建、续接或显式交接边界选择。可选的外部 DevDispatcher 工具可以读取本架构、本地任务账本、Git 状态和验收命令，在任务边界选择目标模型；它不属于本仓库的产品代码，也不允许运行中的模型自行改写路由。当前分层使用以下准确模型 ID：
 
 | 开发层级 | 模型 | 定位 | 典型任务 | 禁止承担 |
 | --- | --- | --- | --- | --- |
@@ -1192,15 +1192,13 @@ agentloom/
 - Luna 不可用时由 Terra 接管；Terra 不可用时，低风险任务可由 Luna 拆小执行，高风险任务暂停或交给 Sol；Sol 不可用时，高风险任务不得伪装为已完成，应由 Terra 拆分并增加独立人工审查。
 - 模型切换不得改变任务权限、可写范围、审批边界和验收标准。不同模型产物使用同一 Git Diff、测试和证据门禁。
 
-#### 19.1.5 Development Dispatcher
+#### 19.1.5 外部 DevDispatcher
 
-- 权威任务账本为 `docs/development-backlog.json`；依赖全部完成后才选择优先级最高的待办任务。
-- Dispatcher 只通过固定参数数组调用 `codex exec`，模型和推理档位使用白名单，不启用危险绕过参数，不执行模型返回的 Shell 文本。
-- 验收命令使用固定前缀白名单并以 `shell=False` 逐条执行；任务账本原子更新，仓库锁保证同一时间只有一个写任务。
-- 默认 `agentloom-dev start` 最多执行一个任务；单次最多显式放宽到三个，任一失败立即停止。
-- `credentials`、`payment`、`publication`、`external-write`、`destructive` 或 `irreversible` 标签强制转人工，不因模型层级提高而自动放行。
-- Luna 一次失败后下一轮转 Terra；Terra 累计两次失败后转 Sol；累计三次失败将任务标记为 blocked，等待人工检查。
-- 执行记录只保存无密钥的最终摘要到忽略目录 `artifacts/dev-dispatcher/`；Dispatcher 不提交、不推送、不发布和不部署。
+- DevDispatcher 位于独立仓库，不是 AgentLoom 安装依赖、运行时组件或参赛交付强制项。
+- `dev-dispatcher init` 在本地 `.dev-dispatcher/` 目录保存配置、任务和执行摘要；该目录不进入 AgentLoom Git 历史。
+- 工具只通过固定参数数组调用 `codex exec`，使用模型、推理档位和验收命令白名单，不执行模型返回的 Shell 文本。
+- 默认一次执行一个任务；凭证、付款、发布、外部写入、破坏性或不可逆操作强制转人工。
+- 工具不得自动提交、推送、发布或部署；所有结果继续接受 AgentLoom 自身测试和 Git Diff 门禁。
 
 ### 19.2 初赛 V0.1：可信闭环
 

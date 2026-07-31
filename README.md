@@ -76,27 +76,6 @@ Create a local database:
 All model credentials and deployment-specific settings must be supplied through
 ignored environment files or process environment variables. Never commit them.
 
-### Automatic development dispatcher
-
-The dispatcher reads the architecture, development backlog, Git state, and task
-acceptance commands. It then chooses Luna, Terra, or Sol and runs one bounded Codex
-task at a time. Credentials, payment, publication, external writes, destructive
-operations, and irreversible changes always stop for a human decision.
-
-```powershell
-.venv\Scripts\python -m pip install -e ".[dev]"
-.venv\Scripts\agentloom-dev plan
-.venv\Scripts\agentloom-dev start
-.venv\Scripts\agentloom-dev status
-```
-
-`start` executes one task by default. Use `--max-tasks 2` or `3` only when the
-previous task boundaries and expected Codex usage are acceptable. The dispatcher
-never commits or pushes changes; review its diff before the next task.
-
-Full dispatcher design:
-[Development Dispatcher architecture](docs/architecture/development-dispatcher-architecture.md).
-
 ## Roadmap to Demo
 
 1. Verify AgentTeams/HiClaw `v1.1.2` deployment.
