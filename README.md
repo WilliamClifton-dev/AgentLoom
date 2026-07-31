@@ -8,8 +8,8 @@ and auditable capabilities. Its first competition scenario is a controlled loop
 from a GitHub-style issue and failing test to a verified patch and evidence report.
 
 > Status: early MVP. Contracts, grant authorization, static detection, task API,
-> optimistic state projection, SQLite persistence, migrations, and the Policy Broker
-> MCP transport work. The complete repair workflow and TUI are still in progress.
+> optimistic state projection, SQLite persistence, migrations, the Policy Broker
+> MCP transport, and the bounded repair workflow. The TUI is still in progress.
 
 ## Competition Scope
 
@@ -53,6 +53,7 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Optimistic task state transitions with append-only reasoned events
 - Internal API and stdio MCP boundaries for one-time Grant verification
 - SQLite persistence and reversible Alembic migration
+- Deterministic repair workflow with investigation, implementation, independent verification, approval, failure, and rollback states
 - Unit and integration test suite
 
 ## Local Development
@@ -96,8 +97,8 @@ ignored environment files or process environment variables. Never commit them.
 1. Verify AgentTeams/HiClaw `v1.1.2` deployment.
 2. Evaluate and publish the five quarantined upstream Skills.
 3. Register Manager, Investigator, Implementer, Verifier, Team, and Human resources.
-4. Complete normal, failure, approval, and rollback repair paths.
-5. Add the Textual/Rich TUI and reproducible Docker launch.
+4. Add the Textual/Rich TUI for tasks, evidence, approvals, and reports.
+5. Add reproducible Docker launch.
 
 ## Provenance
 

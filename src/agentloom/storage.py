@@ -42,7 +42,11 @@ VALID_TASK_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
     "AWAITING_APPROVAL": frozenset(
         {"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}
     ),
-    "VERIFYING": frozenset({"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}),
+    "VERIFYING": frozenset(
+        {"IMPLEMENTING", "ROLLING_BACK", "LEARNING", "BLOCKED_PLATFORM"}
+    ),
+    "ROLLING_BACK": frozenset({"ROLLED_BACK", "BLOCKED_PLATFORM"}),
+    "ROLLED_BACK": frozenset({"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}),
     "LEARNING": frozenset({"COMPLETED", "FAILED", "CANCELLED"}),
     "COMPLETED": frozenset(),
     "FAILED": frozenset(),

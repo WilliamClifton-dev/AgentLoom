@@ -29,6 +29,8 @@ TaskStatus = Literal[
     "IMPLEMENTING",
     "AWAITING_APPROVAL",
     "VERIFYING",
+    "ROLLING_BACK",
+    "ROLLED_BACK",
     "LEARNING",
     "COMPLETED",
     "FAILED",
@@ -284,6 +286,10 @@ class TaskTransition(ContractModel):
     expected_plan_version: int = Field(alias="expectedPlanVersion", ge=0)
     status: TaskStatus
     reason: str = Field(min_length=1)
+
+
+WorkflowVerificationOutcome = Literal["PASSED", "FAILED", "UNSAFE", "UNCERTAIN"]
+WorkflowCompletionOutcome = Literal["PASSED", "FAILED", "CANCELLED"]
 
 
 class TaskEventRecord(ContractModel):
