@@ -32,16 +32,22 @@ from agentloom.contracts import (
 )
 
 VALID_TASK_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
-    "RECEIVED": frozenset({"PLANNED"}),
-    "PLANNED": frozenset({"INVESTIGATING"}),
-    "INVESTIGATING": frozenset({"BLOCKED", "IMPLEMENTING"}),
-    "BLOCKED": frozenset({"INVESTIGATING"}),
-    "IMPLEMENTING": frozenset({"AWAITING_APPROVAL", "VERIFYING"}),
-    "AWAITING_APPROVAL": frozenset({"IMPLEMENTING", "LEARNING"}),
-    "VERIFYING": frozenset({"IMPLEMENTING", "LEARNING"}),
-    "LEARNING": frozenset({"COMPLETED", "FAILED"}),
+    "RECEIVED": frozenset({"PLANNED", "BLOCKED_PLATFORM"}),
+    "PLANNED": frozenset({"INVESTIGATING", "BLOCKED_PLATFORM"}),
+    "INVESTIGATING": frozenset({"BLOCKED", "IMPLEMENTING", "BLOCKED_PLATFORM"}),
+    "BLOCKED": frozenset({"INVESTIGATING", "BLOCKED_PLATFORM"}),
+    "IMPLEMENTING": frozenset(
+        {"AWAITING_APPROVAL", "VERIFYING", "BLOCKED_PLATFORM"}
+    ),
+    "AWAITING_APPROVAL": frozenset(
+        {"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}
+    ),
+    "VERIFYING": frozenset({"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}),
+    "LEARNING": frozenset({"COMPLETED", "FAILED", "CANCELLED"}),
     "COMPLETED": frozenset(),
     "FAILED": frozenset(),
+    "CANCELLED": frozenset(),
+    "BLOCKED_PLATFORM": frozenset({"PLANNED"}),
 }
 
 

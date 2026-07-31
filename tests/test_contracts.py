@@ -6,8 +6,10 @@ from pydantic import ValidationError
 from agentloom.contracts import (
     AgentIdentity,
     EvidenceRecord,
+    SkillEvaluation,
     SkillExecutionGrant,
     SkillManifest,
+    SkillSource,
     VerificationChecks,
     VerificationResult,
 )
@@ -46,6 +48,61 @@ def test_skill_manifest_captures_appendix_b_fields() -> None:
 
     assert manifest.name == "debugging-and-error-recovery"
     assert manifest.permissions == ["repo.read"]
+
+
+def test_published_skill_requires_complete_governance_metadata() -> None:
+    with pytest.raises(ValidationError, match="approved or published Skill requires"):
+        SkillManifest(
+            name="debugging-and-error-recovery",
+            version="1.0.0",
+            skill_type="external-skill",
+            scenarios=["bug-triage"],
+            input_schema="schemas/debugging-input.json",
+            output_schema="schemas/root-cause-report.json",
+            invocation_conditions=["issue-and-repository-present"],
+            dependencies=["repository-search"],
+            failure_modes=["INSUFFICIENT_EVIDENCE"],
+            permissions=["repo.read"],
+            security_boundary="L0 read-only, network denied",
+            reuse_value="Reusable for defect investigation",
+            lifecycle_state="PUBLISHED",
+        )
+
+
+def test_published_skill_accepts_pinned_source_role_permissions_and_evals() -> None:
+    manifest = SkillManifest(
+        name="debugging-and-error-recovery",
+        version="1.0.0+upstream.abc1234",
+        skill_type="external-skill",
+        scenarios=["bug-triage"],
+        input_schema="schemas/debugging-input.json",
+        output_schema="schemas/root-cause-report.json",
+        invocation_conditions=["issue-and-repository-present"],
+        dependencies=["repository-search"],
+        failure_modes=["INSUFFICIENT_EVIDENCE"],
+        permissions=["repo.read"],
+        security_boundary="L0 read-only, network denied",
+        reuse_value="Reusable for defect investigation",
+        source=SkillSource(
+            repository="https://github.com/addyosmani/agent-skills",
+            path="skills/debugging-and-error-recovery",
+            commit="a" * 40,
+            license="MIT",
+            content_hash=f"sha256:{'b' * 64}",
+        ),
+        compatible_agents=["agentloom-investigator"],
+        allowed_tools=["repository-search:repo.read"],
+        allowed_paths=["src/**", "tests/**"],
+        risk_level="L0",
+        evaluation=SkillEvaluation(
+            upstream_evidence_refs=["ev-upstream-debugging"],
+            agentloom_bench_evidence_refs=["ev-agentloom-debugging"],
+        ),
+        lifecycle_state="PUBLISHED",
+    )
+
+    assert manifest.source is not None
+    assert manifest.source.content_hash == f"sha256:{'b' * 64}"
 
 
 def test_evidence_requires_sha256_digest() -> None:

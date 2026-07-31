@@ -151,3 +151,34 @@ async def test_task_transition_rejects_invalid_state_edge(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "INVALID_STATE_TRANSITION"
+
+
+@pytest.mark.asyncio
+async def test_task_can_finish_as_cancelled_after_approval_rejection(
+    client: httpx.AsyncClient,
+) -> None:
+    created = (await client.post("/api/tasks", json=task_payload())).json()
+    endpoint = f"/internal/tasks/{created['taskId']}/transitions"
+    transitions = [
+        "PLANNED",
+        "INVESTIGATING",
+        "IMPLEMENTING",
+        "AWAITING_APPROVAL",
+        "LEARNING",
+        "CANCELLED",
+    ]
+
+    current = created
+    for status in transitions:
+        response = await client.post(
+            endpoint,
+            json={
+                "expectedPlanVersion": current["planVersion"],
+                "status": status,
+                "reason": f"Advance task to {status}.",
+            },
+        )
+        assert response.status_code == 200
+        current = response.json()
+
+    assert current["status"] == "CANCELLED"
