@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -229,3 +230,56 @@ def test_issue_signs_grant_bound_to_published_skill_content() -> None:
 
     assert manifest.source is not None
     assert signed.grant.skill_content_hash == manifest.source.content_hash
+
+
+def test_policy_broker_mcp_verifies_grant_once() -> None:
+    pytest.importorskip("mcp")
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from agentloom.policy_mcp import POLICY_VERIFY_TOOL, create_policy_broker_mcp
+
+    authorizer = make_authorizer()
+    signed = issue_grant(authorizer)
+    server = create_policy_broker_mcp(authorizer)
+    request = {
+        "request": {
+            "signedGrant": signed.model_dump(mode="json", by_alias=True),
+            "parameterDigest": "b" * 64,
+        }
+    }
+
+    async def verify_once_then_reject_replay() -> None:
+        _, structured = await server.call_tool(POLICY_VERIFY_TOOL, request)
+        assert structured is not None
+        assert isinstance(structured, dict)
+        assert structured["grantId"] == "grant-01"
+        with pytest.raises(ToolError, match="POLICY_DENIED.*nonce has already been used"):
+            await server.call_tool(POLICY_VERIFY_TOOL, request)
+
+    asyncio.run(verify_once_then_reject_replay())
+
+
+def test_policy_broker_mcp_rejects_unknown_request_fields() -> None:
+    pytest.importorskip("mcp")
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from agentloom.policy_mcp import POLICY_VERIFY_TOOL, create_policy_broker_mcp
+
+    authorizer = make_authorizer()
+    signed = issue_grant(authorizer)
+    server = create_policy_broker_mcp(authorizer)
+
+    async def reject_unknown_field() -> None:
+        with pytest.raises(ToolError, match="extra_forbidden"):
+            await server.call_tool(
+                POLICY_VERIFY_TOOL,
+                {
+                    "request": {
+                        "signedGrant": signed.model_dump(mode="json", by_alias=True),
+                        "parameterDigest": "b" * 64,
+                        "unexpected": True,
+                    }
+                },
+            )
+
+    asyncio.run(reject_unknown_field())
