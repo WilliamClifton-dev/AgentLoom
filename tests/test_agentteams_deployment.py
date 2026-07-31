@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "deploy" / "agentteams"
 
 
-def load_resource(name: str) -> dict[str, object]:
-    return json.loads((DEPLOY / "resources" / name).read_text(encoding="utf-8"))
+def load_resource(name: str) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads((DEPLOY / "resources" / name).read_text(encoding="utf-8")),
+    )
 
 
 def test_agentteams_version_lock_is_immutable_and_pinned() -> None:
@@ -64,3 +67,20 @@ def test_resources_do_not_embed_secrets() -> None:
 
     forbidden = ("api_key", "apikey", "password", "secret", "token", "sk-")
     assert not any(term in resource_text for term in forbidden)
+
+
+def test_deployment_script_fails_closed_and_redacts_human_password() -> None:
+    script = (DEPLOY / "deploy.ps1").read_text(encoding="utf-8")
+
+    assert '$dockerArguments = @("exec", $ControllerContainer, "hiclaw") + $Arguments' in script
+    assert "Invoke-Docker -Arguments $dockerArguments" in script
+    assert "Assert-ImageDigest" in script
+    assert 'manager.phase -eq "Running"' in script
+    assert 'team.phase -eq "Active"' in script
+    assert "workers.total -eq 3" in script
+    assert 'human.phase -eq "Active"' in script
+    assert "$validHumanRooms -contains $team.teamRoomID" in script
+    assert "Wait-AgentTeamCoreReady" in script
+    assert "Test-HumanExists" in script
+    assert "Human updates are not supported by AgentTeams v1.1.2" in script
+    assert "initialPassword" not in script
