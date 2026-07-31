@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReviewInput",
+  "type": "object",
+  "required": ["taskId", "patchArtifactRef", "acceptanceCriteria", "evidenceRefs"],
+  "properties": {
+    "taskId": {"type": "string", "minLength": 1},
+    "patchArtifactRef": {"type": "string", "minLength": 1},
+    "acceptanceCriteria": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "evidenceRefs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

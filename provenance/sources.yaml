@@ -9,8 +9,19 @@ sources:
     vendored: false
   - name: addyosmani/agent-skills
     url: https://github.com/addyosmani/agent-skills
-    relationship: planned-skill-import
+    relationship: quarantined-skill-source
     license: MIT
-    version: null
-    commit: null
+    version: commit-7829ffd
+    commit: 7829ffd90d973b6325f5f12f1b1226dcace74443
     vendored: false
+    selected_skills:
+      - path: skills/debugging-and-error-recovery
+        content_hash: sha256:dd38637e2ddff7f7841901c8e686544c9637f33fcc66c6c9cf0a97d4e35c5d5d
+      - path: skills/test-driven-development
+        content_hash: sha256:fc05ca0b8dc3a8aa51244e0981e063818566514be344490c60e4a9e4466d4cbe
+      - path: skills/code-review-and-quality
+        content_hash: sha256:608c0fb8e974547cc24b8207812b09aceb76f05071bfdc1e10396f3c6118b0b6
+      - path: skills/security-and-hardening
+        content_hash: sha256:aaf809d009609b84059d721018502d7d4edfab73021ecf1df0974d9f5207c0c0
+      - path: skills/using-agent-skills
+        content_hash: sha256:2fcfd809956e58ef79c6f6de39fbee88c46fc8835fde0b08081341e4522c703d

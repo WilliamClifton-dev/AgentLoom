@@ -48,6 +48,7 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - HMAC-signed Skill grants with expiry, approval, parameter binding, and replay
   protection
 - Fail-closed detection pipeline and deterministic L1 Skill checks
+- Pinned quarantine catalog and strict input/output schemas for five upstream Skills
 - FastAPI create/list/get task API
 - Optimistic task state transitions with append-only reasoned events
 - Internal Policy Broker boundary for one-time Grant verification
@@ -78,10 +79,11 @@ ignored environment files or process environment variables. Never commit them.
 ## Roadmap to Demo
 
 1. Verify AgentTeams/HiClaw `v1.1.2` deployment.
-2. Register Manager, Investigator, Implementer, Verifier, Team, and Human resources.
-3. Expose the Policy Broker through MCP.
-4. Complete normal, failure, approval, and rollback repair paths.
-5. Add the Textual/Rich TUI and reproducible Docker launch.
+2. Evaluate and publish the five quarantined upstream Skills.
+3. Register Manager, Investigator, Implementer, Verifier, Team, and Human resources.
+4. Expose the Policy Broker through MCP.
+5. Complete normal, failure, approval, and rollback repair paths.
+6. Add the Textual/Rich TUI and reproducible Docker launch.
 
 ## Provenance
 

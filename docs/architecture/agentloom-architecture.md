@@ -499,7 +499,45 @@ reuse:
 
 上游 Skill 只作为内容来源。Skill 导入、标准化、评测、策略、发布、路由、运行记录和回滚属于 AgentLoom 原创系统层。
 
-### 9.4 Skill 路由
+### 9.4 `addyosmani/agent-skills` 首批导入方案
+
+`addyosmani/agent-skills` 作为 AgentLoom 的主要上游工作流内容源，但不承担 Agent 编排、授权、执行隔离或结果放行。首批只选择与缺陷修复闭环直接相关的五个 Skill，禁止一次性安装全部内容。
+
+| 上游 Skill 路径 | AgentTeams 角色绑定 | 标准化输出 | 在闭环中的职责 | 初赛状态 |
+| --- | --- | --- | --- | --- |
+| `skills/debugging-and-error-recovery` | Investigator | `RootCauseReport` | 复现失败、收集证据、定位根因；不得修改仓库 | 来源已锁定并隔离；待 Eval/发布 |
+| `skills/test-driven-development` | Implementer | `PatchArtifact` | 先固化失败测试，再生成最小补丁和局部测试证据 | 来源已锁定并隔离；待 Eval/发布 |
+| `skills/code-review-and-quality` | Verifier | `ReviewFindings` | 在清洁快照中独立审查 Diff、回归风险和验收标准 | 来源已锁定并隔离；待 Eval/发布 |
+| `skills/security-and-hardening` | Verifier | `RiskReport` | 检查补丁、依赖、权限和工具调用链的安全风险 | 来源已锁定并隔离；待 Eval/发布 |
+| `skills/using-agent-skills` | Manager | `SkillCandidateSet` | 根据任务、角色、权限和风险选择少量候选 Skill | 来源已锁定并隔离；待 Eval/发布 |
+
+每个导入版本必须经过同一标准化流水线：
+
+```text
+Git source + immutable commit
+  -> quarantine + MIT license verification + content hash
+  -> parse upstream SKILL.md without rewriting it
+  -> generate SkillManifest and input/output JSON Schema
+  -> bind AgentTeams role, tool allowlist and path allowlist
+  -> assign L0-L3 risk and Policy Broker rules
+  -> run upstream Eval and AgentLoom repair benchmark
+  -> approve and publish, or reject and keep quarantined
+```
+
+运行时不因 Manager 选中某个 Skill 就自动获得工具权限。Router 只产生 `SkillCandidateSet`；Manager 确认候选后，Policy Broker 基于具体任务、Agent、SkillVersion、工具、路径、风险级别、审批引用和有效期签发 `SkillExecutionGrant`。Worker 每次工具调用都必须携带该 Grant，越权、过期、重放或哈希不匹配时 fail-closed。
+
+首批导入的统一验收门禁如下：
+
+1. 来源仓库、不可变 commit、MIT License 和内容哈希可核验；
+2. `SkillManifest`、输入 Schema、输出 Schema、失败码和 AgentTeams 角色绑定齐全；
+3. 工具与路径权限使用白名单，风险级别与审批条件明确；
+4. 上游 Eval 和 AgentLoom 缺陷修复基准均有不可变 Evidence，未达到阈值不得发布；
+5. 至少完成一次真实角色调用，并能从 TaskRun 追溯到 SkillVersion、Grant、ToolCall 和输出产物；
+6. 升级重新走隔离、扫描和评测；线上异常可阻断版本并回滚到上一已批准版本。
+
+原创边界固定为：`agent-skills` 提供成熟的工作流方法和内容；AgentLoom 提供受治理、经授权、可审计、可验证和可回滚的执行系统。上游原文、名称和来源不得改写为团队原创；AgentTeams 仍是唯一多 Agent 编排运行时。
+
+### 9.5 Skill 路由
 
 Skill Router 不把所有 Skill 注入模型上下文，采用四阶段选择：
 
@@ -521,7 +559,7 @@ score = 0.40 * taskSuccessRate
 
 初赛可以使用固定权重；复赛再通过评测数据校准。不得把 Star 数量直接作为质量分。
 
-### 9.5 Skill 系统内部模块与边界
+### 9.6 Skill 系统内部模块与边界
 
 | 模块 | 主要操作 | 持久化 | 关键不变量 |
 | --- | --- | --- | --- |
@@ -992,7 +1030,7 @@ AgentTeams v1.1.2 官方本地安装（该版本运行资源仍使用 HiClaw 名
 
 | 项目 | 许可证/状态 | 借鉴或使用范围 | 不直接复制的部分 |
 | --- | --- | --- | --- |
-| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | MIT | 初始工程 Skill 内容来源 | 不把上游 Skill 声明为原创 |
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | MIT，计划内容导入 | `debugging-and-error-recovery`、`test-driven-development`、`code-review-and-quality`、`security-and-hardening`、`using-agent-skills` 五个工作流内容源 | 不把上游 Skill 声明为原创；不使用其内容替代 AgentTeams、Policy Broker 或 AgentLoom 运行时治理 |
 | [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) | Apache-2.0，比赛指定 | 实际部署 `v1.1.2` 的 Manager、Worker、Team、Human、Matrix、MinIO 和 Higress；按该版本 HiClaw 资源契约配置 | 不以抽象 Adapter 或其他框架替代主编排，不把 beta 能力写成稳定版能力 |
 | [vercel-labs/skills](https://github.com/vercel-labs/skills) | MIT | Git 来源解析、Skill 发现与安装思路 | 不复制整个 CLI |
 | [invariantlabs-ai/mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) | Apache-2.0 | Skill/MCP 风险分类与安全扫描思路 | 自建结果 Schema 和发布门禁 |
@@ -1012,7 +1050,7 @@ AgentTeams v1.1.2 官方本地安装（该版本运行资源仍使用 HiClaw 名
 | 项目 | 复用类型 | 落点模块 | 具体复用/改造 | 阶段 | 验证与退出条件 |
 | --- | --- | --- | --- | --- | --- |
 | AgentTeams | 直接依赖 | `agentloom/agentteams`、部署清单 | 使用稳定版 Controller、CRD、Matrix、MinIO、Higress；AgentLoom 只写 Gateway 与资源模板 | 初赛主链 | E2E 查验 4 Agent、Team、Human、Room、Artifact；不可退出或替换 |
-| addyosmani/agent-skills | 内容导入 | `skills/upstream`、Source Connector | 导入 debugging、TDD、review、security 内容；增加 Manifest、哈希、扫描、评测和权限，不删除原声明 | 初赛 | Manifest/License/commit/真实调用证据齐全；单个 Skill 不合格即隔离 |
+| addyosmani/agent-skills | 内容导入 | `skills/upstream`、Source Connector、Normalizer、Router | 选择性导入 `debugging-and-error-recovery`、`test-driven-development`、`code-review-and-quality`、`security-and-hardening`、`using-agent-skills`；保留原文和声明，增加 Manifest、Schema、哈希、角色绑定、权限、风险、Grant、双重评测和版本生命周期 | 初赛 | 五个 Skill 分别锁定 commit/License/hash；Manifest、权限白名单、AgentTeams 角色、上游 Eval、AgentLoom-Bench 和真实调用证据齐全；任一门禁失败则保持隔离，全部内容不得批量直装 |
 | vercel-labs/skills | 设计借鉴 | Source Connector、Distributor | 借鉴 Git 来源发现和安装体验；不复制 CLI，统一转为 AgentLoom ImportRun | 初赛后 | 契约测试覆盖 Git URL、commit、路径和重复导入；若增加复杂度则删除该 Connector |
 | mcp-scan | 设计借鉴，可选规则转换 | L1 Scanner | 借鉴风险分类；规则转换为 AgentLoom Finding Schema，不直接信任其 verdict | 初赛 | 用恶意/正常 fixture 验证误报漏报；不可用时保留自建最小规则集 |
 | Promptfoo | 设计借鉴，可选测试工具 | Evaluation Runner | 借鉴声明式用例矩阵和断言；初赛 pytest runner 输出统一 EvalRun | 初赛后加分 | 同一数据集重复运行一致；若引入则记录版本且不成为唯一证据源 |
@@ -1297,6 +1335,14 @@ agentloom/
 - **替代方案**：只做静态扫描，或只做 Verifier。
 - **代价**：增加沙箱、测试和证据存储成本；初赛用一个确定性样例验证三层，不扩展通用恶意样本库。
 
+### ADR-010：将 `addyosmani/agent-skills` 作为主要上游工作流内容源
+
+- **状态**：Accepted
+- **原因**：其调试、测试驱动开发、代码审查、安全加固和 Skill 选择工作流成熟，能缩短初赛内容建设周期；AgentLoom 的差异化不在重写这些方法，而在把 Markdown 工作流转化为受治理、经授权、可评测的运行契约。
+- **实现约束**：首批只导入五个选定 Skill；导入前锁定 commit、License 和哈希，保留上游声明；必须补充 Manifest、Schema、AgentTeams 角色绑定、权限白名单、风险级别、`SkillExecutionGrant`、双重评测以及发布/隔离/升级/回滚状态。该仓库不得成为编排或安全运行时。
+- **替代方案**：从零编写全部工作流；直接安装上游全部 Skill。
+- **代价**：需要承担上游版本跟踪、格式适配、许可证披露和逐版本回归成本；选择性导入减少上下文和攻击面，但新增 Skill 必须重复完整准入流程。
+
 ## 23. 主要风险与缓解
 
 | 风险 | 影响 | 缓解措施 |
@@ -1304,6 +1350,8 @@ agentloom/
 | AgentTeams 版本或资源契约变化 | 阻塞主链路 | 初赛锁定稳定版 `v1.1.2` 和镜像摘要；升级必须重跑 E2E；AgentLoom 只通过公开 CRD/API/MCP 边界扩展 |
 | 官方用云 Skill 选择不合适 | 赛题对齐不足 | 尽早在 skills.aliyun.com 验证可用项，并选择与 Demo 直接相关能力 |
 | 第三方 Skill 内容过多 | 上下文污染、成本升高 | 元数据预筛选，最多注入 3-5 个候选，正文按需加载 |
+| 上游 Skill 漂移或语义变化 | 已发布行为与评测证据失配 | 锁定不可变 commit 和内容哈希；升级视为新 SkillVersion，重新隔离、扫描、评测和审批 |
+| Markdown 工作流与可执行契约不一致 | Agent 理解正确但工具权限、输入输出或失败语义不可强制 | Normalizer 生成 Manifest/Schema；Policy Broker 强制 Grant；契约测试覆盖角色、工具、路径和失败码 |
 | LLM 输出不稳定 | Demo 失败 | 固定任务、固定模型参数、结构化输出、重试预算和录制前回放 |
 | Verifier 与 Implementer 共用偏差 | 错误通过 | 独立 Prompt、权限和干净环境；可选不同模型复核 |
 | 额外沙箱搭建耗时 | 初赛延期 | 初赛先使用 AgentTeams 独立 Worker 容器与清洁快照；OpenSandbox 仅在边界不足时接入 |
