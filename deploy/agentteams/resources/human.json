@@ -1,0 +1,16 @@
+{
+  "apiVersion": "hiclaw.io/v1beta1",
+  "kind": "Human",
+  "metadata": {
+    "name": "agentloom-developer"
+  },
+  "spec": {
+    "displayName": "AgentLoom Developer",
+    "permissionLevel": 2,
+    "accessibleTeams": [
+      "agentloom-repair"
+    ],
+    "accessibleWorkers": [],
+    "note": "Competition demo operator and approval observer"
+  }
+}
