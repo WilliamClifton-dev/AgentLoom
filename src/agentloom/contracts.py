@@ -152,6 +152,22 @@ class SkillCatalog(ContractModel):
         return self
 
 
+class RootCauseReport(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    summary: str = Field(min_length=1)
+    confidence: float = Field(ge=0, le=1)
+    evidence_refs: list[str] = Field(alias="evidenceRefs", min_length=1)
+    repair_constraints: list[str] = Field(alias="repairConstraints")
+
+
+class PatchArtifact(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    patch_uri: str = Field(alias="patchUri", min_length=1)
+    sha256: Sha256Digest = Field(pattern=r"^[a-f0-9]{64}$")
+    changed_paths: list[str] = Field(alias="changedPaths", min_length=1)
+    evidence_refs: list[str] = Field(alias="evidenceRefs", min_length=1)
+
+
 class EvidenceRecord(ContractModel):
     schema_version: Literal["agentloom.evidence/v1alpha1"] = (
         "agentloom.evidence/v1alpha1"
@@ -248,6 +264,35 @@ class Finding(ContractModel):
     severity: Severity
     message: str = Field(min_length=1)
     location: str | None = None
+
+
+class RiskReport(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    risk_level: RiskLevel = Field(alias="riskLevel")
+    verdict: VerificationVerdict
+    findings: list[Finding]
+    evidence_refs: list[str] = Field(alias="evidenceRefs", min_length=1)
+
+
+class RepairArtifactBundle(ContractModel):
+    root_cause: RootCauseReport = Field(alias="rootCause")
+    patch: PatchArtifact
+    verification: VerificationResult
+    risk: RiskReport
+
+    @model_validator(mode="after")
+    def role_outputs_refer_to_one_verified_patch(self) -> "RepairArtifactBundle":
+        task_ids = {
+            self.root_cause.task_id,
+            self.patch.task_id,
+            self.verification.task_id,
+            self.risk.task_id,
+        }
+        if len(task_ids) != 1:
+            raise ValueError("repair artifacts must use the same taskId")
+        if self.patch.sha256 != self.verification.patch_hash:
+            raise ValueError("verification patch hash must match PatchArtifact")
+        return self
 
 
 class DetectionResult(ContractModel):

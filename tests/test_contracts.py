@@ -6,6 +6,11 @@ from pydantic import ValidationError
 from agentloom.contracts import (
     AgentIdentity,
     EvidenceRecord,
+    Finding,
+    PatchArtifact,
+    RepairArtifactBundle,
+    RiskReport,
+    RootCauseReport,
     SkillEvaluation,
     SkillExecutionGrant,
     SkillManifest,
@@ -155,4 +160,87 @@ def test_grant_expiry_must_follow_issue_time() -> None:
             nonce="nonce-01",
             issued_at=issued_at,
             expires_at=issued_at - timedelta(seconds=1),
+        )
+
+
+def make_repair_artifact_bundle() -> RepairArtifactBundle:
+    patch_hash = "c" * 64
+    return RepairArtifactBundle(
+        root_cause=RootCauseReport(
+            task_id="task-01",
+            summary="Whitespace was not removed before severity normalization.",
+            confidence=0.95,
+            evidence_refs=["ev-failing-test"],
+            repair_constraints=["Only src/severity.py may change."],
+        ),
+        patch=PatchArtifact(
+            task_id="task-01",
+            patch_uri="artifact://task-01/repair.patch",
+            sha256=patch_hash,
+            changed_paths=["src/severity.py"],
+            evidence_refs=["ev-patch"],
+        ),
+        verification=VerificationResult(
+            task_id="task-01",
+            patch_hash=patch_hash,
+            verdict="PASSED",
+            checks=VerificationChecks(
+                original_failure_reproduced=True,
+                target_tests_passed=True,
+                regression_tests_passed=True,
+                static_checks_passed=True,
+                unauthorized_changes=False,
+            ),
+            evidence_refs=["ev-failing-test", "ev-patch", "ev-passing-test"],
+            reason="The target and regression tests pass in a clean copy.",
+            verifier_agent="agentloom-verifier",
+        ),
+        risk=RiskReport(
+            task_id="task-01",
+            risk_level="L1",
+            verdict="PASSED",
+            findings=[
+                Finding(
+                    rule_id="PATCH_SCOPE",
+                    severity="INFO",
+                    message="Only the allowlisted source file changed.",
+                    location="src/severity.py",
+                )
+            ],
+            evidence_refs=["ev-patch", "ev-passing-test"],
+        ),
+    )
+
+
+def test_repair_artifact_bundle_accepts_consistent_role_outputs() -> None:
+    bundle = make_repair_artifact_bundle()
+
+    assert bundle.root_cause.task_id == "task-01"
+    assert bundle.patch.sha256 == bundle.verification.patch_hash
+    assert bundle.risk.verdict == "PASSED"
+
+
+def test_repair_artifact_bundle_rejects_mixed_task_outputs() -> None:
+    bundle = make_repair_artifact_bundle()
+
+    with pytest.raises(ValidationError, match="same taskId"):
+        RepairArtifactBundle(
+            root_cause=bundle.root_cause,
+            patch=bundle.patch.model_copy(update={"task_id": "task-other"}),
+            verification=bundle.verification,
+            risk=bundle.risk,
+        )
+
+
+def test_repair_artifact_bundle_rejects_unverified_patch_hash() -> None:
+    bundle = make_repair_artifact_bundle()
+
+    with pytest.raises(ValidationError, match="patch hash"):
+        RepairArtifactBundle(
+            root_cause=bundle.root_cause,
+            patch=bundle.patch,
+            verification=bundle.verification.model_copy(
+                update={"patch_hash": "d" * 64}
+            ),
+            risk=bundle.risk,
         )
