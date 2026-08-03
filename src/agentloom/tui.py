@@ -290,9 +290,12 @@ class AgentLoomApp(App[None]):
 
 def _load_case(root: Path) -> DemoCase:
     try:
-        return load_demo_case(root)
+        case = load_demo_case(root)
     except (DemoCaseError, OSError, ValidationError) as exc:
         raise DemoRunError(f"invalid demo case at {root}: {exc}") from exc
+    if case.manifest.case_id != case.root.name:
+        raise DemoRunError("demo caseId must match its directory name")
+    return case
 
 
 def _case_summary(case: DemoCase) -> DemoCaseSummary:

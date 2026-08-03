@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,27 @@ def test_demo_run_service_rejects_unknown_case_id(tmp_path: Path) -> None:
 
     with pytest.raises(DemoRunError, match="unknown demo case"):
         service.run_case("../../not-a-case")
+
+
+def test_demo_run_service_rejects_case_id_that_does_not_match_directory(
+    tmp_path: Path,
+) -> None:
+    case_root = tmp_path / "cases" / "renamed-case"
+    source = CASES / "severity-normalization"
+    shutil.copytree(source, case_root)
+    manifest_path = case_root / "case.json"
+    manifest_path.write_text(
+        manifest_path.read_text(encoding="utf-8").replace(
+            '"caseId": "severity-normalization"',
+            '"caseId": "different-case-id"',
+        ),
+        encoding="utf-8",
+    )
+
+    service = DemoRunService(cases_root=case_root.parent, runs_root=tmp_path / "runs")
+
+    with pytest.raises(DemoRunError, match="must match its directory name"):
+        service.list_cases()
 
 
 @pytest.mark.asyncio
