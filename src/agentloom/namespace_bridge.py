@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
+import subprocess
+import sys
+import tempfile
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
+from pathlib import Path
 from typing import Literal, Protocol
 
 BridgeAction = Literal["STAGE", "COLLECT"]
@@ -36,6 +43,61 @@ class NamespaceStorage(Protocol):
     def copy(self, source: str, target: str) -> None: ...
 
     def mirror(self, source_prefix: str, target_prefix: str) -> None: ...
+
+
+CommandRunner = Callable[[list[str]], subprocess.CompletedProcess[bytes]]
+
+
+class DockerMcStorage:
+    """MinIO adapter that executes only fixed `mc` commands in the controller."""
+
+    def __init__(
+        self,
+        controller_container: str,
+        *,
+        runner: CommandRunner | None = None,
+    ) -> None:
+        self._controller_container = _validated_identifier(
+            controller_container,
+            "controller_container",
+        )
+        self._runner = runner or _run_command
+
+    def exists(self, path: str) -> bool:
+        result = self._invoke("stat", path)
+        return result.returncode == 0
+
+    def read(self, path: str) -> bytes:
+        return self._checked("cat", path).stdout
+
+    def copy(self, source: str, target: str) -> None:
+        self._checked("cp", source, target)
+
+    def mirror(self, source_prefix: str, target_prefix: str) -> None:
+        self._checked("mirror", source_prefix, target_prefix, "--overwrite")
+
+    def _invoke(self, *arguments: str) -> subprocess.CompletedProcess[bytes]:
+        return self._runner(
+            [
+                "docker",
+                "exec",
+                self._controller_container,
+                "mc",
+                *arguments,
+            ]
+        )
+
+    def _checked(
+        self,
+        operation: str,
+        *arguments: str,
+    ) -> subprocess.CompletedProcess[bytes]:
+        result = self._invoke(operation, *arguments)
+        if result.returncode != 0:
+            raise NamespaceBridgeError(
+                f"mc {operation} failed in {self._controller_container}"
+            )
+        return result
 
 
 @dataclass(frozen=True)
@@ -81,6 +143,17 @@ class NamespaceBridgeEvidence:
     copied_files: tuple[str, ...]
     file_sha256: dict[str, str]
     verified_at: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "action": self.action,
+            "taskId": self.task_id,
+            "teamName": self.team_name,
+            "specSha256": self.spec_sha256,
+            "copiedFiles": list(self.copied_files),
+            "fileSha256": self.file_sha256,
+            "verifiedAt": self.verified_at,
+        }
 
 
 class NamespaceBridge:
@@ -198,3 +271,99 @@ def _validated_storage_prefix(value: str) -> str:
 
 def _digest(content: bytes) -> str:
     return sha256(content).hexdigest()
+
+
+def discover_storage_prefix(
+    controller_container: str,
+    *,
+    runner: CommandRunner | None = None,
+) -> str:
+    """Read only the non-secret storage prefix from the controller."""
+    safe_container = _validated_identifier(
+        controller_container,
+        "controller_container",
+    )
+    execute = runner or _run_command
+    result = execute(
+        [
+            "docker",
+            "exec",
+            safe_container,
+            "printenv",
+            "HICLAW_STORAGE_PREFIX",
+        ]
+    )
+    if result.returncode != 0:
+        raise NamespaceBridgeError(
+            f"cannot discover storage prefix from {safe_container}"
+        )
+    prefix = result.stdout.decode("utf-8", errors="strict").strip()
+    return _validated_storage_prefix(prefix)
+
+
+def write_evidence(evidence: NamespaceBridgeEvidence, path: Path) -> None:
+    """Atomically write secret-free bridge evidence."""
+    destination = path.resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(evidence.to_dict(), indent=2, sort_keys=True) + "\n"
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary.write(payload)
+            temporary_path = Path(temporary.name)
+        temporary_path.replace(destination)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Bridge one AgentTeams parent task across storage namespaces."
+    )
+    parser.add_argument("action", choices=("stage", "collect"))
+    parser.add_argument("--task-id", required=True)
+    parser.add_argument("--team-name", default="agentloom-repair")
+    parser.add_argument("--controller", default="hiclaw-controller")
+    parser.add_argument("--storage-prefix")
+    parser.add_argument("--evidence-path", type=Path)
+    arguments = parser.parse_args(argv)
+
+    try:
+        storage_prefix = arguments.storage_prefix or discover_storage_prefix(
+            arguments.controller
+        )
+        layout = NamespaceLayout.build(
+            storage_prefix=storage_prefix,
+            team_name=arguments.team_name,
+            task_id=arguments.task_id,
+        )
+        bridge = NamespaceBridge(DockerMcStorage(arguments.controller))
+        evidence = (
+            bridge.stage(layout)
+            if arguments.action == "stage"
+            else bridge.collect(layout)
+        )
+        if arguments.evidence_path is not None:
+            write_evidence(evidence, arguments.evidence_path)
+        print(json.dumps(evidence.to_dict(), indent=2, sort_keys=True))
+        return 0
+    except (NamespaceBridgeError, ValueError, UnicodeError) as exc:
+        print(f"namespace bridge failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def _run_command(command: list[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(command, check=False, capture_output=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

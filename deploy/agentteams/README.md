@@ -84,11 +84,41 @@ Local Ollama remains an offline fallback, not the competition default. It is
 adequate for provider and delivery smoke tests but was too slow and unreliable
 for repeatable multi-step tool orchestration on the current machine.
 
-Known `v1.1.2` limitation: a Team Leader `filesync` pull of
-`shared/tasks/<id>/` is resolved under the Team namespace, while Manager writes
-the parent task under the global shared namespace. The strict role-message E2E
-continues from the inline task instructions, but a complete repair-artifact E2E
-must resolve this namespace handoff before it can be claimed.
+## Parent-task namespace bridge
+
+AgentTeams `v1.1.2` resolves a Team Leader's `shared/tasks/<id>/` under the
+Team namespace, while Manager parent tasks live under global `shared/tasks/`.
+The Leader can read the latter as `global-shared/`, but that path is read-only,
+so the upstream documented write-back flow cannot carry repair artifacts.
+
+AgentLoom keeps the upstream images unchanged and bridges only one validated
+task directory at a time. Stage verifies `spec.md` and mirrors the Manager parent
+task into the selected Team namespace:
+
+```powershell
+.venv\Scripts\python -m agentloom.namespace_bridge stage `
+  --task-id AL-DEMO-001 `
+  --team-name agentloom-repair `
+  --evidence-path .\artifacts\agentteams\AL-DEMO-001-stage.json
+```
+
+After the Leader and Workers finish, collect verifies that the Team copy of
+`spec.md` is unchanged and copies only the fixed result allowlist back to the
+global parent task:
+
+```powershell
+.venv\Scripts\python -m agentloom.namespace_bridge collect `
+  --task-id AL-DEMO-001 `
+  --team-name agentloom-repair `
+  --evidence-path .\artifacts\agentteams\AL-DEMO-001-collect.json
+```
+
+The allowlist is `result.md`, `root-cause-report.json`, `patch-artifact.json`,
+`verification-result.json`, `risk-report.json`, and `test-results.txt`.
+Workspace files, Team metadata, and unknown outputs never cross into the global
+namespace. Both operations are idempotent for the same immutable `spec.md` and
+fail closed on missing objects or hash mismatches. Evidence contains object
+names and SHA-256 values only; it contains no MinIO or Matrix credentials.
 
 AgentTeams `v1.1.2` returns HTTP `405` when `hiclaw apply -f` tries to update an
 existing Human. The script therefore preserves an existing

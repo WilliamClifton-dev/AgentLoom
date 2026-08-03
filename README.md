@@ -57,6 +57,7 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Deterministic repair workflow with investigation, implementation, independent verification, approval, failure, and rollback states
 - Pinned AgentTeams `v1.1.2` Manager, Team Leader, two Workers, and Human resources
 - Strict Matrix E2E with role-owned markers from all four Agent identities
+- Hash-verified AgentTeams global-to-team parent-task namespace bridge
 - Unit and integration test suite
 
 ## Local Development
@@ -100,11 +101,10 @@ instructions are in [deploy/agentteams/README.md](deploy/agentteams/README.md).
 
 ## Roadmap to Demo
 
-1. Resolve the AgentTeams Team Leader shared-task namespace handoff.
-2. Run one complete repair-artifact workflow through all four roles.
-3. Evaluate and publish the five quarantined upstream Skills.
-4. Add the Textual/Rich TUI for tasks, evidence, approvals, and reports.
-5. Add reproducible Docker launch.
+1. Run one complete repair-artifact workflow through all four roles.
+2. Evaluate and publish the five quarantined upstream Skills.
+3. Add the Textual/Rich TUI for tasks, evidence, approvals, and reports.
+4. Add reproducible Docker launch.
 
 ## Provenance
 

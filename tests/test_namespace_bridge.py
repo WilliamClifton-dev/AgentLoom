@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import json
+import subprocess
 from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
 from agentloom.namespace_bridge import (
     ALLOWED_RESULT_FILES,
+    DockerMcStorage,
     NamespaceBridge,
     NamespaceBridgeError,
     NamespaceLayout,
+    discover_storage_prefix,
+    write_evidence,
 )
 
 
@@ -163,3 +169,134 @@ def test_collect_requires_a_team_owned_result() -> None:
 
     with pytest.raises(NamespaceBridgeError, match="result.md"):
         NamespaceBridge(storage).collect(layout)
+
+
+class CommandRunner:
+    def __init__(self, responses: list[subprocess.CompletedProcess[bytes]]) -> None:
+        self.responses = list(responses)
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: list[str]) -> subprocess.CompletedProcess[bytes]:
+        self.commands.append(command)
+        return self.responses.pop(0)
+
+
+def completed(
+    *, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.CompletedProcess(
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def test_docker_storage_uses_argument_arrays_for_minio_operations() -> None:
+    runner = CommandRunner(
+        [
+            completed(),
+            completed(stdout=b"spec"),
+            completed(),
+            completed(),
+        ]
+    )
+    storage = DockerMcStorage("hiclaw-controller", runner=runner)
+
+    assert storage.exists("hiclaw/hiclaw-storage/shared/tasks/T/spec.md")
+    assert storage.read("hiclaw/hiclaw-storage/shared/tasks/T/spec.md") == b"spec"
+    storage.copy("source/result.md", "target/result.md")
+    storage.mirror("source/", "target/")
+
+    assert runner.commands == [
+        [
+            "docker",
+            "exec",
+            "hiclaw-controller",
+            "mc",
+            "stat",
+            "hiclaw/hiclaw-storage/shared/tasks/T/spec.md",
+        ],
+        [
+            "docker",
+            "exec",
+            "hiclaw-controller",
+            "mc",
+            "cat",
+            "hiclaw/hiclaw-storage/shared/tasks/T/spec.md",
+        ],
+        [
+            "docker",
+            "exec",
+            "hiclaw-controller",
+            "mc",
+            "cp",
+            "source/result.md",
+            "target/result.md",
+        ],
+        [
+            "docker",
+            "exec",
+            "hiclaw-controller",
+            "mc",
+            "mirror",
+            "source/",
+            "target/",
+            "--overwrite",
+        ],
+    ]
+
+
+def test_docker_storage_redacts_command_output_on_failure() -> None:
+    runner = CommandRunner(
+        [completed(returncode=1, stderr=b"provider-secret-should-not-escape")]
+    )
+    storage = DockerMcStorage("hiclaw-controller", runner=runner)
+
+    with pytest.raises(NamespaceBridgeError, match="mc cp failed") as error:
+        storage.copy("source", "target")
+
+    assert "provider-secret" not in str(error.value)
+
+
+def test_storage_prefix_is_discovered_without_exposing_other_environment() -> None:
+    runner = CommandRunner([completed(stdout=b"hiclaw/hiclaw-storage\n")])
+
+    prefix = discover_storage_prefix("hiclaw-controller", runner=runner)
+
+    assert prefix == "hiclaw/hiclaw-storage"
+    assert runner.commands == [
+        [
+            "docker",
+            "exec",
+            "hiclaw-controller",
+            "printenv",
+            "HICLAW_STORAGE_PREFIX",
+        ]
+    ]
+
+
+def test_evidence_writer_emits_camel_case_secret_free_json(tmp_path: Path) -> None:
+    layout = make_layout()
+    spec = b"spec"
+    storage = MemoryStorage(
+        {
+            f"{layout.global_task_prefix}spec.md": spec,
+            f"{layout.team_task_prefix}spec.md": spec,
+            f"{layout.team_task_prefix}result.md": b"STATUS: SUCCESS",
+        }
+    )
+    evidence = NamespaceBridge(storage).collect(layout)
+    evidence_path = tmp_path / "bridge.json"
+
+    write_evidence(evidence, evidence_path)
+
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert payload["action"] == "COLLECT"
+    assert payload["taskId"] == "AL-MOCK-001"
+    assert payload["teamName"] == "agentloom-repair"
+    assert payload["specSha256"] == sha256(spec).hexdigest()
+    assert payload["copiedFiles"] == ["result.md"]
+    assert payload["fileSha256"]["result.md"]
+    assert "password" not in evidence_path.read_text(encoding="utf-8").lower()
+    assert "token" not in evidence_path.read_text(encoding="utf-8").lower()
