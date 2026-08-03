@@ -84,3 +84,34 @@ def test_deployment_script_fails_closed_and_redacts_human_password() -> None:
     assert "Test-HumanExists" in script
     assert "Human updates are not supported by AgentTeams v1.1.2" in script
     assert "initialPassword" not in script
+
+
+def test_cloud_provider_script_reads_secret_from_environment_and_redacts_output() -> None:
+    script = (DEPLOY / "configure-provider.ps1").read_text(encoding="utf-8")
+
+    assert 'ApiKeyEnvironmentVariable = "QWEN_API_KEY"' in script
+    assert "GetEnvironmentVariable" in script
+    assert "docker port" in script
+    assert "/api/models/dashscope/config" in script
+    assert "/api/models/dashscope/models" in script
+    assert "/api/models/active" in script
+    assert "qwen3.7-plus" in script
+    assert "apiKey" not in script
+    assert "sk-" not in script
+
+
+def test_e2e_script_requires_role_owned_exact_line_markers() -> None:
+    script = (DEPLOY / "e2e.ps1").read_text(encoding="utf-8")
+
+    assert "Test-ExactMarker" in script
+    assert "$event.sender -eq $ExpectedSender" in script
+    assert "$event.origin_server_ts -lt $StartedAtMilliseconds" in script
+    assert "$lines -contains $Marker" in script
+    assert "IMPLEMENTER_DONE" in script
+    assert "VERIFIER_DONE" in script
+    assert "INVESTIGATOR_DONE" in script
+    assert "MANAGER_DONE" in script
+    assert "E2E_PASS" in script
+    assert "initialPassword" not in script
+    assert "authToken" in script
+    assert "Write-Output $authToken" not in script

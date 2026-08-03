@@ -9,7 +9,8 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 
 > Status: early MVP. Contracts, grant authorization, static detection, task API,
 > optimistic state projection, SQLite persistence, migrations, the Policy Broker
-> MCP transport, and the bounded repair workflow. The TUI is still in progress.
+> MCP transport, bounded repair workflow, and pinned AgentTeams four-role runtime
+> are implemented. The TUI and complete repair-artifact E2E are still in progress.
 
 ## Competition Scope
 
@@ -26,8 +27,8 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 flowchart LR
     Human["Human / Element"] --> Manager["AgentTeams Manager"]
     Manager --> Investigator["Investigator"]
-    Manager --> Implementer["Implementer"]
-    Manager --> Verifier["Verifier"]
+    Investigator --> Implementer["Implementer"]
+    Investigator --> Verifier["Verifier"]
     Investigator --> Broker["AgentLoom Policy Broker"]
     Implementer --> Broker
     Verifier --> Broker
@@ -54,6 +55,8 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Internal API and stdio MCP boundaries for one-time Grant verification
 - SQLite persistence and reversible Alembic migration
 - Deterministic repair workflow with investigation, implementation, independent verification, approval, failure, and rollback states
+- Pinned AgentTeams `v1.1.2` Manager, Team Leader, two Workers, and Human resources
+- Strict Matrix E2E with role-owned markers from all four Agent identities
 - Unit and integration test suite
 
 ## Local Development
@@ -92,11 +95,14 @@ environment.
 All model credentials and deployment-specific settings must be supplied through
 ignored environment files or process environment variables. Never commit them.
 
+AgentTeams deployment, cloud-provider activation, local fallback, and strict E2E
+instructions are in [deploy/agentteams/README.md](deploy/agentteams/README.md).
+
 ## Roadmap to Demo
 
-1. Verify AgentTeams/HiClaw `v1.1.2` deployment.
-2. Evaluate and publish the five quarantined upstream Skills.
-3. Register Manager, Investigator, Implementer, Verifier, Team, and Human resources.
+1. Resolve the AgentTeams Team Leader shared-task namespace handoff.
+2. Run one complete repair-artifact workflow through all four roles.
+3. Evaluate and publish the five quarantined upstream Skills.
 4. Add the Textual/Rich TUI for tasks, evidence, approvals, and reports.
 5. Add reproducible Docker launch.
 

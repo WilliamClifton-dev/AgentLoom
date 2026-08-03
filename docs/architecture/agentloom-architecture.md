@@ -8,8 +8,8 @@
 | 参赛赛道 | GOAI 赛道一：新智基座｜Agent Infra |
 | 参考选题 | 方向三：软件研发全流程协同 |
 | 指定协同平台 | [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) |
-| 文档状态 | Draft v0.4 |
-| 文档日期 | 2026-07-30 |
+| 文档状态 | Draft v0.5 |
+| 文档日期 | 2026-08-01 |
 | 初赛截止 | 2026-08-16 |
 | 主要场景 | 从 GitHub Issue、错误日志和失败测试到补丁、验证与审计报告的端到端闭环 |
 
@@ -69,7 +69,7 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 
 ## 3. 比赛要求对齐
 
-### 3.1 强制要求矩阵
+### 3.1 跨阶段要求与阶段边界
 
 | 比赛要求 | 手册依据 | AgentLoom 设计 | 验证材料 |
 | --- | --- | --- | --- |
@@ -77,14 +77,18 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 | 至少 3 个不同职能 Agent | 第 1、10、16、21 页 | 4 个 Agent，职责与权限互斥 | Agent Identity 清单、AgentTeams Trace |
 | 以 AgentTeams 为协同设计基点 | 第 10、14、17、19 页 | 实际部署 `agentscope-ai/AgentTeams`；使用 Manager、Worker、Team、Human、Matrix、MinIO 和 Higress 完成协作 | AgentTeams 版本锁、资源清单、Element 房间记录、运行日志和可执行代码 |
 | Skill 为必选项 | 第 10、17、19、21-22 页 | Skill Registry、生命周期、调用契约、评测和回滚 | Skill 清单、Manifest、评测报告 |
-| 推荐使用阿里云官方用云 Skill | 第 14-15、17、19 页及工具链说明 | 非硬性必选；只有找到与 Demo 直接相关且可真实验证的能力时选择 1 个，不为覆盖名词而接入 | 必要性说明、调用 Trace、版本与来源披露 |
+| 阿里云官方用云 Skill | 第 11、14-15、17、19 页 | 正文 9.1 和工具链表将其列为可选/推荐；只有找到与 Demo 直接相关且可真实验证的能力时选择 1 个，不为覆盖名词而接入 | 采用时提供必要性、调用 Trace、版本与来源；不采用时说明原因 |
 | 工具或系统稳定接入 | 第 2、8、11-12 页 | Skill -> MCP/Adapter -> Tool 的三层契约 | Tool Contract、Mock/真实接口一致性测试 |
 | 上下文传递与状态追踪 | 第 1、10、21、26-27 页 | Task State、Agent Message、Evidence Index | 状态快照、消息记录和可回放 Trace |
 | 结果验证与执行证据 | 第 8-10、17 页 | 独立 Verifier、测试闸门、证据哈希 | 测试日志、Diff、VerificationResult |
 | 审批、回滚和审计 | 第 2、8-13、16-18 页 | L0-L3 风险分级、人工审批、补丁回滚、追加式审计 | ApprovalRecord、RollbackRecord、审计报告 |
-| 可运行、可复现 Demo | 第 8-10、17-18 页 | Docker 一键启动，固定示例仓库与固定任务 | README、部署脚本、无剪辑 Demo 视频 |
+| 复赛/决赛可运行、可复现 Demo | 第 8-10、17-18 页 | Docker 一键启动，固定示例仓库与固定任务 | README、部署脚本、Demo 或等价可验证工程材料 |
 | 开源与第三方依赖披露 | 第 8-10、15-19 页 | provenance、THIRD_PARTY、License、版本锁定 | 来源清单、许可证、团队贡献说明 |
 | 不得套壳或伪造结果 | 第 18 页 | 明确上游边界；原始 Trace 与不可变证据关联 | 原始运行产物、提交历史、贡献说明 |
+
+阶段边界必须分开表述：初赛必交物只有 500 字以内作品简介和方案 PPT/PDF，可执行 AgentTeams 代码包为可选加分材料；复赛起才强制提交可执行代码包和可运行 Demo/Demo 视频。跨阶段技术要求在初赛需要形成完整设计，工程实现按初赛加分、复赛必交管理，不能把复赛门槛误写成初赛硬要求。
+
+手册存在一处文字冲突：9.1 写明“可使用阿里云官方用云 Skills，也可将关键能力沉淀为可复用 Skill”，第 14-15 页工具链表把官方用云 Skills 标为“推荐”，FAQ Q6 却写“并使用”。本架构以详细要求 9.1 和工具链分级表为实施依据，将 Skill 与 AgentTeams 视为必选，将官方用云 Skills 视为推荐；若组委会发布新的书面解释，以最新通知覆盖本决策。
 
 ### 3.2 评分策略
 
@@ -129,13 +133,25 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 
 ### 4.1 初赛目标
 
+初赛先满足材料门槛，再用可运行原型提供加分证据。两类目标不得混写。
+
+**P0：手册必交目标**
+
+1. 提交 500 字以内作品简介，覆盖场景、方案、创新、开放价值和当前进展。
+2. 提交方案 PPT/PDF，完整说明 AgentTeams 映射、至少 3 个不同职能 Agent、任务闭环、核心 Skill、上下文机制、验证、异常分支、安全与开放计划。
+3. 提供 Agent Identity 清单和核心 Skill 清单，字段分别覆盖手册附录 A、B。
+4. 明确 MCP、RAG、可观测、官方用云 Skill 和其他推荐工具的采用决定、必要性、替代性与迁移成本。
+
+**P1：团队加分原型目标**
+
 1. 实际部署 `agentscope-ai/AgentTeams`，由 1 个 Manager 和 3 个独立 Worker 跑通 4 个不同职能 Agent 的完整协作链路。
-2. 支持从至少 1 个上游来源和 1 个团队原创来源导入表中 5 个核心 Skill；主任务至少真实调用其中 3 个。
+2. 支持从至少 1 个上游来源和 1 个团队原创来源导入 5 个核心 Skill；主任务至少真实调用其中 3 个。
 3. 为每个 Skill 保存来源、许可证、版本、内容哈希、权限和风险信息。
-4. 在隔离工作区中完成 1 个固定缺陷任务的完整闭环，并稳定展示 1 个失败分支和 1 个人工审批分支；3-5 个任务为加分评测，不阻塞初赛主链。
-5. 对核心任务对比 AgentTeams 无治理 Skill 与 AgentTeams + AgentLoom Skill 两种模式；单 Agent 基线为加分项。
-6. 输出补丁、测试结果、风险结论、成本指标和完整 Trace。
-7. 对外部写操作进行人工审批；初赛默认不执行真实 Push 或部署。
+4. 在隔离工作区完成 1 个固定缺陷任务，展示正常链路、1 个失败分支和 1 个人工审批分支。
+5. 输出补丁、测试结果、风险结论、成本指标和 Trace；所有关键结论回链 Evidence ID。
+6. 对外部写操作进行人工审批；初赛默认不执行真实 Push 或部署。
+
+两模式对比、3-5 个评测任务、完整 TUI 和真实 GitHub PR 均为后续加分项，不阻塞初赛 P0 提交。
 
 ### 4.2 非目标
 
@@ -144,6 +160,8 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 - 不实现多租户、计费、商业账户体系或复杂 RBAC 管理后台。
 - 不实现 Kubernetes 级分布式调度。
 - 不抓取或镜像整个 GitHub Skill 生态。
+- 不开展基础模型 Pre-training；不建设训练数据管线或训练基础设施。
+- 初赛不开展 Post-training，包括监督微调、偏好优化或领域适配；先用 Skill、Prompt、结构化契约和评测解决任务稳定性。
 - 不允许 Agent 自己声明任务成功，成功必须由 Verifier 和测试证据决定。
 - 不以 LangGraph、AutoGen、CrewAI、自研状态机或抽象 Adapter 替代 `agentscope-ai/AgentTeams` 主编排。
 - 初赛不使用 RAG；明确实现手册替代项中的共享状态管理和轨迹可观测两项，并以代码检索、结构化上下文包和 Evidence Index 支撑上下文传递。复赛引入知识库时只增加检索接口，不重写协作链。
@@ -213,6 +231,19 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 | CLI/TUI | Typer + Textual + Rich | 同一 Python 包提供自动化 CLI 和可审计本地运维面板 | TUI 只调公开 API；移除不影响 Agent 主链 |
 | 报告 | Jinja2 静态 HTML/Markdown | 无前端构建链，离线可审查、易随提交包分发 | 后续 WebUI 复用相同 Report API |
 | 部署 | AgentTeams 官方本地安装 + AgentLoom Docker Compose | 复用指定平台，AgentLoom 服务独立升级 | 通过网络和 API 契约连接，不修改 AgentTeams 镜像 |
+
+### 6.3 RAG、Pre-training、Post-training 与 MCP 必要性
+
+技术是否进入初赛主链，只看四项：是否解决当前闭环中的真实问题、是否提供可验证证据、是否有更简单替代、是否能由独立开发者在截止前稳定复现。
+
+| 能力 | 初赛决策 | 必要性判断 | 当前替代/实现 | 后续触发条件 |
+| --- | --- | --- | --- | --- |
+| RAG | 不采用 | 固定 Python 仓库、5 个核心 Skill、Issue、日志和测试均可用精确代码检索与结构化引用处理；引入向量库不会提高当前结果可验证性 | AgentTeams 共享状态管理 + AgentLoom 轨迹可观测，满足手册“不使用 RAG 时其余 3 项至少实现 2 项”的要求；上下文使用 Matrix 结构化消息、MinIO 产物和 Evidence Index | Skill/案例规模显著扩大、跨仓库历史经验检索成为瓶颈，并能用检索命中率和任务成功率证明收益 |
+| Pre-training | 不采用 | 赛题不要求自研基础模型；数据、算力、许可、训练稳定性和复现成本与 Agent Infra 主问题无关 | 使用可配置的现有模型，差异化放在 AgentTeams 协同、SkillOps、授权和证据治理 | 无初赛/复赛计划；只有形成独立模型产品目标和合法大规模语料后另立项目评估 |
+| Post-training | 初赛不采用 | 当前没有足够标注数据证明微调优于 Skill、Prompt 和工具契约；提前微调会增加模型绑定与复现风险 | 固定 Prompt、结构化 Schema、Skill 版本、失败回流和 AgentLoom-Bench 评测 | 至少积累代表性任务和稳定重复失败模式，建立训练/验证隔离数据集，并证明微调收益超过成本后再立项 |
+| MCP | 采用 | AgentLoom 需要把 AgentTeams Worker 的工具调用统一收口到可鉴权、可审计、可替换的边界；Policy Broker 已有实现基础 | Worker 只配置 Policy Broker MCP；内部本地 Adapter 可暂不全部改造成 MCP，但必须遵守同一 Tool Contract | 外部消费者、跨语言服务或远程部署出现时，将内部 Adapter 按契约逐个包装为标准 MCP Server |
+
+结论：初赛采用 MCP，不采用 RAG、Pre-training 和 Post-training。后两者不进入 AgentLoom 运行时架构；RAG 保留受指标触发的复赛扩展点，不能因术语热度提前加入。
 
 ## 7. 总体架构
 
@@ -1205,12 +1236,14 @@ agentloom/
 
 ### 19.2 初赛 V0.1：可信闭环
 
+本节是团队加分原型计划，不是手册初赛硬性提交门槛。任何工程任务与 P0 材料冲突时，优先保证 500 字简介和方案 PPT/PDF 按时、准确、可审查。
+
 | 日期 | 里程碑 | 完成定义 |
 | --- | --- | --- |
 | 7 月 30 日 - 8 月 2 日 | 契约与骨架 | Agent Identity、Skill Manifest、Task State、Evidence Schema 固化 |
 | 8 月 3 日 - 8 月 7 日 | 端到端链路 | 部署指定 AgentTeams；Manager + 3 Worker 在 Element Team Room 完成一个固定 Bug 修复 |
 | 8 月 8 日 - 8 月 11 日 | SkillOps 与安全 | 5 个核心 Skill 契约、至少 3 个真实调用、Policy Broker、最小扫描/发布门禁、隔离执行和审批跑通 |
-| 8 月 12 日 - 8 月 14 日 | 评测与材料 | 1 个主任务、失败与审批分支、两模式对比、最小 TUI、静态 Trace 报告、PPT 和视频完成；有余量再扩至 3-5 个任务 |
+| 8 月 12 日 - 8 月 14 日 | 评测与材料 | PPT 和作品简介完成；原型优先固化 1 个主任务、失败与审批分支、Trace 与运行证据；两模式对比、TUI、视频和 3-5 个任务仅在有余量时加入 |
 | 8 月 15 日 | 冻结与提交 | README 可复现，依赖披露完整，提前提交 |
 | 8 月 16 日 | 缓冲 | 只处理提交与材料异常，不增加功能 |
 
@@ -1277,31 +1310,36 @@ agentloom/
 - **端到端测试**：从任务创建到补丁、验证和报告可重复运行。
 - **复现测试**：在清洁环境按 README 一次启动成功。
 
-### 20.2 初赛验收清单
+### 20.2 初赛交付门禁与加分验收
 
-- [ ] 至少 4 个 Agent 均有完整 Agent Identity。
+#### 20.2.1 P0：手册初赛必交
+
+- [ ] 500 字以内作品简介包含项目名称、问题与场景、核心方案、创新点、开放/复用价值和真实当前进展。
+- [ ] 方案 PPT/PDF 覆盖场景价值、AgentTeams 架构映射、至少 3 个不同职能 Agent、任务拆解、上下文传递、结果验证和异常分支。
+- [ ] Agent Identity 清单覆盖附录 A 的 Name、Role、Capabilities、Inputs、Outputs、Dependencies、Decision Boundary 和 Trace。
+- [ ] 核心 Skill 清单覆盖附录 B 的名称、类型、场景、输入输出、调用条件、依赖、失败处理、权限、安全与复用价值。
+- [ ] 说明 RAG、MCP、可观测和推荐工具的采用决定；不使用 RAG 时明确展示共享状态管理与轨迹可观测两项替代能力。
+- [ ] 说明评估指标、安全边界、审批、回滚、风险、开放/开源范围、第三方依赖和后续落地计划。
+- [ ] PPT 只陈述已实现能力；规划中、Mock 和真实调用使用明确标签，不伪造 Demo、数据或 Trace。
+
+#### 20.2.2 P1：初赛加分原型
+
 - [ ] 实际运行 `agentscope-ai/AgentTeams`，版本、镜像摘要和配置已锁定。
-- [ ] Python 3.12、uv lock、FastAPI/Pydantic/SQLAlchemy/Alembic/MCP SDK 版本已锁定。
-- [ ] Manager、3 个 Worker、Team 和 Human 资源均可在 AgentTeams Controller/`hiclaw` 中查验。
-- [ ] Element Team Room 能看到任务委派、Worker 进展、审批和最终结果。
-- [ ] MinIO 中能查验共享仓库、补丁、测试日志和报告产物。
-- [ ] 5 个核心 Skill 均有附录 B 完整字段，主任务至少真实调用其中 3 个，调用条件、失败处理和权限可见。
-- [ ] 至少 1 个团队原创 Skill。
-- [ ] 已核验 skills.aliyun.com 当期能力；若选择官方用云 Skill，已有必要性、真实调用、权限、版本和 Trace 证据；若不选择，已说明原因和等价契约。
-- [ ] Worker 只配置 Policy Broker MCP；缺少、过期或重放 SkillExecutionGrant 的直接工具调用均被拒绝。
-- [ ] L1/L2/L3 分别产生 DetectionResult 和 Evidence，任一层异常不能 fail-open。
-- [ ] MCP Router 的路由快照、超时、熔断、幂等和 Mock 标识可在 Trace 中查验。
-- [ ] Implementer 与 Verifier 权限分离。
-- [ ] 至少 1 个固定任务完成两模式真实对比；3-5 个任务属于加分目标。
-- [ ] 至少展示 1 个失败重试和 1 个人工审批分支。
-- [ ] 成功、失败或不确定结果均生成 ExperienceRecord，Badcase 可回流评测集且不能自动发布 Skill。
-- [ ] 最小 TUI 可查看任务、三层检测、Evidence、待审批项和报告；审批 requestHash 变化时拒绝旧决定。
-- [ ] 至少完成一次 SQLite Alembic upgrade/downgrade 和 route rollback 演练。
-- [ ] 所有最终结论可回链到 Evidence ID。
-- [ ] Demo 能在清洁环境按 README 复现。
-- [ ] `THIRD_PARTY.md`、来源、License 和团队原创边界完整。
-- [ ] 开源范围、模型/API、费用、权限、数据授权、脱敏和可替代性披露完整。
-- [ ] 视频、PPT 和实际 Demo 行为一致。
+- [ ] Manager、3 个 Worker、Team 和 Human 资源可在 AgentTeams Controller/`hiclaw` 中查验。
+- [ ] Element Team Room 显示任务委派、Worker 进展、审批和最终结果；MinIO 可查验补丁、日志和报告。
+- [ ] 5 个核心 Skill 均有完整 Manifest，主任务至少真实调用其中 3 个；至少 1 个为团队原创 Skill。
+- [ ] Worker 只配置 Policy Broker MCP；缺少、过期或重放 SkillExecutionGrant 的调用被拒绝。
+- [ ] 至少 1 个固定任务跑通正常链路，并展示 1 个失败重试和 1 个人工审批分支。
+- [ ] L1/L2/L3 对主任务产生 DetectionResult/Evidence，Implementer 与 Verifier 权限分离。
+- [ ] 所有最终结论回链 Evidence ID；成功、失败和不确定结果形成 ExperienceRecord。
+- [ ] `THIRD_PARTY.md`、来源、License、模型/API、费用、数据授权和团队原创边界完整。
+
+#### 20.2.3 P2：不阻塞初赛
+
+- [ ] 两模式对比与 3-5 个评测任务。
+- [ ] 最小 TUI、视频、清洁环境 Docker 一键复现。
+- [ ] SQLite Alembic upgrade/downgrade、route rollback 和完整迁移演练。
+- [ ] 真实 GitHub PR、官方用云 Skill、Nacos 或集中式观测后端；只在必要且可真实验证时接入。
 
 ## 21. 初赛提交映射
 
@@ -1412,6 +1450,14 @@ agentloom/
 - **实现约束**：该策略仅作用于 Codex 开发任务边界；不得写入 AgentTeams 角色配置或产品 LLM Router。模型切换不改变权限和验收标准；升级与降级必须由任务风险、失败证据和可验证性触发。
 - **替代方案**：全部任务固定使用 Sol；全部任务固定使用 Terra；让模型在单个任务中自行选择模型。
 - **代价**：增加任务分级和交接成本；通过 Task Brief、统一验证门禁和定期路由复盘降低上下文重复与错误分级。
+
+### ADR-012：初赛采用 MCP，不采用 RAG、Pre-training 和 Post-training
+
+- **状态**：Accepted
+- **原因**：Policy Broker MCP 直接解决 AgentTeams 工具调用的鉴权、契约、审计和替换问题；固定代码修复场景不需要语义知识检索，也没有足够数据证明模型训练产生净收益。
+- **实现约束**：Worker 只配置 Policy Broker MCP；共享状态管理和轨迹可观测作为无 RAG 替代能力；模型只通过配置使用，不建设训练管线。
+- **替代方案**：知识库 RAG、领域继续预训练、监督微调或偏好优化、全部工具使用本地私有协议。
+- **代价**：初赛不展示模型训练或向量检索亮点；换取更小系统、更低成本和更强复现性。RAG/Post-training 只有在基准数据证明当前方案存在稳定瓶颈时重新提案，Pre-training 不进入 AgentLoom 路线图。
 
 ## 23. 主要风险与缓解
 

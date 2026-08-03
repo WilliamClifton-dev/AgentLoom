@@ -29,6 +29,19 @@ HICLAW_LLM_PROVIDER=qwen
 HICLAW_DEFAULT_MODEL=qwen3.7-plus
 ```
 
+The running CoPaw containers can also be switched without a restart. Put your
+own key in the `QWEN_API_KEY` process or user environment variable, then run:
+
+```powershell
+.\deploy\agentteams\configure-provider.ps1
+```
+
+AgentTeams `v1.1.2` predates `qwen3.7-plus` in its built-in CoPaw catalog. The
+script registers that model when missing, activates it for Manager and all three
+Workers, and performs one paid connection probe per identity. When quota is
+unavailable or a probe is not wanted, use `-SkipConnectionTest`; activation does
+not itself invoke the model.
+
 ## Apply and verify
 
 Start the official `v1.1.2` embedded deployment first. Then run:
@@ -51,6 +64,31 @@ Success requires locked image digests, Manager `Running`, Team `Active`, all
 three Worker identities `Running`, Human `Active`, and non-empty Matrix Room IDs.
 The evidence file deliberately excludes credentials and the Human initial
 password. `artifacts/` is ignored by Git.
+
+## Strict role-message E2E
+
+The E2E probe invokes live model APIs and can consume paid quota:
+
+```powershell
+.\deploy\agentteams\e2e.ps1 `
+  -EvidencePath .\artifacts\agentteams\e2e-qwen-cloud.json
+```
+
+It accepts success only when Matrix contains role-owned, independent-line
+markers from Investigator, Implementer, Verifier, and Manager. Marker text
+inside a prompt, assignment, or status message cannot satisfy the check. The
+evidence contains only task, sender, Room, event, timestamp, and strict-match
+metadata; it excludes passwords and access tokens.
+
+Local Ollama remains an offline fallback, not the competition default. It is
+adequate for provider and delivery smoke tests but was too slow and unreliable
+for repeatable multi-step tool orchestration on the current machine.
+
+Known `v1.1.2` limitation: a Team Leader `filesync` pull of
+`shared/tasks/<id>/` is resolved under the Team namespace, while Manager writes
+the parent task under the global shared namespace. The strict role-message E2E
+continues from the inline task instructions, but a complete repair-artifact E2E
+must resolve this namespace handoff before it can be claimed.
 
 AgentTeams `v1.1.2` returns HTTP `405` when `hiclaw apply -f` tries to update an
 existing Human. The script therefore preserves an existing
