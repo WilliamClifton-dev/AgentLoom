@@ -11,7 +11,7 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 > optimistic state projection, SQLite persistence, migrations, the Policy Broker
 > MCP transport, bounded repair workflow, and pinned AgentTeams four-role runtime
 > are implemented. The manifest-driven Mock repair-artifact E2E is complete; the
-> live model-generated repair path and TUI are still in progress.
+> local TUI is complete; the live model-generated repair path is still in progress.
 
 ## Competition Scope
 
@@ -61,6 +61,8 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Hash-verified AgentTeams global-to-team parent-task namespace bridge
 - Manifest-driven offline repair-artifact E2E with two independent failing cases,
   isolated hidden tests, patch-scope enforcement, and evidence
+- Textual control panel for selecting cases and viewing role status, task events,
+  verified artifacts, and local failure states
 - Unit and integration test suite
 
 ## Local Development
@@ -123,11 +125,22 @@ Run either case without an LLM or cloud quota:
 Replace `severity-normalization` with `pagination-boundary` for the second
 defect type. The generated artifact contracts are identical for both cases.
 
+Launch the local demo control panel:
+
+```powershell
+.venv\Scripts\agentloom tui
+```
+
+The panel runs only the deterministic local Case workflow. It shows the Manager,
+Investigator, Implementer, and Verifier states, append-only task events, root
+cause, patch hash, verification verdict, risk verdict, and artifact directory.
+It does not call a cloud model or expose deployment credentials.
+
 ## Roadmap to Demo
 
 1. Replace Mock role outputs with one live four-role repair-artifact workflow.
 2. Evaluate and publish the five quarantined upstream Skills.
-3. Add the Textual/Rich TUI for tasks, evidence, approvals, and reports.
+3. Connect live AgentTeams role outputs, approvals, and rollback evidence to the TUI.
 4. Add reproducible Docker launch.
 
 ## Provenance
