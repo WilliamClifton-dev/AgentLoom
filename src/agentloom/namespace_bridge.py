@@ -20,10 +20,12 @@ BridgeAction = Literal["STAGE", "COLLECT"]
 ALLOWED_RESULT_FILES = (
     "result.md",
     "root-cause-report.json",
+    "repair.patch",
     "patch-artifact.json",
     "verification-result.json",
     "risk-report.json",
     "test-results.txt",
+    "evidence.json",
 )
 
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
