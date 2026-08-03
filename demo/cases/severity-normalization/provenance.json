@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "agentloom.demo-provenance/v1alpha1",
+  "repositoryUrl": "https://github.com/WilliamClifton-dev/AgentLoom",
+  "frozenCommit": "877aa5954c3591609cf19f8e5c79decada5256fb",
+  "issueUrl": "https://github.com/WilliamClifton-dev/AgentLoom/blob/877aa5954c3591609cf19f8e5c79decada5256fb/demo/cases/severity-normalization/issue.md",
+  "license": "Apache-2.0",
+  "snapshotSha256": "sha256:5124d63378cbfaff9aecb34fc248df35606b6a3d40c2471f8b34aab5162d43ab"
+}

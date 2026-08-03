@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "agentloom.demo-case/v1alpha1",
+  "caseId": "severity-normalization",
+  "title": "Normalize severity values with surrounding whitespace",
+  "issuePath": "issue.md",
+  "acceptanceCriteria": [
+    "The original failure is reproduced before the patch.",
+    "Whitespace-padded supported values normalize correctly.",
+    "Unknown values remain rejected."
+  ],
+  "provenancePath": "provenance.json",
+  "sourceRoot": "before",
+  "expectedPatchRoot": "expected",
+  "hiddenTestsPath": "hidden-tests",
+  "workingDirectory": ".",
+  "testCommand": ["pytest", "-q"],
+  "staticCheckCommand": ["compileall", "-q", "src", "tests"],
+  "targetFailingTests": [
+    "tests/test_severity.py::test_normalize_severity_accepts_surrounding_whitespace"
+  ],
+  "allowedChangedPaths": ["src/severity.py"],
+  "timeoutSeconds": 60,
+  "outputLimitBytes": 65536,
+  "runtime": {
+    "language": "python",
+    "version": ">=3.12,<3.13"
+  },
+  "expectedRootCause": "Severity normalization uppercased input without trimming whitespace."
+}

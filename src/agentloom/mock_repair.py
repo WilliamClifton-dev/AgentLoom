@@ -1,15 +1,18 @@
-"""Deterministic offline repair run used before live model integration."""
+"""Deterministic manifest-driven repair run used before live model integration."""
 
 from __future__ import annotations
 
+import argparse
 import difflib
 import json
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+from typing import BinaryIO
 
 from agentloom.contracts import (
     EvidenceRecord,
@@ -23,15 +26,11 @@ from agentloom.contracts import (
     VerificationChecks,
     VerificationResult,
 )
+from agentloom.demo_case import DemoCase, load_demo_case, resolve_command
 from agentloom.storage import Database
 from agentloom.workflow import RepairWorkflow
 
-_FIXED_SOURCE = Path("src/severity.py")
-_ALLOWED_PATHS = [_FIXED_SOURCE.as_posix()]
-_TARGET_TEST = (
-    "tests/test_severity.py::"
-    "test_normalize_severity_accepts_surrounding_whitespace"
-)
+_HIDDEN_WORKSPACE = ".agentloom-hidden-tests"
 
 
 class MockRepairError(RuntimeError):
@@ -46,68 +45,109 @@ class MockRepairResult:
 
 
 class MockRepairRunner:
-    """Run a fixed failure/patch/verification lifecycle without an LLM."""
+    """Run a manifest-defined failure/patch/verification lifecycle without an LLM."""
 
-    def __init__(self, fixture_root: Path) -> None:
-        self._fixture_root = fixture_root.resolve()
-        self._before = self._fixture_root / "before"
-        self._expected = self._fixture_root / "expected"
+    def __init__(self, case_root: Path) -> None:
+        self._case_root = case_root.resolve()
 
     def run(self, output_root: Path) -> MockRepairResult:
-        self._validate_fixture()
+        case = load_demo_case(self._case_root)
         root = output_root.resolve()
         if root.exists() and any(root.iterdir()):
             raise MockRepairError(f"output directory must be empty: {root}")
         root.mkdir(parents=True, exist_ok=True)
         workspace = root / "workspace"
+        verifier_workspace = root / "verifier-workspace"
         artifacts = root / "artifacts"
-        shutil.copytree(self._before, workspace)
+        shutil.copytree(case.source_root, workspace)
         artifacts.mkdir()
 
         database = Database(f"sqlite:///{root / 'agentloom.db'}")
         database.create_schema()
         task = database.create_task(
             TaskCreate(
-                title="Normalize severity values with surrounding whitespace",
-                repository_uri="fixture://severity-normalization",
-                issue='normalize_severity(" high ") raises ValueError.',
-                acceptance_criteria=[
-                    "The original failure is reproduced before the patch.",
-                    "Whitespace-padded supported values normalize correctly.",
-                    "Unknown values remain rejected.",
-                ],
-                allowed_paths=_ALLOWED_PATHS,
+                title=case.manifest.title,
+                repository_uri=(
+                    f"{case.provenance.repository_url}"
+                    f"@{case.provenance.frozen_commit}"
+                ),
+                issue=case.issue,
+                acceptance_criteria=case.manifest.acceptance_criteria,
+                allowed_paths=case.manifest.allowed_changed_paths,
             )
         )
         workflow = RepairWorkflow(database)
         workflow.start(task.task_id)
 
-        before_tests = _run_python_module(workspace, "pytest", "-q")
-        before_output = f"{before_tests.stdout}\n{before_tests.stderr}"
-        if before_tests.returncode != 1 or _TARGET_TEST not in before_output:
+        working_relative = case.working_directory.relative_to(case.source_root)
+        target_results = [
+            _run_case_command(
+                workspace=workspace,
+                working_relative=working_relative,
+                command=_target_command(case.test_command, target),
+                timeout_seconds=case.manifest.timeout_seconds,
+                output_limit_bytes=case.manifest.output_limit_bytes,
+            )
+            for target in case.manifest.target_failing_tests
+        ]
+        if any(result.returncode != 1 for result in target_results):
             raise MockRepairError("original failure was not reproduced")
+        before_tests = _combine_results(target_results)
         workflow.record_investigation(task.task_id, sufficient=True)
 
-        patch = self._build_patch()
+        patch = _build_patch(case)
         patch_path = artifacts / "repair.patch"
         patch_path.write_text(patch, encoding="utf-8", newline="\n")
         patch_hash = _file_hash(patch_path)
-        self._apply_expected_files(workspace)
-        changed_paths = _changed_paths(self._before, workspace)
-        unauthorized_changes = changed_paths != _ALLOWED_PATHS
+        _apply_expected_files(case, workspace)
+        changed_paths = _changed_paths(case.source_root, workspace)
+        unauthorized_changes = sorted(
+            set(changed_paths) - set(case.manifest.allowed_changed_paths)
+        )
         workflow.record_implementation(task.task_id, requires_approval=False)
-
-        after_tests = _run_python_module(workspace, "pytest", "-q")
-        static_checks = _run_python_module(workspace, "compileall", "-q", "src", "tests")
-        tests_passed = after_tests.returncode == 0
-        static_passed = static_checks.returncode == 0
-        if not tests_passed or not static_passed or unauthorized_changes:
+        if unauthorized_changes:
             workflow.record_verification(task.task_id, outcome="FAILED")
-            raise MockRepairError("patched fixture did not pass independent verification")
+            raise MockRepairError(
+                "unauthorized file changes: " + ", ".join(unauthorized_changes)
+            )
+
+        shutil.copytree(workspace, verifier_workspace)
+        verifier_hidden = verifier_workspace / working_relative / _HIDDEN_WORKSPACE
+        shutil.copytree(case.hidden_tests_root, verifier_hidden)
+        after_tests = _run_case_command(
+            workspace=verifier_workspace,
+            working_relative=working_relative,
+            command=case.test_command,
+            timeout_seconds=case.manifest.timeout_seconds,
+            output_limit_bytes=case.manifest.output_limit_bytes,
+        )
+        hidden_tests = _run_case_command(
+            workspace=verifier_workspace,
+            working_relative=working_relative,
+            command=("pytest", "-q", _HIDDEN_WORKSPACE),
+            timeout_seconds=case.manifest.timeout_seconds,
+            output_limit_bytes=case.manifest.output_limit_bytes,
+        )
+        static_checks = _run_case_command(
+            workspace=verifier_workspace,
+            working_relative=working_relative,
+            command=case.static_check_command,
+            timeout_seconds=case.manifest.timeout_seconds,
+            output_limit_bytes=case.manifest.output_limit_bytes,
+        )
+        if after_tests.returncode != 0:
+            workflow.record_verification(task.task_id, outcome="FAILED")
+            raise MockRepairError("patched tests failed")
+        if hidden_tests.returncode != 0:
+            workflow.record_verification(task.task_id, outcome="FAILED")
+            raise MockRepairError("hidden tests failed")
+        if static_checks.returncode != 0:
+            workflow.record_verification(task.task_id, outcome="FAILED")
+            raise MockRepairError("static checks failed")
 
         test_results_path = artifacts / "test-results.txt"
         test_results_path.write_text(
-            _test_results(before_tests, after_tests, static_checks),
+            _test_results(before_tests, after_tests, hidden_tests, static_checks),
             encoding="utf-8",
             newline="\n",
         )
@@ -123,7 +163,10 @@ class MockRepairRunner:
                 producer="agentloom-verifier",
                 uri=f"artifact://{task.task_id}/test-results.txt",
                 sha256=_file_hash(test_results_path),
-                summary="Original failure reproduced; patched tests and static checks passed.",
+                summary=(
+                    "Original failure reproduced; patched, hidden, and static "
+                    "checks passed."
+                ),
             ),
             EvidenceRecord(
                 evidence_id=patch_evidence_id,
@@ -133,16 +176,19 @@ class MockRepairRunner:
                 producer="agentloom-implementer",
                 uri=f"artifact://{task.task_id}/repair.patch",
                 sha256=patch_hash,
-                summary="One allowlisted source file changed.",
+                summary="Only manifest-allowlisted files changed.",
             ),
         )
 
         root_cause = RootCauseReport(
             task_id=task.task_id,
-            summary="Severity normalization uppercased input without trimming whitespace.",
+            summary=case.manifest.expected_root_cause,
             confidence=1,
             evidence_refs=[test_evidence_id],
-            repair_constraints=["Only src/severity.py may change."],
+            repair_constraints=[
+                f"Only {path} may change."
+                for path in case.manifest.allowed_changed_paths
+            ],
         )
         patch_artifact = PatchArtifact(
             task_id=task.task_id,
@@ -163,7 +209,9 @@ class MockRepairRunner:
                 unauthorized_changes=False,
             ),
             evidence_refs=[test_evidence_id, patch_evidence_id],
-            reason="The frozen patch passed target, regression, and static checks.",
+            reason=(
+                "The frozen patch passed target, regression, hidden, and static checks."
+            ),
             verifier_agent="agentloom-verifier",
         )
         risk = RiskReport(
@@ -174,8 +222,8 @@ class MockRepairRunner:
                 Finding(
                     rule_id="PATCH_SCOPE",
                     severity="INFO",
-                    message="Only the allowlisted source file changed.",
-                    location=_FIXED_SOURCE.as_posix(),
+                    message="Only manifest-allowlisted files changed.",
+                    location=changed_paths[0],
                 )
             ],
             evidence_refs=[patch_evidence_id, test_evidence_id],
@@ -214,69 +262,136 @@ class MockRepairRunner:
             artifacts_dir=artifacts,
         )
 
-    def _validate_fixture(self) -> None:
-        required = (
-            self._before / _FIXED_SOURCE,
-            self._before / "tests/test_severity.py",
-            self._expected / _FIXED_SOURCE,
-        )
-        missing = [path for path in required if not path.is_file()]
-        if missing:
-            raise MockRepairError(f"fixture is incomplete: {missing[0]}")
 
-    def _build_patch(self) -> str:
-        before = (self._before / _FIXED_SOURCE).read_text(encoding="utf-8").splitlines()
-        expected = (self._expected / _FIXED_SOURCE).read_text(
-            encoding="utf-8"
-        ).splitlines()
-        patch = "\n".join(
+def _build_patch(case: DemoCase) -> str:
+    chunks: list[str] = []
+    for expected in sorted(
+        path for path in case.expected_patch_root.rglob("*") if path.is_file()
+    ):
+        relative = expected.relative_to(case.expected_patch_root)
+        before_path = case.source_root / relative
+        try:
+            before = (
+                before_path.read_text(encoding="utf-8").splitlines()
+                if before_path.is_file()
+                else []
+            )
+            after = expected.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError as exc:
+            raise MockRepairError(
+                f"mock patches only support UTF-8 text files: {relative.as_posix()}"
+            ) from exc
+        chunks.extend(
             difflib.unified_diff(
                 before,
-                expected,
-                fromfile=f"a/{_FIXED_SOURCE.as_posix()}",
-                tofile=f"b/{_FIXED_SOURCE.as_posix()}",
+                after,
+                fromfile=f"a/{relative.as_posix()}",
+                tofile=f"b/{relative.as_posix()}",
                 lineterm="",
             )
         )
-        if not patch:
-            raise MockRepairError("fixture patch is empty")
-        return f"{patch}\n"
-
-    def _apply_expected_files(self, workspace: Path) -> None:
-        for source in self._expected.rglob("*"):
-            if not source.is_file():
-                continue
-            target = workspace / source.relative_to(self._expected)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+    if not chunks:
+        raise MockRepairError("case patch is empty")
+    return f"{'\n'.join(chunks)}\n"
 
 
-def _run_python_module(
+def _apply_expected_files(case: DemoCase, workspace: Path) -> None:
+    for source in case.expected_patch_root.rglob("*"):
+        if not source.is_file():
+            continue
+        target = workspace / source.relative_to(case.expected_patch_root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
+def _run_case_command(
+    *,
     workspace: Path,
-    module: str,
-    *arguments: str,
+    working_relative: Path,
+    command: tuple[str, ...],
+    timeout_seconds: int,
+    output_limit_bytes: int,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, "-m", module, *arguments],
-        cwd=workspace,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=60,
+    resolved = resolve_command(command)
+    process = subprocess.Popen(
+        resolved,
+        cwd=workspace / working_relative,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if process.stdout is None or process.stderr is None:
+        process.kill()
+        raise MockRepairError("failed to capture command output")
+    stdout = bytearray()
+    stderr = bytearray()
+    lock = threading.Lock()
+    exceeded = threading.Event()
+
+    def drain(stream: BinaryIO, sink: bytearray) -> None:
+        while chunk := stream.read(8192):
+            with lock:
+                remaining = max(0, output_limit_bytes - len(stdout) - len(stderr))
+                sink.extend(chunk[:remaining])
+                if len(chunk) > remaining:
+                    exceeded.set()
+            if exceeded.is_set():
+                process.kill()
+                return
+
+    readers = (
+        threading.Thread(target=drain, args=(process.stdout, stdout), daemon=True),
+        threading.Thread(target=drain, args=(process.stderr, stderr), daemon=True),
+    )
+    for reader in readers:
+        reader.start()
+    try:
+        returncode = process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        process.kill()
+        process.wait()
+        for reader in readers:
+            reader.join()
+        raise MockRepairError(
+            f"command timed out after {timeout_seconds} seconds"
+        ) from exc
+    for reader in readers:
+        reader.join()
+    if exceeded.is_set():
+        raise MockRepairError(
+            f"command output exceeded {output_limit_bytes} bytes"
+        )
+    return subprocess.CompletedProcess(
+        args=resolved,
+        returncode=returncode,
+        stdout=stdout.decode("utf-8", errors="replace"),
+        stderr=stderr.decode("utf-8", errors="replace"),
+    )
+
+
+def _target_command(test_command: tuple[str, ...], target: str) -> tuple[str, ...]:
+    arguments = (
+        test_command[3:]
+        if test_command[:3] == ("python", "-m", "pytest")
+        else test_command[1:]
+    )
+    options = tuple(argument for argument in arguments if argument.startswith("-"))
+    return ("pytest", *options, target)
+
+
+def _combine_results(
+    results: list[subprocess.CompletedProcess[str]],
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=[result.args for result in results],
+        returncode=1,
+        stdout="\n".join(result.stdout for result in results),
+        stderr="\n".join(result.stderr for result in results),
     )
 
 
 def _changed_paths(before: Path, workspace: Path) -> list[str]:
-    before_files = {
-        path.relative_to(before).as_posix(): _file_hash(path)
-        for path in before.rglob("*.py")
-        if "__pycache__" not in path.parts
-    }
-    workspace_files = {
-        path.relative_to(workspace).as_posix(): _file_hash(path)
-        for path in workspace.rglob("*.py")
-        if "__pycache__" not in path.parts
-    }
+    before_files = _file_inventory(before)
+    workspace_files = _file_inventory(workspace)
     return sorted(
         path
         for path in before_files.keys() | workspace_files.keys()
@@ -284,9 +399,20 @@ def _changed_paths(before: Path, workspace: Path) -> list[str]:
     )
 
 
+def _file_inventory(root: Path) -> dict[str, str]:
+    return {
+        path.relative_to(root).as_posix(): _file_hash(path)
+        for path in root.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.parts
+        and ".pytest_cache" not in path.parts
+    }
+
+
 def _test_results(
     before: subprocess.CompletedProcess[str],
     after: subprocess.CompletedProcess[str],
+    hidden: subprocess.CompletedProcess[str],
     static: subprocess.CompletedProcess[str],
 ) -> str:
     return (
@@ -294,6 +420,8 @@ def _test_results(
         f"{before.stdout}{before.stderr}\n"
         "PATCHED TESTS: PASSED\n"
         f"{after.stdout}{after.stderr}\n"
+        "HIDDEN TESTS: PASSED\n"
+        f"{hidden.stdout}{hidden.stderr}\n"
         "STATIC CHECKS: PASSED\n"
         f"{static.stdout}{static.stderr}\n"
     )
@@ -322,3 +450,36 @@ def _write_model(path: Path, model: object) -> None:
 
 def _file_hash(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Run one deterministic manifest-driven repair case."
+    )
+    parser.add_argument("--case-root", required=True, type=Path)
+    parser.add_argument("--output-root", required=True, type=Path)
+    arguments = parser.parse_args()
+    try:
+        result = MockRepairRunner(arguments.case_root).run(arguments.output_root)
+    except (OSError, RuntimeError, ValueError, UnicodeError) as exc:
+        print(f"mock repair failed: {exc}", file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "taskId": result.task.task_id,
+                "status": result.task.status,
+                "verificationVerdict": result.bundle.verification.verdict,
+                "riskVerdict": result.bundle.risk.verdict,
+                "patchSha256": result.bundle.patch.sha256,
+                "artifactsDirectory": str(result.artifacts_dir),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

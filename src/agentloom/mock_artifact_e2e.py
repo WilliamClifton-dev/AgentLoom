@@ -18,6 +18,7 @@ from agentloom.contracts import (
     TaskRecord,
     VerificationResult,
 )
+from agentloom.demo_case import load_demo_case
 from agentloom.mock_repair import MockRepairRunner
 from agentloom.namespace_bridge import (
     ALLOWED_RESULT_FILES,
@@ -59,6 +60,7 @@ class MockArtifactE2E:
         self._storage_prefix = storage_prefix
         self._team_name = team_name
         self._fixture_root = fixture_root.resolve()
+        self._case = load_demo_case(self._fixture_root)
 
     def run(self, output_root: Path) -> MockArtifactE2EResult:
         root = output_root.resolve()
@@ -121,7 +123,7 @@ class MockArtifactE2E:
     def _publish_parent(self, layout: NamespaceLayout, task: TaskRecord) -> None:
         spec = _task_spec(task).encode("utf-8")
         self._storage.write(f"{layout.global_task_prefix}spec.md", spec)
-        before_root = self._fixture_root / "before"
+        before_root = self._case.source_root
         for path in sorted(before_root.rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts:
                 relative = path.relative_to(before_root).as_posix()
@@ -176,7 +178,7 @@ def main() -> int:
         type=Path,
         default=Path(__file__).resolve().parents[2]
         / "demo"
-        / "fixtures"
+        / "cases"
         / "severity-normalization",
     )
     parser.add_argument("--team-name", default="agentloom-repair")

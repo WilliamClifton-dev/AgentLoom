@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "agentloom.demo-provenance/v1alpha1",
+  "repositoryUrl": "https://github.com/WilliamClifton-dev/AgentLoom",
+  "frozenCommit": "877aa5954c3591609cf19f8e5c79decada5256fb",
+  "issueUrl": "https://github.com/WilliamClifton-dev/AgentLoom/blob/877aa5954c3591609cf19f8e5c79decada5256fb/demo/cases/pagination-boundary/issue.md",
+  "license": "Apache-2.0",
+  "snapshotSha256": "sha256:ae50ab8f26881eb58dd785dc814b701a6a7f2111851795e5e5d18f54a44f9281"
+}

@@ -13,20 +13,31 @@ from agentloom.contracts import (
     RootCauseReport,
     VerificationResult,
 )
+from agentloom.demo_case import snapshot_sha256
 from agentloom.mock_repair import MockRepairError, MockRepairRunner
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "demo" / "fixtures" / "severity-normalization"
+CASES = ROOT / "demo" / "cases"
+SEVERITY_CASE = CASES / "severity-normalization"
 
 
+@pytest.mark.parametrize(
+    ("case_id", "changed_path"),
+    [
+        ("severity-normalization", "src/severity.py"),
+        ("pagination-boundary", "lib/pagination.py"),
+    ],
+)
 def test_mock_repair_reproduces_failure_and_emits_verified_artifacts(
     tmp_path: Path,
+    case_id: str,
+    changed_path: str,
 ) -> None:
-    result = MockRepairRunner(FIXTURE).run(tmp_path / "run")
+    result = MockRepairRunner(CASES / case_id).run(tmp_path / "run")
 
     assert result.task.status == "COMPLETED"
     assert result.bundle.root_cause.confidence == 1
-    assert result.bundle.patch.changed_paths == ["src/severity.py"]
+    assert result.bundle.patch.changed_paths == [changed_path]
     assert result.bundle.verification.verdict == "PASSED"
     assert result.bundle.verification.checks.original_failure_reproduced
     assert result.bundle.verification.checks.target_tests_passed
@@ -72,17 +83,25 @@ def test_mock_repair_reproduces_failure_and_emits_verified_artifacts(
     assert json.loads((artifacts / "verification-result.json").read_text())["verdict"] == (
         "PASSED"
     )
+    assert not (tmp_path / "run" / "workspace" / "hidden-tests").exists()
+    assert not (
+        tmp_path / "run" / "workspace" / ".agentloom-hidden-tests"
+    ).exists()
+    assert (
+        tmp_path / "run" / "verifier-workspace" / ".agentloom-hidden-tests"
+    ).is_dir()
 
 
 def test_mock_repair_fails_closed_if_fixture_no_longer_reproduces(
     tmp_path: Path,
 ) -> None:
-    fixture = tmp_path / "fixture"
-    shutil.copytree(FIXTURE, fixture)
+    fixture = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, fixture)
     shutil.copy2(
         fixture / "expected" / "src" / "severity.py",
         fixture / "before" / "src" / "severity.py",
     )
+    _rewrite_snapshot_hash(fixture)
 
     with pytest.raises(MockRepairError, match="original failure was not reproduced"):
         MockRepairRunner(fixture).run(tmp_path / "run")
@@ -91,12 +110,107 @@ def test_mock_repair_fails_closed_if_fixture_no_longer_reproduces(
 def test_mock_repair_does_not_misclassify_collection_errors_as_reproduction(
     tmp_path: Path,
 ) -> None:
-    fixture = tmp_path / "fixture"
-    shutil.copytree(FIXTURE, fixture)
+    fixture = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, fixture)
     (fixture / "before" / "src" / "severity.py").write_text(
         "this is not valid python !!!\n",
         encoding="utf-8",
     )
+    _rewrite_snapshot_hash(fixture)
 
     with pytest.raises(MockRepairError, match="original failure was not reproduced"):
         MockRepairRunner(fixture).run(tmp_path / "run")
+
+
+def test_mock_repair_does_not_accept_spoofed_target_output(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, case)
+    test_path = case / "before" / "tests" / "test_severity.py"
+    test_text = test_path.read_text(encoding="utf-8").replace(
+        'assert normalize_severity(" high ") == "HIGH"',
+        'print("tests/test_severity.py::test_normalize_severity_accepts_'
+        'surrounding_whitespace")\n    assert True',
+    )
+    test_text += "\n\ndef test_unrelated_failure() -> None:\n    assert False\n"
+    test_path.write_text(test_text, encoding="utf-8")
+    _rewrite_snapshot_hash(case)
+
+    with pytest.raises(MockRepairError, match="original failure was not reproduced"):
+        MockRepairRunner(case).run(tmp_path / "run")
+
+
+def test_mock_repair_rejects_undeclared_file_modifications(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, case)
+    (case / "expected" / "README.md").write_text(
+        "unauthorized change\n", encoding="utf-8"
+    )
+
+    with pytest.raises(MockRepairError, match="unauthorized file changes"):
+        MockRepairRunner(case).run(tmp_path / "run")
+
+
+def test_mock_repair_fails_when_hidden_tests_fail(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, case)
+    (case / "hidden-tests" / "test_severity_hidden.py").write_text(
+        "def test_hidden_regression() -> None:\n    assert False\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MockRepairError, match="hidden tests failed"):
+        MockRepairRunner(case).run(tmp_path / "run")
+
+
+def test_mock_repair_fails_closed_when_command_output_exceeds_limit(
+    tmp_path: Path,
+) -> None:
+    case = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, case)
+    test_path = case / "before" / "tests" / "test_severity.py"
+    test_path.write_text(
+        test_path.read_text(encoding="utf-8").replace(
+            'assert normalize_severity(" high ") == "HIGH"',
+            "print('x' * 70000)\n"
+            '    assert normalize_severity(" high ") == "HIGH"',
+        ),
+        encoding="utf-8",
+    )
+    manifest_path = case / "case.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["testCommand"] = ["pytest", "-q", "-s"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _rewrite_snapshot_hash(case)
+
+    with pytest.raises(MockRepairError, match="command output exceeded"):
+        MockRepairRunner(case).run(tmp_path / "run")
+
+
+def test_mock_repair_fails_closed_when_command_times_out(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    shutil.copytree(SEVERITY_CASE, case)
+    test_path = case / "before" / "tests" / "test_severity.py"
+    test_path.write_text(
+        test_path.read_text(encoding="utf-8").replace(
+            'assert normalize_severity(" high ") == "HIGH"',
+            "import time\n"
+            "    time.sleep(2)\n"
+            '    assert normalize_severity(" high ") == "HIGH"',
+        ),
+        encoding="utf-8",
+    )
+    manifest_path = case / "case.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["timeoutSeconds"] = 1
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _rewrite_snapshot_hash(case)
+
+    with pytest.raises(MockRepairError, match="command timed out"):
+        MockRepairRunner(case).run(tmp_path / "run")
+
+
+def _rewrite_snapshot_hash(case: Path) -> None:
+    provenance_path = case / "provenance.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["snapshotSha256"] = f"sha256:{snapshot_sha256(case / 'before')}"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")

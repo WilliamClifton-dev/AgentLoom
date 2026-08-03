@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,19 @@ from agentloom.contracts import ContractModel
 _SHELL_META = re.compile(r"[;&|><`$()\r\n]")
 _WINDOWS_ABSOLUTE = re.compile(r"^[A-Za-z]:[/\\]")
 _SHA256_PREFIX = "sha256:"
+_KNOWN_LICENSES = {
+    "AGPL-3.0-only",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "GPL-2.0-only",
+    "GPL-3.0-only",
+    "ISC",
+    "LGPL-3.0-only",
+    "MIT",
+    "MPL-2.0",
+    "Unlicense",
+}
 
 
 class DemoCaseError(RuntimeError):
@@ -23,7 +37,7 @@ class DemoCaseError(RuntimeError):
 
 class DemoRuntime(ContractModel):
     language: Literal["python"]
-    version: str = Field(pattern=r"^[0-9A-Za-z<>=.,+!* -]+$", min_length=1)
+    version: Literal[">=3.12,<3.13"]
 
 
 class DemoProvenance(ContractModel):
@@ -31,16 +45,26 @@ class DemoProvenance(ContractModel):
         alias="schemaVersion"
     )
     repository_url: str = Field(
-        alias="repositoryUrl", pattern=r"^https://[^\s]+$"
+        alias="repositoryUrl",
+        pattern=r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$",
     )
     frozen_commit: str = Field(
         alias="frozenCommit", pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
     )
-    issue_url: str = Field(alias="issueUrl", pattern=r"^https://[^\s]+$")
+    issue_url: str = Field(
+        alias="issueUrl", pattern=r"^https://github\.com/[^\s]+$"
+    )
     license: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
     snapshot_sha256: str = Field(
         alias="snapshotSha256", pattern=r"^sha256:[a-f0-9]{64}$"
     )
+
+    @field_validator("license")
+    @classmethod
+    def license_is_recognized(cls, value: str) -> str:
+        if value not in _KNOWN_LICENSES:
+            raise ValueError("license must be a recognized SPDX identifier")
+        return value
 
 
 SafePath = Annotated[str, Field(min_length=1, max_length=300)]
@@ -232,8 +256,6 @@ def snapshot_sha256(root: Path) -> str:
 
 def resolve_command(command: tuple[str, ...]) -> list[str]:
     """Map a validated logical command to the current Python interpreter."""
-    import sys
-
     if command[0] == "python":
         return [sys.executable, *command[1:]]
     return [sys.executable, "-m", *command]
@@ -245,10 +267,25 @@ def _validate_command(value: list[str], *, module: str) -> list[str]:
     for argument in value:
         _validate_argument(argument)
     if value[0] == module:
-        return value
-    if len(value) >= 3 and value[:3] == ["python", "-m", module]:
-        return value
-    raise ValueError(f"command must invoke the allowed Python module: {module}")
+        arguments = value[1:]
+    elif len(value) >= 3 and value[:3] == ["python", "-m", module]:
+        arguments = value[3:]
+    else:
+        raise ValueError(f"command must invoke the allowed Python module: {module}")
+    allowed_flags = (
+        {"-q", "-s", "--disable-warnings"}
+        if module == "pytest"
+        else {"-q", "-f"}
+    )
+    for argument in arguments:
+        if argument in allowed_flags:
+            continue
+        if module == "pytest" and re.fullmatch(r"--maxfail=[1-9][0-9]*", argument):
+            continue
+        if argument.startswith("-"):
+            raise ValueError(f"unsupported {module} option: {argument}")
+        _validate_relative_test_argument(argument, module=module)
+    return value
 
 
 def _validate_argument(value: str) -> None:
@@ -259,6 +296,14 @@ def _validate_argument(value: str) -> None:
         raise ValueError("absolute command paths are forbidden")
     if ".." in PurePosixPath(normalized).parts:
         raise ValueError("command path traversal is forbidden")
+
+
+def _validate_relative_test_argument(value: str, *, module: str) -> None:
+    path_text = value.split("::", maxsplit=1)[0]
+    if module == "pytest" and "::" not in value and not path_text.endswith(".py"):
+        if "/" not in path_text and not path_text.startswith("."):
+            raise ValueError("pytest targets must be relative test paths")
+    _validate_relative_path(path_text)
 
 
 def _validate_relative_path(value: str) -> str:

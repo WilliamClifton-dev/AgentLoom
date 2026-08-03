@@ -3,11 +3,13 @@ from __future__ import annotations
 from hashlib import sha256
 from pathlib import Path
 
+import pytest
+
 from agentloom.mock_artifact_e2e import MockArtifactE2E
 from agentloom.namespace_bridge import NamespaceBridgeError
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "demo" / "fixtures" / "severity-normalization"
+CASES = ROOT / "demo" / "cases"
 
 
 class MemoryStorage:
@@ -38,8 +40,12 @@ class MemoryStorage:
                 )
 
 
+@pytest.mark.parametrize(
+    "case_id", ["severity-normalization", "pagination-boundary"]
+)
 def test_mock_artifact_e2e_round_trips_verified_outputs_across_namespaces(
     tmp_path: Path,
+    case_id: str,
 ) -> None:
     storage = MemoryStorage()
 
@@ -47,7 +53,7 @@ def test_mock_artifact_e2e_round_trips_verified_outputs_across_namespaces(
         storage=storage,
         storage_prefix="hiclaw/hiclaw-storage",
         team_name="agentloom-repair",
-        fixture_root=FIXTURE,
+        fixture_root=CASES / case_id,
     ).run(tmp_path / "run")
 
     layout = result.layout
