@@ -113,12 +113,28 @@ global parent task:
   --evidence-path .\artifacts\agentteams\AL-DEMO-001-collect.json
 ```
 
-The allowlist is `result.md`, `root-cause-report.json`, `patch-artifact.json`,
-`verification-result.json`, `risk-report.json`, and `test-results.txt`.
+The allowlist is `result.md`, `root-cause-report.json`, `repair.patch`,
+`patch-artifact.json`, `verification-result.json`, `risk-report.json`,
+`test-results.txt`, and `evidence.json`.
 Workspace files, Team metadata, and unknown outputs never cross into the global
 namespace. Both operations are idempotent for the same immutable `spec.md` and
 fail closed on missing objects or hash mismatches. Evidence contains object
 names and SHA-256 values only; it contains no MinIO or Matrix credentials.
+
+Run the complete offline artifact path against the live AgentTeams MinIO without
+calling an LLM:
+
+```powershell
+.venv\Scripts\python -m agentloom.mock_artifact_e2e `
+  --output-root .\artifacts\demo\mock-artifact-run
+```
+
+This reproduces a failing Python test, applies the fixed fixture patch, reruns
+tests and static compilation, emits contract-valid role artifacts, stages the
+parent task into the Team namespace, collects the result allowlist, and parses
+the collected objects again from the global namespace. It is a deterministic
+integration baseline and must remain labelled `Mock`; it does not prove that a
+live model generated the repair.
 
 AgentTeams `v1.1.2` returns HTTP `405` when `hiclaw apply -f` tries to update an
 existing Human. The script therefore preserves an existing

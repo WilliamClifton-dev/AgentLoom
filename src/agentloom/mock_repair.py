@@ -28,6 +28,10 @@ from agentloom.workflow import RepairWorkflow
 
 _FIXED_SOURCE = Path("src/severity.py")
 _ALLOWED_PATHS = [_FIXED_SOURCE.as_posix()]
+_TARGET_TEST = (
+    "tests/test_severity.py::"
+    "test_normalize_severity_accepts_surrounding_whitespace"
+)
 
 
 class MockRepairError(RuntimeError):
@@ -79,7 +83,8 @@ class MockRepairRunner:
         workflow.start(task.task_id)
 
         before_tests = _run_python_module(workspace, "pytest", "-q")
-        if before_tests.returncode == 0:
+        before_output = f"{before_tests.stdout}\n{before_tests.stderr}"
+        if before_tests.returncode != 1 or _TARGET_TEST not in before_output:
             raise MockRepairError("original failure was not reproduced")
         workflow.record_investigation(task.task_id, sufficient=True)
 

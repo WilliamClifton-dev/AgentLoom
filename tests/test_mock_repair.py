@@ -86,3 +86,17 @@ def test_mock_repair_fails_closed_if_fixture_no_longer_reproduces(
 
     with pytest.raises(MockRepairError, match="original failure was not reproduced"):
         MockRepairRunner(fixture).run(tmp_path / "run")
+
+
+def test_mock_repair_does_not_misclassify_collection_errors_as_reproduction(
+    tmp_path: Path,
+) -> None:
+    fixture = tmp_path / "fixture"
+    shutil.copytree(FIXTURE, fixture)
+    (fixture / "before" / "src" / "severity.py").write_text(
+        "this is not valid python !!!\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MockRepairError, match="original failure was not reproduced"):
+        MockRepairRunner(fixture).run(tmp_path / "run")

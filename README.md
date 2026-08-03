@@ -58,6 +58,7 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Pinned AgentTeams `v1.1.2` Manager, Team Leader, two Workers, and Human resources
 - Strict Matrix E2E with role-owned markers from all four Agent identities
 - Hash-verified AgentTeams global-to-team parent-task namespace bridge
+- Offline repair-artifact E2E with a real failing test, patch, verification, and evidence
 - Unit and integration test suite
 
 ## Local Development
@@ -101,7 +102,7 @@ instructions are in [deploy/agentteams/README.md](deploy/agentteams/README.md).
 
 ## Roadmap to Demo
 
-1. Run one complete repair-artifact workflow through all four roles.
+1. Replace Mock role outputs with one live four-role repair-artifact workflow.
 2. Evaluate and publish the five quarantined upstream Skills.
 3. Add the Textual/Rich TUI for tasks, evidence, approvals, and reports.
 4. Add reproducible Docker launch.

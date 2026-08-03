@@ -48,6 +48,7 @@ class NamespaceStorage(Protocol):
 
 
 CommandRunner = Callable[[list[str]], subprocess.CompletedProcess[bytes]]
+PipeCommandRunner = Callable[[list[str], bytes], subprocess.CompletedProcess[bytes]]
 
 
 class DockerMcStorage:
@@ -58,12 +59,14 @@ class DockerMcStorage:
         controller_container: str,
         *,
         runner: CommandRunner | None = None,
+        pipe_runner: PipeCommandRunner | None = None,
     ) -> None:
         self._controller_container = _validated_identifier(
             controller_container,
             "controller_container",
         )
         self._runner = runner or _run_command
+        self._pipe_runner = pipe_runner or _run_pipe_command
 
     def exists(self, path: str) -> bool:
         result = self._invoke("stat", path)
@@ -74,6 +77,22 @@ class DockerMcStorage:
 
     def copy(self, source: str, target: str) -> None:
         self._checked("cp", source, target)
+
+    def write(self, path: str, content: bytes) -> None:
+        command = [
+            "docker",
+            "exec",
+            "-i",
+            self._controller_container,
+            "mc",
+            "pipe",
+            path,
+        ]
+        result = self._pipe_runner(command, content)
+        if result.returncode != 0:
+            raise NamespaceBridgeError(
+                f"mc pipe failed in {self._controller_container}"
+            )
 
     def mirror(self, source_prefix: str, target_prefix: str) -> None:
         self._checked("mirror", source_prefix, target_prefix, "--overwrite")
@@ -365,6 +384,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _run_command(command: list[str]) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(command, check=False, capture_output=True)
+
+
+def _run_pipe_command(
+    command: list[str],
+    content: bytes,
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        command,
+        input=content,
+        check=False,
+        capture_output=True,
+    )
 
 
 if __name__ == "__main__":

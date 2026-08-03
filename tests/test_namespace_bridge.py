@@ -181,6 +181,18 @@ class CommandRunner:
         return self.responses.pop(0)
 
 
+class PipeRunner:
+    def __init__(self, response: subprocess.CompletedProcess[bytes]) -> None:
+        self.response = response
+        self.commands: list[tuple[list[str], bytes]] = []
+
+    def __call__(
+        self, command: list[str], content: bytes
+    ) -> subprocess.CompletedProcess[bytes]:
+        self.commands.append((command, content))
+        return self.response
+
+
 def completed(
     *, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""
 ) -> subprocess.CompletedProcess[bytes]:
@@ -257,6 +269,32 @@ def test_docker_storage_redacts_command_output_on_failure() -> None:
         storage.copy("source", "target")
 
     assert "provider-secret" not in str(error.value)
+
+
+def test_docker_storage_writes_objects_through_minio_pipe() -> None:
+    pipe_runner = PipeRunner(completed())
+    storage = DockerMcStorage(
+        "hiclaw-controller",
+        runner=CommandRunner([]),
+        pipe_runner=pipe_runner,
+    )
+
+    storage.write("hiclaw/hiclaw-storage/shared/tasks/T/spec.md", b"spec")
+
+    assert pipe_runner.commands == [
+        (
+            [
+                "docker",
+                "exec",
+                "-i",
+                "hiclaw-controller",
+                "mc",
+                "pipe",
+                "hiclaw/hiclaw-storage/shared/tasks/T/spec.md",
+            ],
+            b"spec",
+        )
+    ]
 
 
 def test_storage_prefix_is_discovered_without_exposing_other_environment() -> None:
