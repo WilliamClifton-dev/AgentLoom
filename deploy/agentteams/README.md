@@ -129,8 +129,9 @@ calling an LLM:
   --output-root .\artifacts\demo\mock-artifact-run
 ```
 
-This reproduces a failing Python test, applies the fixed fixture patch, reruns
-tests and static compilation, emits contract-valid role artifacts, stages the
+This validates the Case manifest and frozen snapshot, reproduces a failing Python
+test, applies the deterministic patch, runs public tests, verifier-only hidden
+tests, and static compilation, emits contract-valid role artifacts, stages the
 parent task into the Team namespace, collects the result allowlist, and parses
 the collected objects again from the global namespace. It is a deterministic
 integration baseline and must remain labelled `Mock`; it does not prove that a

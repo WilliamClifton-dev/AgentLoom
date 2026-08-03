@@ -194,6 +194,24 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 - Token、成本、时延和工具调用指标；
 - 审批、失败重试、回滚和完整 Trace。
 
+### 5.3 可复现 Demo Case 契约
+
+初赛自建案例统一存放在 `demo/cases/<case-id>/`，不允许在 Runner 中写死源文件、测试节点、Issue 或修复描述：
+
+```text
+demo/cases/<case-id>/
+├── case.json          # 严格任务、命令、路径、超时和运行时契约
+├── provenance.json    # 仓库、固定 commit、Issue URL、许可证、快照哈希
+├── issue.md
+├── before/            # Implementer 获得的冻结输入
+├── expected/          # 仅 Mock Runner 使用的确定性补丁源
+└── hidden-tests/      # 仅复制到独立 Verifier workspace
+```
+
+`case.json` 禁止未知字段和 shell 字符串；命令必须为参数数组，且只映射到当前 Python 解释器的 `pytest` 或 `compileall`。路径穿越、绝对可执行路径、未识别许可证、超过 120 秒的超时、快照哈希不一致、输出超限、隐藏测试泄露到 Implementer workspace、pytest 收集/内部错误、目标失败未复现、隐藏测试失败和越权文件修改均失败关闭。Runner 不抓取 manifest 中的 URL；真实 GitHub Case 的获取、许可证复核和隔离将在导入阶段完成。
+
+当前 `severity-normalization` 与 `pagination-boundary` 两个不同缺陷类型使用同一 Runner 和同一产物契约，并通过 AgentTeams MinIO namespace bridge 往返验证。`expected/` 只能作为明确标注的 Mock 基线，不能用于宣称模型自主生成补丁。
+
 ## 6. 架构原则与实现技术栈
 
 ### 6.1 架构原则

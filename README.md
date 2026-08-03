@@ -10,7 +10,8 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 > Status: early MVP. Contracts, grant authorization, static detection, task API,
 > optimistic state projection, SQLite persistence, migrations, the Policy Broker
 > MCP transport, bounded repair workflow, and pinned AgentTeams four-role runtime
-> are implemented. The TUI and complete repair-artifact E2E are still in progress.
+> are implemented. The manifest-driven Mock repair-artifact E2E is complete; the
+> live model-generated repair path and TUI are still in progress.
 
 ## Competition Scope
 
@@ -58,7 +59,8 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Pinned AgentTeams `v1.1.2` Manager, Team Leader, two Workers, and Human resources
 - Strict Matrix E2E with role-owned markers from all four Agent identities
 - Hash-verified AgentTeams global-to-team parent-task namespace bridge
-- Offline repair-artifact E2E with a real failing test, patch, verification, and evidence
+- Manifest-driven offline repair-artifact E2E with two independent failing cases,
+  isolated hidden tests, patch-scope enforcement, and evidence
 - Unit and integration test suite
 
 ## Local Development
@@ -99,6 +101,27 @@ ignored environment files or process environment variables. Never commit them.
 
 AgentTeams deployment, cloud-provider activation, local fallback, and strict E2E
 instructions are in [deploy/agentteams/README.md](deploy/agentteams/README.md).
+
+## Reproducible Demo Cases
+
+Each case under `demo/cases/<case-id>` is defined by a strict `case.json`, an
+independent `provenance.json`, a frozen `before/` snapshot, a deterministic
+`expected/` patch source, and verifier-only `hidden-tests/`. The loader rejects
+unknown fields, path traversal, shell commands, unrecognized licenses, snapshot
+hash mismatches, excessive timeouts, oversized command output, and undeclared
+file modifications. Commands are argument arrays mapped only to the current
+Python interpreter's `pytest` or `compileall` module.
+
+Run either case without an LLM or cloud quota:
+
+```powershell
+.venv\Scripts\python -m agentloom.mock_repair `
+  --case-root .\demo\cases\severity-normalization `
+  --output-root .\artifacts\demo\severity-normalization
+```
+
+Replace `severity-normalization` with `pagination-boundary` for the second
+defect type. The generated artifact contracts are identical for both cases.
 
 ## Roadmap to Demo
 
