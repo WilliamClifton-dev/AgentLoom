@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillSelectionInput",
+  "type": "object",
+  "required": ["taskId", "taskType", "agentName", "permissions", "maximumRiskLevel"],
+  "properties": {
+    "taskId": {"type": "string", "minLength": 1},
+    "taskType": {"type": "string", "minLength": 1},
+    "agentName": {"type": "string", "minLength": 1},
+    "permissions": {"type": "array", "items": {"type": "string"}},
+    "maximumRiskLevel": {"enum": ["L0", "L1", "L2", "L3"]}
+  },
+  "additionalProperties": false
+}

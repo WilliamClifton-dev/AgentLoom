@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/agentscope-ai/AgentTeams.git",
+    "tag": "v1.1.2",
+    "commit": "a99457830fafb99c991bdb666aa8a1eef2f83b12"
+  },
+  "images": {
+    "controller": {
+      "reference": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/hiclaw-embedded:v1.1.2",
+      "digest": "sha256:5f8b42fd6c4160b40eb7c3b26c5617edc78fe24d2fcb00f918ff6d742aaa2d2c"
+    },
+    "manager_copaw": {
+      "reference": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/hiclaw-manager-copaw:v1.1.2",
+      "digest": "sha256:28ebe8007bffd878700ad3d79b96871f583b325ae7acdf4e3644b8113daea43f"
+    }
+  }
+}

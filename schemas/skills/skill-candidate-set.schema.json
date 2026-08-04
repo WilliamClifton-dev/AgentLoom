@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillCandidateSet",
+  "type": "object",
+  "required": ["taskId", "agentName", "candidates"],
+  "properties": {
+    "taskId": {"type": "string", "minLength": 1},
+    "agentName": {"type": "string", "minLength": 1},
+    "candidates": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["name", "version", "reason"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "version": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

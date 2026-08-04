@@ -22,6 +22,11 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from agentloom.contracts import (
+    ApprovalCreate,
+    ApprovalDecisionRequest,
+    ApprovalRecord,
+    ApprovalStatus,
+    EscalatedRiskLevel,
     Pagination,
     TaskCreate,
     TaskEventRecord,
@@ -32,16 +37,26 @@ from agentloom.contracts import (
 )
 
 VALID_TASK_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
-    "RECEIVED": frozenset({"PLANNED"}),
-    "PLANNED": frozenset({"INVESTIGATING"}),
-    "INVESTIGATING": frozenset({"BLOCKED", "IMPLEMENTING"}),
-    "BLOCKED": frozenset({"INVESTIGATING"}),
-    "IMPLEMENTING": frozenset({"AWAITING_APPROVAL", "VERIFYING"}),
-    "AWAITING_APPROVAL": frozenset({"IMPLEMENTING", "LEARNING"}),
-    "VERIFYING": frozenset({"IMPLEMENTING", "LEARNING"}),
-    "LEARNING": frozenset({"COMPLETED", "FAILED"}),
+    "RECEIVED": frozenset({"PLANNED", "BLOCKED_PLATFORM"}),
+    "PLANNED": frozenset({"INVESTIGATING", "BLOCKED_PLATFORM"}),
+    "INVESTIGATING": frozenset({"BLOCKED", "IMPLEMENTING", "BLOCKED_PLATFORM"}),
+    "BLOCKED": frozenset({"INVESTIGATING", "BLOCKED_PLATFORM"}),
+    "IMPLEMENTING": frozenset(
+        {"AWAITING_APPROVAL", "VERIFYING", "BLOCKED_PLATFORM"}
+    ),
+    "AWAITING_APPROVAL": frozenset(
+        {"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}
+    ),
+    "VERIFYING": frozenset(
+        {"IMPLEMENTING", "ROLLING_BACK", "LEARNING", "BLOCKED_PLATFORM"}
+    ),
+    "ROLLING_BACK": frozenset({"ROLLED_BACK", "BLOCKED_PLATFORM"}),
+    "ROLLED_BACK": frozenset({"IMPLEMENTING", "LEARNING", "BLOCKED_PLATFORM"}),
+    "LEARNING": frozenset({"COMPLETED", "FAILED", "CANCELLED"}),
     "COMPLETED": frozenset(),
     "FAILED": frozenset(),
+    "CANCELLED": frozenset(),
+    "BLOCKED_PLATFORM": frozenset({"PLANNED"}),
 }
 
 
@@ -56,6 +71,14 @@ class InvalidStateTransition(Exception):
         self.current_status = current_status
         self.requested_status = requested_status
         super().__init__(f"cannot transition from {current_status} to {requested_status}")
+
+
+class ApprovalVersionConflict(Exception):
+    """Raised when an approval decision does not match the current version."""
+
+
+class ApprovalTaskNotFound(Exception):
+    """Raised when an approval cannot be attached to an existing task."""
 
 
 class Base(DeclarativeBase):
@@ -87,6 +110,27 @@ class TaskEventRow(Base):
     plan_version: Mapped[int] = mapped_column(Integer)
     reason: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ApprovalRow(Base):
+    __tablename__ = "approvals"
+
+    approval_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.task_id"), index=True)
+    grant_id: Mapped[str] = mapped_column(String(64), index=True)
+    parameter_digest: Mapped[str] = mapped_column(String(64))
+    risk_level: Mapped[str] = mapped_column(String(2))
+    route_id: Mapped[str] = mapped_column(String(200))
+    rollback_plan_hash: Mapped[str] = mapped_column(String(64))
+    action_summary: Mapped[str] = mapped_column(Text)
+    requested_by: Mapped[str] = mapped_column(String(200))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    approval_version: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Database:
@@ -192,6 +236,90 @@ class Database:
             ).all()
         return [self._to_event_record(row) for row in rows]
 
+    def create_approval(self, request: ApprovalCreate) -> ApprovalRecord:
+        now = datetime.now(UTC)
+        record = ApprovalRecord(
+            approval_id=f"approval-{uuid4().hex}",
+            task_id=request.task_id,
+            grant_id=request.grant_id,
+            parameter_digest=request.parameter_digest,
+            risk_level=request.risk_level,
+            route_id=request.route_id,
+            rollback_plan_hash=request.rollback_plan_hash,
+            action_summary=request.action_summary,
+            requested_by=request.requested_by,
+            expires_at=request.expires_at,
+            created_at=now,
+        )
+        row = ApprovalRow(
+            approval_id=record.approval_id,
+            task_id=record.task_id,
+            grant_id=record.grant_id,
+            parameter_digest=record.parameter_digest,
+            risk_level=record.risk_level,
+            route_id=record.route_id,
+            rollback_plan_hash=record.rollback_plan_hash,
+            action_summary=record.action_summary,
+            requested_by=record.requested_by,
+            expires_at=record.expires_at,
+            status=record.status,
+            approval_version=record.approval_version,
+            created_at=record.created_at,
+        )
+        with self._sessions.begin() as session:
+            if session.get(TaskRow, record.task_id) is None:
+                raise ApprovalTaskNotFound("approval task does not exist")
+            session.add(row)
+        return record
+
+    def get_approval(self, approval_id: str) -> ApprovalRecord | None:
+        with self._sessions() as session:
+            row = session.get(ApprovalRow, approval_id)
+            return self._to_approval_record(row) if row else None
+
+    def list_approvals(
+        self,
+        *,
+        status: ApprovalStatus | None = None,
+    ) -> list[ApprovalRecord]:
+        with self._sessions() as session:
+            statement = select(ApprovalRow)
+            if status is not None:
+                statement = statement.where(ApprovalRow.status == status)
+            rows = session.scalars(
+                statement.order_by(
+                    ApprovalRow.created_at.desc(),
+                    ApprovalRow.approval_id.desc(),
+                )
+            ).all()
+        return [self._to_approval_record(row) for row in rows]
+
+    def decide_approval(
+        self,
+        approval_id: str,
+        decision: ApprovalDecisionRequest,
+    ) -> ApprovalRecord | None:
+        with self._sessions.begin() as session:
+            row = session.get(ApprovalRow, approval_id)
+            if row is None:
+                return None
+            if row.approval_version != decision.expected_approval_version:
+                raise ApprovalVersionConflict("approval version is stale")
+            if row.status != "PENDING":
+                raise ApprovalVersionConflict("approval is no longer pending")
+            now = datetime.now(UTC)
+            if now >= _as_utc(row.expires_at):
+                row.status = "EXPIRED"
+                row.approval_version += 1
+            else:
+                row.status = decision.status
+                row.approval_version += 1
+                row.decided_by = decision.actor
+                row.decision_reason = decision.reason
+                row.decided_at = now
+            session.flush()
+            return self._to_approval_record(row)
+
     @staticmethod
     def _to_record(row: TaskRow) -> TaskRecord:
         created_at = row.created_at
@@ -223,3 +351,28 @@ class Database:
             reason=row.reason,
             created_at=created_at,
         )
+
+    @staticmethod
+    def _to_approval_record(row: ApprovalRow) -> ApprovalRecord:
+        return ApprovalRecord(
+            approval_id=row.approval_id,
+            task_id=row.task_id,
+            grant_id=row.grant_id,
+            parameter_digest=row.parameter_digest,
+            risk_level=cast(EscalatedRiskLevel, row.risk_level),
+            route_id=row.route_id,
+            rollback_plan_hash=row.rollback_plan_hash,
+            action_summary=row.action_summary,
+            requested_by=row.requested_by,
+            expires_at=_as_utc(row.expires_at),
+            status=cast(ApprovalStatus, row.status),
+            approval_version=row.approval_version,
+            created_at=_as_utc(row.created_at),
+            decided_by=row.decided_by,
+            decision_reason=row.decision_reason,
+            decided_at=_as_utc(row.decided_at) if row.decided_at else None,
+        )
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)

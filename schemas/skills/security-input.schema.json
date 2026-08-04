@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SecurityInput",
+  "type": "object",
+  "required": ["taskId", "diffRef", "permissionSet", "toolCallRefs"],
+  "properties": {
+    "taskId": {"type": "string", "minLength": 1},
+    "diffRef": {"type": "string", "minLength": 1},
+    "permissionSet": {"type": "array", "items": {"type": "string"}},
+    "toolCallRefs": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

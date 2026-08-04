@@ -5,9 +5,17 @@ import hmac
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
+from pathlib import PurePosixPath
 from threading import Lock
 
-from agentloom.contracts import SignedSkillExecutionGrant, SkillExecutionGrant
+from agentloom.contracts import (
+    AgentIdentity,
+    ApprovalRecord,
+    SignedSkillExecutionGrant,
+    SkillExecutionGrant,
+    SkillManifest,
+)
 
 
 class PolicyDenied(Exception):
@@ -44,13 +52,58 @@ class SkillGrantAuthorizer:
         self._nonce_store = nonce_store
         self._clock = clock or (lambda: datetime.now(UTC))
 
-    def sign(self, grant: SkillExecutionGrant) -> SignedSkillExecutionGrant:
-        if grant.risk_level in {"L2", "L3"} and not grant.approval_ref:
-            raise PolicyDenied("L2/L3 grants require approval")
+    def _sign(self, grant: SkillExecutionGrant) -> SignedSkillExecutionGrant:
         return SignedSkillExecutionGrant(
             grant=grant,
             signature=self._signature(grant),
         )
+
+    def issue(
+        self,
+        grant: SkillExecutionGrant,
+        *,
+        manifest: SkillManifest,
+        agent: AgentIdentity,
+        requested_paths: list[str],
+        task_allowed_paths: list[str],
+        approval: ApprovalRecord | None = None,
+        valid_approval_refs: set[str] | None = None,
+    ) -> SignedSkillExecutionGrant:
+        """Authorize and sign a grant using a trusted Registry manifest."""
+        if manifest.lifecycle_state != "PUBLISHED":
+            raise PolicyDenied("Skill is not published")
+        if manifest.source is None:
+            raise PolicyDenied("Published Skill source is unavailable")
+        if manifest.name != grant.skill_name or manifest.version != grant.skill_version:
+            raise PolicyDenied("Grant does not match the published Skill version")
+        if grant.skill_content_hash != manifest.source.content_hash:
+            raise PolicyDenied("Grant does not match the published Skill content")
+        if agent.name != grant.agent_name or grant.agent_name not in (
+            manifest.compatible_agents or []
+        ):
+            raise PolicyDenied("Agent is not compatible with the Skill")
+        if not set(manifest.permissions).issubset(agent.capabilities):
+            raise PolicyDenied("Agent capabilities do not satisfy Skill permissions")
+        tool_action = f"{grant.tool_name}:{grant.action}"
+        if tool_action not in (manifest.allowed_tools or []):
+            raise PolicyDenied("Tool action is not allowed by the Skill")
+        if self._risk_rank(grant.risk_level) < self._risk_rank(manifest.risk_level):
+            raise PolicyDenied("Grant risk level understates the Skill risk")
+        now = self._clock()
+        if now < grant.issued_at or now >= grant.expires_at:
+            raise PolicyDenied("Grant validity window is not current")
+        for requested_path in requested_paths:
+            if not self._path_allowed(requested_path, manifest.allowed_paths or []):
+                raise PolicyDenied("Requested path is not allowed by the Skill")
+            if not self._path_allowed(requested_path, task_allowed_paths):
+                raise PolicyDenied("Requested path is not allowed by the task")
+        if grant.risk_level == "L3":
+            raise PolicyDenied("L3 action execution is disabled in the competition runtime")
+        if grant.risk_level == "L2" and not self._approval_matches(grant, approval, now):
+            raise PolicyDenied("L2 grant approval is not valid")
+        if valid_approval_refs:
+            raise PolicyDenied("approval references must be represented by an ApprovalRecord")
+        return self._sign(grant)
 
     def verify(
         self,
@@ -78,3 +131,39 @@ class SkillGrantAuthorizer:
             sort_keys=True,
         ).encode("utf-8")
         return hmac.new(self._signing_key, payload, hashlib.sha256).hexdigest()
+
+    @staticmethod
+    def _path_allowed(path: str, patterns: list[str]) -> bool:
+        normalized = path.replace("\\", "/")
+        parsed = PurePosixPath(normalized)
+        if parsed.is_absolute() or ".." in parsed.parts:
+            return False
+        return any(fnmatchcase(normalized, pattern.replace("\\", "/")) for pattern in patterns)
+
+    @staticmethod
+    def _risk_rank(risk_level: str | None) -> int:
+        if risk_level is None:
+            return 4
+        return {"L0": 0, "L1": 1, "L2": 2, "L3": 3}[risk_level]
+
+    @staticmethod
+    def _approval_matches(
+        grant: SkillExecutionGrant,
+        approval: ApprovalRecord | None,
+        now: datetime,
+    ) -> bool:
+        return bool(
+            approval
+            and grant.approval_ref
+            and grant.route_id
+            and grant.rollback_plan_hash
+            and approval.status == "APPROVED"
+            and approval.approval_id == grant.approval_ref
+            and approval.task_id == grant.task_id
+            and approval.grant_id == grant.grant_id
+            and approval.parameter_digest == grant.parameter_digest
+            and approval.risk_level == "L2"
+            and approval.route_id == grant.route_id
+            and approval.rollback_plan_hash == grant.rollback_plan_hash
+            and now < approval.expires_at
+        )

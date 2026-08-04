@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RiskReport",
+  "type": "object",
+  "required": ["taskId", "riskLevel", "verdict", "findings", "evidenceRefs"],
+  "properties": {
+    "taskId": {"type": "string", "minLength": 1},
+    "riskLevel": {"enum": ["L0", "L1", "L2", "L3"]},
+    "verdict": {"enum": ["PASSED", "FAILED", "UNSAFE", "UNCERTAIN"]},
+    "findings": {"type": "array", "items": {"type": "object"}},
+    "evidenceRefs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

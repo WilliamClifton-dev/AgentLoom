@@ -5,7 +5,13 @@ import httpx
 import pytest
 
 from agentloom.api import create_app
-from agentloom.contracts import SkillExecutionGrant
+from agentloom.contracts import (
+    AgentIdentity,
+    SkillEvaluation,
+    SkillExecutionGrant,
+    SkillManifest,
+    SkillSource,
+)
 from agentloom.policy import InMemoryNonceStore, SkillGrantAuthorizer
 from agentloom.storage import Database
 
@@ -26,6 +32,7 @@ def signed_grant(grant_authorizer: SkillGrantAuthorizer) -> dict[str, object]:
         agent_name="agentloom-implementer",
         skill_name="test-driven-development",
         skill_version="1.0.0",
+        skill_content_hash=f"sha256:{'b' * 64}",
         tool_name="test-runner",
         action="process.exec:test",
         parameter_digest="b" * 64,
@@ -34,7 +41,54 @@ def signed_grant(grant_authorizer: SkillGrantAuthorizer) -> dict[str, object]:
         issued_at=issued_at,
         expires_at=issued_at + timedelta(minutes=5),
     )
-    return grant_authorizer.sign(grant).model_dump(mode="json", by_alias=True)
+    manifest = SkillManifest(
+        name="test-driven-development",
+        version="1.0.0",
+        skill_type="external-skill",
+        scenarios=["bug-fix"],
+        input_schema="schemas/tdd-input.json",
+        output_schema="schemas/patch-artifact.json",
+        invocation_conditions=["root-cause-confirmed"],
+        dependencies=["test-runner"],
+        failure_modes=["TEST_FAILED"],
+        permissions=["repo.write", "tests.execute"],
+        security_boundary="L1 isolated workspace",
+        reuse_value="Reusable for bounded repairs",
+        source=SkillSource(
+            repository="https://github.com/addyosmani/agent-skills",
+            path="skills/test-driven-development",
+            commit="a" * 40,
+            license="MIT",
+            content_hash=f"sha256:{'b' * 64}",
+        ),
+        compatible_agents=["agentloom-implementer"],
+        allowed_tools=["test-runner:process.exec:test"],
+        allowed_paths=["src/parser.py"],
+        risk_level="L1",
+        evaluation=SkillEvaluation(
+            upstream_evidence_refs=["ev-upstream-tdd"],
+            agentloom_bench_evidence_refs=["ev-agentloom-tdd"],
+        ),
+        lifecycle_state="PUBLISHED",
+    )
+    agent = AgentIdentity(
+        name="agentloom-implementer",
+        role="bounded patch implementation",
+        capabilities=["repo.write", "tests.execute"],
+        inputs=["RootCauseReport"],
+        outputs=["PatchArtifact"],
+        dependencies=["test-driven-development"],
+        decision_boundary=["cannot approve own patch"],
+        trace=["tool calls"],
+    )
+    return grant_authorizer.issue(
+        grant,
+        manifest=manifest,
+        agent=agent,
+        requested_paths=["src/parser.py"],
+        task_allowed_paths=["src/parser.py"],
+        valid_approval_refs=set(),
+    ).model_dump(mode="json", by_alias=True)
 
 
 @pytest.mark.asyncio

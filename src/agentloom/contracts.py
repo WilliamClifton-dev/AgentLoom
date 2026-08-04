@@ -3,10 +3,23 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Sha256Digest = str
 RiskLevel = Literal["L0", "L1", "L2", "L3"]
+EscalatedRiskLevel = Literal["L2", "L3"]
+ApprovalStatus = Literal["PENDING", "APPROVED", "REJECTED", "EXPIRED"]
+SkillLifecycleState = Literal[
+    "DISCOVERED",
+    "QUARANTINED",
+    "SCANNED",
+    "EVALUATING",
+    "APPROVED",
+    "PUBLISHED",
+    "DEPRECATED",
+    "BLOCKED",
+    "REJECTED",
+]
 VerificationVerdict = Literal["PASSED", "FAILED", "UNSAFE", "UNCERTAIN"]
 DetectionStageName = Literal["STATIC", "DYNAMIC", "VERIFICATION"]
 Severity = Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
@@ -18,9 +31,13 @@ TaskStatus = Literal[
     "IMPLEMENTING",
     "AWAITING_APPROVAL",
     "VERIFYING",
+    "ROLLING_BACK",
+    "ROLLED_BACK",
     "LEARNING",
     "COMPLETED",
     "FAILED",
+    "CANCELLED",
+    "BLOCKED_PLATFORM",
 ]
 
 
@@ -46,6 +63,28 @@ class AgentIdentity(ContractModel):
     trace: list[str] = Field(min_length=1)
 
 
+class SkillSource(ContractModel):
+    repository: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    commit: str = Field(pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})$")
+    license: str = Field(min_length=1)
+    content_hash: str = Field(
+        alias="contentHash",
+        pattern=r"^sha256:[a-f0-9]{64}$",
+    )
+
+
+class SkillEvaluation(ContractModel):
+    upstream_evidence_refs: list[str] = Field(
+        alias="upstreamEvidenceRefs",
+        min_length=1,
+    )
+    agentloom_bench_evidence_refs: list[str] = Field(
+        alias="agentloomBenchEvidenceRefs",
+        min_length=1,
+    )
+
+
 class SkillManifest(ContractModel):
     schema_version: Literal["agentloom.skill/v1alpha1"] = "agentloom.skill/v1alpha1"
     name: str = Field(min_length=1)
@@ -60,6 +99,75 @@ class SkillManifest(ContractModel):
     permissions: list[str]
     security_boundary: str = Field(min_length=1)
     reuse_value: str = Field(min_length=1)
+    source: SkillSource | None = None
+    compatible_agents: list[str] | None = Field(
+        default=None,
+        alias="compatibleAgents",
+        min_length=1,
+    )
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        alias="allowedTools",
+        min_length=1,
+    )
+    allowed_paths: list[str] | None = Field(default=None, alias="allowedPaths")
+    risk_level: RiskLevel | None = Field(default=None, alias="riskLevel")
+    evaluation: SkillEvaluation | None = None
+    lifecycle_state: SkillLifecycleState = Field(
+        default="DISCOVERED",
+        alias="lifecycleState",
+    )
+
+    @model_validator(mode="after")
+    def published_skill_requires_governance_metadata(self) -> "SkillManifest":
+        governed_states = {"APPROVED", "PUBLISHED", "DEPRECATED", "BLOCKED"}
+        if self.lifecycle_state not in governed_states:
+            return self
+        required = {
+            "source": self.source,
+            "compatibleAgents": self.compatible_agents,
+            "allowedTools": self.allowed_tools,
+            "allowedPaths": self.allowed_paths,
+            "riskLevel": self.risk_level,
+            "evaluation": self.evaluation,
+        }
+        missing = [name for name, value in required.items() if value is None]
+        if missing:
+            raise ValueError(
+                "approved or published Skill requires governance metadata: "
+                + ", ".join(missing)
+            )
+        return self
+
+
+class SkillCatalog(ContractModel):
+    schema_version: Literal["agentloom.skill-catalog/v1alpha1"] = (
+        "agentloom.skill-catalog/v1alpha1"
+    )
+    skills: list[SkillManifest] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def skill_versions_are_unique(self) -> "SkillCatalog":
+        identities = [(skill.name, skill.version) for skill in self.skills]
+        if len(identities) != len(set(identities)):
+            raise ValueError("Skill catalog contains a duplicate name and version")
+        return self
+
+
+class RootCauseReport(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    summary: str = Field(min_length=1)
+    confidence: float = Field(ge=0, le=1)
+    evidence_refs: list[str] = Field(alias="evidenceRefs", min_length=1)
+    repair_constraints: list[str] = Field(alias="repairConstraints")
+
+
+class PatchArtifact(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    patch_uri: str = Field(alias="patchUri", min_length=1)
+    sha256: Sha256Digest = Field(pattern=r"^[a-f0-9]{64}$")
+    changed_paths: list[str] = Field(alias="changedPaths", min_length=1)
+    evidence_refs: list[str] = Field(alias="evidenceRefs", min_length=1)
 
 
 class EvidenceRecord(ContractModel):
@@ -121,8 +229,19 @@ class SkillExecutionGrant(ContractModel):
     agent_name: str = Field(alias="agentName", min_length=1)
     skill_name: str = Field(alias="skillName", min_length=1)
     skill_version: str = Field(alias="skillVersion", min_length=1)
+    skill_content_hash: str | None = Field(
+        default=None,
+        alias="skillContentHash",
+        pattern=r"^sha256:[a-f0-9]{64}$",
+    )
     tool_name: str = Field(alias="toolName", min_length=1)
     action: str = Field(min_length=1)
+    route_id: str | None = Field(default=None, alias="routeId", min_length=1)
+    rollback_plan_hash: Sha256Digest | None = Field(
+        default=None,
+        alias="rollbackPlanHash",
+        pattern=r"^[a-f0-9]{64}$",
+    )
     parameter_digest: Sha256Digest = Field(
         alias="parameterDigest", pattern=r"^[a-f0-9]{64}$"
     )
@@ -155,6 +274,35 @@ class Finding(ContractModel):
     location: str | None = None
 
 
+class RiskReport(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    risk_level: RiskLevel = Field(alias="riskLevel")
+    verdict: VerificationVerdict
+    findings: list[Finding]
+    evidence_refs: list[str] = Field(alias="evidenceRefs", min_length=1)
+
+
+class RepairArtifactBundle(ContractModel):
+    root_cause: RootCauseReport = Field(alias="rootCause")
+    patch: PatchArtifact
+    verification: VerificationResult
+    risk: RiskReport
+
+    @model_validator(mode="after")
+    def role_outputs_refer_to_one_verified_patch(self) -> "RepairArtifactBundle":
+        task_ids = {
+            self.root_cause.task_id,
+            self.patch.task_id,
+            self.verification.task_id,
+            self.risk.task_id,
+        }
+        if len(task_ids) != 1:
+            raise ValueError("repair artifacts must use the same taskId")
+        if self.patch.sha256 != self.verification.patch_hash:
+            raise ValueError("verification patch hash must match PatchArtifact")
+        return self
+
+
 class DetectionResult(ContractModel):
     schema_version: Literal["agentloom.detection/v1alpha1"] = (
         "agentloom.detection/v1alpha1"
@@ -170,6 +318,83 @@ class DetectionReport(ContractModel):
     verdict: VerificationVerdict
     results: list[DetectionResult] = Field(min_length=1)
     evidence_refs: list[str]
+
+
+class ApprovalCreate(ContractModel):
+    schema_version: Literal["agentloom.approval/v1alpha1"] = Field(
+        default="agentloom.approval/v1alpha1",
+        alias="schemaVersion",
+    )
+    task_id: str = Field(alias="taskId", min_length=1)
+    grant_id: str = Field(alias="grantId", min_length=1)
+    parameter_digest: Sha256Digest = Field(
+        alias="parameterDigest", pattern=r"^[a-f0-9]{64}$"
+    )
+    risk_level: EscalatedRiskLevel = Field(alias="riskLevel")
+    route_id: str = Field(alias="routeId", min_length=1, max_length=200)
+    rollback_plan_hash: Sha256Digest = Field(
+        alias="rollbackPlanHash", pattern=r"^[a-f0-9]{64}$"
+    )
+    action_summary: str = Field(alias="actionSummary", min_length=1, max_length=500)
+    requested_by: str = Field(alias="requestedBy", min_length=1, max_length=200)
+    expires_at: datetime = Field(alias="expiresAt")
+
+    @field_validator("expires_at")
+    @classmethod
+    def expiry_is_timezone_aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("approval expiry must be timezone-aware")
+        return value
+
+
+class ApprovalRecord(ApprovalCreate):
+    approval_id: str = Field(alias="approvalId", min_length=1)
+    status: ApprovalStatus = "PENDING"
+    approval_version: int = Field(default=0, alias="approvalVersion", ge=0)
+    created_at: datetime = Field(alias="createdAt")
+    decided_by: str | None = Field(default=None, alias="decidedBy")
+    decision_reason: str | None = Field(default=None, alias="decisionReason")
+    decided_at: datetime | None = Field(default=None, alias="decidedAt")
+
+    @model_validator(mode="after")
+    def approval_state_is_bound_and_short_lived(self) -> "ApprovalRecord":
+        if self.created_at.tzinfo is None:
+            raise ValueError("approval creation time must be timezone-aware")
+        if self.expires_at <= self.created_at:
+            raise ValueError("approval expiry must follow creation time")
+        if self.expires_at - self.created_at > timedelta(minutes=15):
+            raise ValueError("approval lifetime cannot exceed 15 minutes")
+        decision_present = (
+            self.decided_by is not None
+            or self.decision_reason is not None
+            or self.decided_at is not None
+        )
+        if self.status == "PENDING":
+            if decision_present or self.approval_version != 0:
+                raise ValueError("pending approval cannot contain a decision")
+            return self
+        if self.status in {"APPROVED", "REJECTED"}:
+            if (
+                not self.decided_by
+                or not self.decision_reason
+                or self.decided_at is None
+                or self.decided_at.tzinfo is None
+                or self.approval_version < 1
+            ):
+                raise ValueError(
+                    "approved or rejected approval requires actor, reason, and timestamp"
+                )
+            return self
+        if decision_present:
+            raise ValueError("expired approval cannot contain a decision")
+        return self
+
+
+class ApprovalDecisionRequest(ContractModel):
+    expected_approval_version: int = Field(alias="expectedApprovalVersion", ge=0)
+    status: Literal["APPROVED", "REJECTED"]
+    actor: str = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class TaskCreate(ContractModel):
@@ -191,6 +416,10 @@ class TaskTransition(ContractModel):
     expected_plan_version: int = Field(alias="expectedPlanVersion", ge=0)
     status: TaskStatus
     reason: str = Field(min_length=1)
+
+
+WorkflowVerificationOutcome = Literal["PASSED", "FAILED", "UNSAFE", "UNCERTAIN"]
+WorkflowCompletionOutcome = Literal["PASSED", "FAILED", "CANCELLED"]
 
 
 class TaskEventRecord(ContractModel):

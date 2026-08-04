@@ -6,6 +6,9 @@ from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 
 from agentloom.contracts import (
+    ApprovalCreate,
+    ApprovalDecisionRequest,
+    ApprovalRecord,
     GrantVerificationRequest,
     SkillExecutionGrant,
     TaskCreate,
@@ -14,7 +17,13 @@ from agentloom.contracts import (
     TaskTransition,
 )
 from agentloom.policy import PolicyDenied, SkillGrantAuthorizer
-from agentloom.storage import Database, InvalidStateTransition, VersionConflict
+from agentloom.storage import (
+    ApprovalTaskNotFound,
+    ApprovalVersionConflict,
+    Database,
+    InvalidStateTransition,
+    VersionConflict,
+)
 
 
 def create_app(
@@ -26,6 +35,65 @@ def create_app(
     @app.post("/api/tasks", response_model=TaskRecord, status_code=201)
     def create_task(request: TaskCreate) -> TaskRecord:
         return database.create_task(request)
+
+    @app.post("/internal/approvals", response_model=ApprovalRecord, status_code=201)
+    def create_approval(request: ApprovalCreate) -> ApprovalRecord | JSONResponse:
+        try:
+            return database.create_approval(request)
+        except ApprovalTaskNotFound:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": {
+                        "code": "APPROVAL_TASK_NOT_FOUND",
+                        "message": "The approval task was not found.",
+                        "details": {"taskId": request.task_id},
+                    }
+                },
+            )
+
+    @app.get("/internal/approvals/{approval_id}", response_model=ApprovalRecord)
+    def get_approval(approval_id: str) -> ApprovalRecord | JSONResponse:
+        approval = database.get_approval(approval_id)
+        if approval is None:
+            return _approval_not_found(approval_id)
+        return approval
+
+    @app.post(
+        "/internal/approvals/{approval_id}/decisions",
+        response_model=ApprovalRecord,
+    )
+    def decide_approval(
+        approval_id: str,
+        request: ApprovalDecisionRequest,
+    ) -> ApprovalRecord | JSONResponse:
+        try:
+            approval = database.decide_approval(approval_id, request)
+        except ApprovalVersionConflict:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": {
+                        "code": "APPROVAL_VERSION_CONFLICT",
+                        "message": "Approval is no longer pending at the requested version.",
+                        "details": {"approvalId": approval_id},
+                    }
+                },
+            )
+        if approval is None:
+            return _approval_not_found(approval_id)
+        if approval.status == "EXPIRED":
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": {
+                        "code": "APPROVAL_EXPIRED",
+                        "message": "Approval expired before a decision could be recorded.",
+                        "details": {"approvalId": approval_id},
+                    }
+                },
+            )
+        return approval
 
     @app.get("/api/tasks", response_model=TaskPage)
     def list_tasks(
@@ -132,6 +200,19 @@ def _task_not_found(task_id: str) -> JSONResponse:
                 "code": "TASK_NOT_FOUND",
                 "message": f"Task '{task_id}' was not found.",
                 "details": {"taskId": task_id},
+            }
+        },
+    )
+
+
+def _approval_not_found(approval_id: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": {
+                "code": "APPROVAL_NOT_FOUND",
+                "message": f"Approval '{approval_id}' was not found.",
+                "details": {"approvalId": approval_id},
             }
         },
     )

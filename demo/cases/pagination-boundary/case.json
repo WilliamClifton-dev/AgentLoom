@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "agentloom.demo-case/v1alpha1",
+  "caseId": "pagination-boundary",
+  "title": "Correct page count at exact boundaries",
+  "issuePath": "issue.md",
+  "acceptanceCriteria": [
+    "The original failure is reproduced before the patch.",
+    "Exact multiples do not create an extra page.",
+    "Empty, partial, and invalid inputs retain their specified behavior."
+  ],
+  "provenancePath": "provenance.json",
+  "sourceRoot": "before",
+  "expectedPatchRoot": "expected",
+  "hiddenTestsPath": "hidden-tests",
+  "workingDirectory": ".",
+  "testCommand": ["pytest", "-q"],
+  "staticCheckCommand": ["compileall", "-q", "lib", "tests"],
+  "targetFailingTests": ["tests/test_pagination.py::test_page_count_exact_multiple"],
+  "allowedChangedPaths": ["lib/pagination.py"],
+  "timeoutSeconds": 60,
+  "outputLimitBytes": 65536,
+  "runtime": {
+    "language": "python",
+    "version": ">=3.12,<3.13"
+  },
+  "expectedRootCause": "Page count unconditionally added one after integer division."
+}
