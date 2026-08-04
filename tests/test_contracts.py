@@ -5,6 +5,8 @@ from pydantic import ValidationError
 
 from agentloom.contracts import (
     AgentIdentity,
+    ApprovalDecisionRequest,
+    ApprovalRecord,
     EvidenceRecord,
     Finding,
     PatchArtifact,
@@ -18,6 +20,66 @@ from agentloom.contracts import (
     VerificationChecks,
     VerificationResult,
 )
+
+
+def test_approval_record_binds_l2_request_to_parameters_and_rollback_plan() -> None:
+    created_at = datetime.now(UTC)
+    record = ApprovalRecord(
+        approval_id="approval-01",
+        task_id="task-01",
+        grant_id="grant-01",
+        parameter_digest="a" * 64,
+        risk_level="L2",
+        route_id="github-pr-v1",
+        rollback_plan_hash="b" * 64,
+        action_summary="Create a pull request from the verified patch.",
+        requested_by="agentloom-implementer",
+        expires_at=created_at + timedelta(minutes=10),
+        created_at=created_at,
+    )
+
+    assert record.status == "PENDING"
+    assert record.approval_version == 0
+    assert record.parameter_digest == "a" * 64
+
+
+def test_approval_contract_rejects_non_escalated_risk_and_unbound_decisions() -> None:
+    created_at = datetime.now(UTC)
+    values = {
+        "approval_id": "approval-01",
+        "task_id": "task-01",
+        "grant_id": "grant-01",
+        "parameter_digest": "a" * 64,
+        "risk_level": "L1",
+        "route_id": "github-pr-v1",
+        "rollback_plan_hash": "b" * 64,
+        "action_summary": "Create a pull request from the verified patch.",
+        "requested_by": "agentloom-implementer",
+        "expires_at": created_at + timedelta(minutes=10),
+        "created_at": created_at,
+    }
+    with pytest.raises(ValidationError):
+        ApprovalRecord.model_validate(values)
+
+    with pytest.raises(ValidationError, match="requires actor, reason, and timestamp"):
+        ApprovalRecord.model_validate({**values, "risk_level": "L2", "status": "APPROVED"})
+
+
+def test_approval_decision_requires_a_current_version_and_a_reason() -> None:
+    with pytest.raises(ValidationError):
+        ApprovalDecisionRequest(
+            expected_approval_version=-1,
+            status="APPROVED",
+            actor="agentloom-developer",
+            reason="Approved after reviewing the rollback plan.",
+        )
+    with pytest.raises(ValidationError):
+        ApprovalDecisionRequest(
+            expected_approval_version=0,
+            status="APPROVED",
+            actor="agentloom-developer",
+            reason="",
+        )
 
 
 def test_agent_identity_requires_explicit_decision_boundary() -> None:
