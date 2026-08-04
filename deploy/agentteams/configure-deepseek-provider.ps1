@@ -1,8 +1,9 @@
 [CmdletBinding()]
+# Run after deploy.ps1 because applying AgentTeams resources restores hiclaw-gateway.
 param(
-    [string]$ApiKeyEnvironmentVariable = "QWEN_API_KEY",
-    [string]$Model = "qwen3.7-plus",
-    [string]$BaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    [ValidateSet("deepseek-v4-flash", "deepseek-v4-pro")]
+    [string]$Model = "deepseek-v4-flash",
+    [ValidatePattern("^hiclaw-(manager|worker-[A-Za-z0-9._-]+)$")]
     [string[]]$Containers = @(
         "hiclaw-manager",
         "hiclaw-worker-agentloom-investigator",
@@ -13,6 +14,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ApiKeyEnvironmentVariable = "DEEPSEEK_API_KEY"
+$ProviderId = "deepseek"
+$ProviderName = "DeepSeek"
+$BaseUrl = "https://api.deepseek.com/v1"
 
 function Get-SecretFromEnvironment {
     param([Parameter(Mandatory)][string]$Name)
@@ -36,7 +41,7 @@ function Get-CoPawBaseUri {
         throw "Cannot resolve CoPaw port for $Container"
     }
     if ($binding -notmatch ":(?<port>\d+)$") {
-        throw "Unexpected docker port output for ${Container}: $binding"
+        throw "Unexpected docker port output for $Container"
     }
     return "http://127.0.0.1:$($Matches.port)"
 }
@@ -58,7 +63,12 @@ function Invoke-CoPaw {
         $arguments.ContentType = "application/json"
         $arguments.Body = $Body | ConvertTo-Json -Depth 10
     }
-    return Invoke-RestMethod @arguments
+    try {
+        return Invoke-RestMethod @arguments
+    }
+    catch {
+        throw "CoPaw request failed: $Method $Path"
+    }
 }
 
 function Wait-CoPawApiReady {
@@ -86,43 +96,57 @@ $secretValue = Get-SecretFromEnvironment -Name $ApiKeyEnvironmentVariable
 $results = foreach ($container in $Containers) {
     $baseUri = Get-CoPawBaseUri -Container $container
     Wait-CoPawApiReady -BaseUri $baseUri -Container $container
-    $config = @{
-        api_key = $secretValue
-        base_url = $BaseUrl
-        chat_model = "OpenAIChatModel"
-        generate_kwargs = @{
-            temperature = 0.1
-            max_tokens = 4096
-        }
+    $providers = Invoke-CoPaw -BaseUri $baseUri -Method Get `
+        -Path "/api/models" -Body $null
+    $deepseek = $providers | Where-Object { $_.id -eq $ProviderId }
+    if ($null -eq $deepseek) {
+        $null = Invoke-CoPaw -BaseUri $baseUri -Method Post `
+            -Path "/api/models/custom-providers" -Body @{
+                id = $ProviderId
+                name = $ProviderName
+                default_base_url = $BaseUrl
+                api_key_prefix = ""
+                chat_model = "OpenAIChatModel"
+                models = @()
+            }
     }
+
     $null = Invoke-CoPaw -BaseUri $baseUri -Method Put `
-        -Path "/api/models/dashscope/config" -Body $config
+        -Path "/api/models/$ProviderId/config" -Body @{
+            api_key = $secretValue
+            base_url = $BaseUrl
+            chat_model = "OpenAIChatModel"
+            generate_kwargs = @{
+                temperature = 0.1
+                max_tokens = 4096
+            }
+        }
 
     $providers = Invoke-CoPaw -BaseUri $baseUri -Method Get `
         -Path "/api/models" -Body $null
-    $dashscope = $providers | Where-Object { $_.id -eq "dashscope" }
-    if ($null -eq $dashscope) {
-        throw "DashScope provider is unavailable in $container"
+    $deepseek = $providers | Where-Object { $_.id -eq $ProviderId }
+    if ($null -eq $deepseek) {
+        throw "DeepSeek provider is unavailable in $container"
     }
-    $modelIds = (@($dashscope.models) + @($dashscope.extra_models)) |
+    $modelIds = (@($deepseek.models) + @($deepseek.extra_models)) |
         ForEach-Object { $_.id }
     if ($Model -notin $modelIds) {
         $null = Invoke-CoPaw -BaseUri $baseUri -Method Post `
-            -Path "/api/models/dashscope/models" `
+            -Path "/api/models/$ProviderId/models" `
             -Body @{ id = $Model; name = $Model }
     }
 
     $active = Invoke-CoPaw -BaseUri $baseUri -Method Put `
         -Path "/api/models/active" `
-        -Body @{ provider_id = "dashscope"; model = $Model; scope = "global" }
+        -Body @{ provider_id = $ProviderId; model = $Model; scope = "global" }
 
     $connectionVerified = $false
     if (-not $SkipConnectionTest) {
         $probe = Invoke-CoPaw -BaseUri $baseUri -Method Post `
-            -Path "/api/models/dashscope/models/test" `
+            -Path "/api/models/$ProviderId/models/test" `
             -Body @{ model_id = $Model }
         if (-not $probe.success) {
-            throw "DashScope model probe failed in $container"
+            throw "DeepSeek model probe failed in $container"
         }
         $connectionVerified = $true
     }

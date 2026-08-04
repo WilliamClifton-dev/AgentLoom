@@ -8,10 +8,11 @@
 | 参赛赛道 | GOAI 赛道一：新智基座｜Agent Infra |
 | 参考选题 | 方向三：软件研发全流程协同 |
 | 指定协同平台 | [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) |
-| 文档状态 | Draft v0.5 |
-| 文档日期 | 2026-08-01 |
+| 文档状态 | Draft v0.6 |
+| 文档日期 | 2026-08-04 |
 | 初赛截止 | 2026-08-16 |
-| 主要场景 | 从 GitHub Issue、错误日志和失败测试到补丁、验证与审计报告的端到端闭环 |
+| 产品边界 | 面向 AgentTeams 的第三方 Skill 治理与可验证执行控制面 |
+| 参考场景 | 从 GitHub Issue、错误日志和失败测试到补丁、验证与审计报告的端到端闭环 |
 
 ## 1. 文档目的
 
@@ -38,13 +39,13 @@
 - 实施者容易自证成功，缺少清洁环境中的独立验证和原始证据；
 - 成功、失败和人工审批结果没有回流到评测集，Skill 无法受控演进。
 
-软件缺陷修复适合作为首个场景：输入、补丁、测试和 Diff 均可固化，成功标准可客观验证，也能展示多 Agent 分工、Skill 复用、MCP 工具、审批、回滚和审计的完整闭环。目标用户是研发团队、平台工程团队和需要治理第三方 Agent 能力的开源维护者。
+上述问题并不限于软件研发。运维处置、客服执行、云资源管理和安全分析中的第三方 Skill 同样需要来源、权限、评测、发布和审计治理。软件缺陷修复只作为首个参考场景：输入、补丁、测试和 Diff 可固化，成功标准可客观验证，适合在有限时间内证明控制面的通用能力。目标用户是建设 AgentTeams 应用的平台工程团队、需要治理第三方 Agent 能力的研发团队和开源维护者。
 
 ### 2.2 产品定位与目标结果
 
-AgentLoom 面向软件研发中的缺陷修复任务，将分散在 GitHub、Agent Skill 仓库和企业内部的技能转化为可发现、可审查、可评测、可发布、可选择、可执行和可回滚的工程能力。
+AgentLoom 是面向 AgentTeams 的第三方 Skill 治理与可验证执行控制面。它将分散在 GitHub、Agent Skill 仓库和企业内部的能力转化为可发现、可审查、可评测、可发布、可选择、可授权、可执行和可回滚的工程资产。AgentLoom 不是通用编码 Agent、代码审查 CLI 或渗透测试平台；软件缺陷修复是验证平台契约的参考应用，不是产品边界。
 
-系统强制使用 [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) 作为多 Agent 协同运行平台。AgentTeams Manager 承担 Coordinator 职责，三个独立 Worker 分别承担 Investigator、Implementer 和 Verifier 职责，通过 Matrix Team Room、共享任务状态和 MinIO 产物协作。Agent 不直接裸调外部工具，而是通过 Skill 和 Higress 托管的 MCP/适配器形成稳定、可授权、可审计的调用链。所有关键结论必须引用运行证据；高风险动作必须经过 Matrix/Element 中可见的人工审批。
+系统强制使用 [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) 作为多 Agent 协同运行平台。AgentTeams Manager 是编排基础设施，不计为第四个业务 Agent；三个独立 Worker 分别承担 Investigator、Implementer 和 Verifier 职责，通过 Matrix Team Room、共享任务状态和 MinIO 产物协作。Agent 不直接裸调外部工具，而是通过 Skill 和 Higress 托管的 MCP/适配器形成稳定、可授权、可审计的调用链。所有关键结论必须引用运行证据；高风险动作必须经过 Matrix/Element 中可见的人工审批。
 
 初赛只实现一条可信闭环：
 
@@ -67,6 +68,34 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 - 正常、失败、审批拒绝和回滚路径均能生成可审计产物；
 - 上游 Skill、团队原创代码、模型、API 和数据来源均可追溯。
 
+### 2.3 团队原创系统贡献
+
+AgentLoom 的原创价值不在重写调试、测试驱动开发或代码审查方法，而在把来源不同、质量不一的 Skill 纳入 AgentTeams 可强制执行的治理闭环。初赛团队贡献固定为：
+
+1. 面向多来源 Skill 的统一 Manifest、来源哈希和隔离生命周期；
+2. Skill 风险、权限、评测、发布、升级和回滚一体化门禁；
+3. 绑定 Task、Agent、Skill、Tool、参数摘要、路由和时效的 `SkillExecutionGrant`；
+4. Policy Broker 的签名校验、防重放、路径白名单和 L2/L3 人工审批边界；
+5. AgentTeams 与 SkillOps 控制面的协同契约，保持三个业务 Agent 的职责与权限互斥；
+6. 静态、动态、独立验证三层检测以及不可变 Evidence 链；
+7. 可复现 Demo Case、失败/审批/回滚分支和 AgentLoom-Bench 评测结构；
+8. 运行经验经人工复盘后形成新 SkillVersion 候选的受控演进流程。
+
+每项贡献都必须对应团队代码、契约测试、Git 提交和运行证据。上游工作流内容、第三方工具能力和 AgentTeams 原生组件不计入团队原创代码量。
+
+### 2.4 产品边界与参考场景关系
+
+```text
+AgentTeams 协同运行时
+  -> AgentLoom SkillOps 控制面
+     -> 来源 / Manifest / 评测 / 发布 / 路由
+     -> Grant / Policy / Approval / Evidence / Rollback
+        -> 软件缺陷修复参考场景
+           -> Issue -> 根因 -> 补丁 -> 独立验证 -> 经验沉淀
+```
+
+未来迁移到运维、客服或云资源治理时，替换的是任务 Schema、角色提示和领域 Skill；Skill 生命周期、Policy Broker、审批、Evidence 和版本回滚保持不变。能否在第二个场景复用这些控制面契约，是 AgentLoom 平台定位是否成立的长期验证标准。
+
 ## 3. 比赛要求对齐
 
 ### 3.1 跨阶段要求与阶段边界
@@ -74,7 +103,7 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 | 比赛要求 | 手册依据 | AgentLoom 设计 | 验证材料 |
 | --- | --- | --- | --- |
 | 真实企业场景 | 第 1、5、17 页 | 软件研发缺陷修复与质量门禁 | Issue、失败测试、补丁和业务价值说明 |
-| 至少 3 个不同职能 Agent | 第 1、10、16、21 页 | 4 个 Agent，职责与权限互斥 | Agent Identity 清单、AgentTeams Trace |
+| 至少 3 个不同职能 Agent | 第 1、10、16、21 页 | Investigator、Implementer、Verifier 三个业务 Agent，职责与权限互斥；Manager 仅承担 AgentTeams 编排 | Agent Identity 清单、AgentTeams Trace |
 | 以 AgentTeams 为协同设计基点 | 第 10、14、17、19 页 | 实际部署 `agentscope-ai/AgentTeams`；使用 Manager、Worker、Team、Human、Matrix、MinIO 和 Higress 完成协作 | AgentTeams 版本锁、资源清单、Element 房间记录、运行日志和可执行代码 |
 | Skill 为必选项 | 第 10、17、19、21-22 页 | Skill Registry、生命周期、调用契约、评测和回滚 | Skill 清单、Manifest、评测报告 |
 | 阿里云官方用云 Skill | 第 11、14-15、17、19 页 | 正文 9.1 和工具链表将其列为可选/推荐；只有找到与 Demo 直接相关且可真实验证的能力时选择 1 个，不为覆盖名词而接入 | 采用时提供必要性、调用 Trace、版本与来源；不采用时说明原因 |
@@ -144,7 +173,7 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 
 **P1：团队加分原型目标**
 
-1. 实际部署 `agentscope-ai/AgentTeams`，由 1 个 Manager 和 3 个独立 Worker 跑通 4 个不同职能 Agent 的完整协作链路。
+1. 实际部署 `agentscope-ai/AgentTeams`，由 Manager 编排 Investigator、Implementer、Verifier 三个独立 Worker，跑通三个不同职能业务 Agent 的完整协作链路。
 2. 支持从至少 1 个上游来源和 1 个团队原创来源导入 5 个核心 Skill；主任务至少真实调用其中 3 个。
 3. 为每个 Skill 保存来源、许可证、版本、内容哈希、权限和风险信息。
 4. 在隔离工作区完成 1 个固定缺陷任务，展示正常链路、1 个失败分支和 1 个人工审批分支。
@@ -156,6 +185,8 @@ GitHub Issue + 错误日志 + 失败测试 + 示例代码仓库
 ### 4.2 非目标
 
 - 不建设通用聊天机器人或通用 Agent 商店。
+- 不建设通用代码审查 CLI，不以行级评论数量或审查模型精度作为核心产品指标。
+- 初赛不集成、封装或移植 `alibaba/open-code-review`、`usestrix/strix`、`stablyai/orca`；三者只进入先行工作与竞品对照。
 - 不支持任意语言和任意仓库；初赛固定 Python 示例仓库。
 - 不实现多租户、计费、商业账户体系或复杂 RBAC 管理后台。
 - 不实现 Kubernetes 级分布式调度。
@@ -265,9 +296,12 @@ demo/cases/<case-id>/
 
 ## 7. 总体架构
 
+总体架构以 AgentTeams 为协同运行时、AgentLoom SkillOps 为治理中心、软件缺陷修复为可替换参考场景。参考场景只能通过 AgentTeams 和受治理 Skill 进入控制面，不能直接拥有工具、凭据、审批或最终验收权限。
+
 ```mermaid
 flowchart TB
-    U["用户 / 初赛评委"] --> E["Element Web / Matrix Client"]
+    U["用户 / 初赛评委"] --> REF["软件缺陷修复参考场景<br/>Issue / Log / Failed Test"]
+    REF --> E["Element Web / Matrix Client"]
     E --> MX["Tuwunel Matrix Homeserver"]
 
     subgraph AT["agentscope-ai/AgentTeams"]
@@ -370,11 +404,10 @@ AgentLoom 在 AgentTeams 上新增 SkillOps 控制面、MCP 服务、策略和�
 
 ### 8.3 Agent Identity 清单
 
-该清单覆盖手册附录 A 的 Name、Role、Capabilities、Inputs、Outputs、Dependencies、Decision Boundary 和 Trace 字段。
+该清单覆盖手册附录 A 的 Name、Role、Capabilities、Inputs、Outputs、Dependencies、Decision Boundary 和 Trace 字段。参赛 Agent Identity 只包含以下三个 Worker。`agentloom-manager` 是 AgentTeams 编排资源，负责计划、委派、状态聚合和人工审批入口，不作为第四个业务 Agent 申报；其行为仍通过 Manager 日志、Matrix 事件和 TaskPlan 接受审计。
 
 | Name | Role | Capabilities | Inputs | Outputs | Dependencies | Decision Boundary | Trace |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `agentloom-manager` | AgentTeams Manager；任务指挥与状态管理 | 解析任务、生成 DAG、分派 Worker、处理超时与冲突、触发审批；不能修改代码 | Matrix 任务事件、约束、Worker 状态和证据摘要 | TaskPlan、AgentAssignment、ApprovalRequest、终止原因 | AgentTeams Manager、Team Room、PolicyEngine、TaskStore | 可自动执行只读规划；改变任务约束、外部写入和 L2/L3 动作需 Human 确认 | Matrix 房间事件、Manager 日志、计划版本、重试和审批关联 |
 | `agentloom-investigator` | AgentTeams Worker；根因定位与证据收集 | 阅读代码、日志和测试；搜索调用链；形成根因候选；不能写工作区 | MinIO 仓库快照、Issue、日志、失败测试 | RootCauseReport、EvidenceRef、修复约束 | Debugging Skill、Policy Broker、MinIO、Team Room | 仅 L0 只读；不得修改文件、执行外部写操作或声明最终成功 | Worker Session、Matrix 状态事件、查询范围、证据 ID 和置信度 |
 | `agentloom-implementer` | AgentTeams Worker；补丁设计与实施 | 选择已发布 Skill；在隔离工作区修改代码；运行局部测试；不能批准自己的结果 | RootCauseReport、TaskConstraints、SkillCandidateSet | PatchArtifact、ImplementationNotes、局部测试证据 | TDD Skill、Policy Broker、MinIO、Team Room | 仅允许修改白名单路径；新增依赖、网络访问和外部写入需审批 | Worker Session、Skill 版本、文件 Diff、命令、退出码和产物哈希 |
 | `agentloom-verifier` | AgentTeams Worker；独立验证与风险审查 | 从清洁快照重放补丁、运行测试、审查 Diff、给出 verdict；不能修改补丁 | MinIO PatchArtifact、验收标准、原始证据 | VerificationResult、RiskReport、Badcase | Testing/Review/Security Skill、独立 Sandbox、Team Room | 可判定通过、失败、不安全或不确定；不得修补代码或降低验收标准 | 独立 Worker Session、测试、静态检查、证据引用和 verdict |
@@ -1078,7 +1111,7 @@ AgentTeams v1.1.2 官方本地安装（该版本运行资源仍使用 HiClaw 名
 
 初赛使用 Element Web 作为主要交互和人工介入界面，不再开发重复的聊天 UI。AgentLoom 直接生成静态 HTML/Markdown 运行报告，不把报告 WebUI 作为主链依赖。Nacos remote package 为可选展示；默认使用本地 Registry + MinIO。AgentLoom 元数据保存在 SQLite，复赛可迁移到 PostgreSQL/PolarDB，并可将 OTLP 接入 AgentLoop、LoongSuite 或 AgentScope Studio。
 
-## 17. 借鉴来源与原创边界
+## 17. 第三方来源、先行工作与原创边界
 
 | 项目 | 许可证/状态 | 借鉴或使用范围 | 不直接复制的部分 |
 | --- | --- | --- | --- |
@@ -1090,18 +1123,21 @@ AgentTeams v1.1.2 官方本地安装（该版本运行资源仍使用 HiClaw 名
 | [SWE-bench](https://github.com/princeton-nlp/SWE-bench) | 按仓库及数据集条款 | 真实 Issue 和容器化验证方法 | 初赛只使用许可兼容的小型任务或自建同类样例 |
 | [vercel-labs/deepsec](https://github.com/vercel-labs/deepsec) | Apache-2.0 | 分阶段、幂等、追加式记录、独立复核和中断续跑 | 不复制其安全扫描业务实现 |
 | [Unclecheng-li/VulnClaw](https://github.com/Unclecheng-li/VulnClaw) | MIT | 证据闸门、按需 Skill、角色工具白名单思路 | 不复制渗透工具、Skill 或编排代码 |
+| [alibaba/open-code-review](https://github.com/alibaba/open-code-review) | Apache-2.0，先行工作/竞品对照 | 用于确认代码审查 CLI、确定性文件筛选、规则评审和行级评论不属于 AgentLoom 原创范围 | 初赛不克隆、不依赖、不封装、不移植其源码、规则、Prompt、Schema 或会话模型；不把 AgentLoom 定位为代码审查产品 |
+| [usestrix/strix](https://github.com/usestrix/strix) | Apache-2.0，先行工作/竞品对照 | 用于确认自主安全测试、攻击工具链和安全 Agent Graph 不属于 AgentLoom 产品边界 | 初赛不引入其攻击工具、Skill、沙箱镜像、Agent 编排或报告代码 |
+| [stablyai/orca](https://github.com/stablyai/orca) | MIT，先行工作/竞品对照 | 用于确认通用多 Agent IDE、并行 worktree 和远程会话工作台不属于 AgentLoom 产品边界 | 初赛不引入其桌面端、编排层、会话扫描、Skill 同步或 worktree 实现；不形成第二套协同控制面 |
 | [OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) | Apache-2.0 | AgentTeams Worker 隔离不足时作为可选执行后端 | 不替代 AgentTeams Worker/Team，不在初赛部署 Kubernetes 体系 |
 | [stacklok/toolhive](https://github.com/stacklok/toolhive) | Apache-2.0 | MCP 容器隔离、身份、策略和审计思路 | 不完整引入企业网关 |
 | [openlit/openlit](https://github.com/openlit/openlit) | Apache-2.0 | OTel Trace 字段和编码 Agent 观测思路 | 比赛实现优先兼容推荐工具链 |
 | [MCP Registry](https://github.com/modelcontextprotocol/registry) | 以仓库声明为准 | 注册、发布、来源和版本模型 | 不复制服务端实现 |
 
-### 17.1 可借鉴项目复用实施矩阵
+### 17.1 第三方关系与实施边界矩阵
 
-复用分为三类：`直接依赖` 表示运行时实际使用；`内容导入` 表示保留来源和许可证后纳入 Skill 生命周期；`设计借鉴` 表示只复用公开思想，代码由 AgentLoom 自行实现。任何复用都不得改写 provenance。
+第三方关系分为四类：`直接依赖` 表示运行时实际使用；`内容导入` 表示保留来源和许可证后纳入 Skill 生命周期；`设计借鉴` 表示只参考公开思想且代码由 AgentLoom 独立实现；`先行工作/竞品对照` 只用于说明产品边界，不产生代码、内容或运行时依赖。任何复用都不得改写 provenance，竞品对照不得伪装为技术依赖或团队贡献。
 
 | 项目 | 复用类型 | 落点模块 | 具体复用/改造 | 阶段 | 验证与退出条件 |
 | --- | --- | --- | --- | --- | --- |
-| AgentTeams | 直接依赖 | `agentloom/agentteams`、部署清单 | 使用稳定版 Controller、CRD、Matrix、MinIO、Higress；AgentLoom 只写 Gateway 与资源模板 | 初赛主链 | E2E 查验 4 Agent、Team、Human、Room、Artifact；不可退出或替换 |
+| AgentTeams | 直接依赖 | `agentloom/agentteams`、部署清单 | 使用稳定版 Controller、CRD、Matrix、MinIO、Higress；AgentLoom 只写 Gateway 与资源模板 | 初赛主链 | E2E 查验 Manager 编排资源、3 个业务 Agent Identity、Team、Human、Room、Artifact；不可退出或替换 |
 | addyosmani/agent-skills | 内容导入 | `skills/upstream`、Source Connector、Normalizer、Router | 选择性导入 `debugging-and-error-recovery`、`test-driven-development`、`code-review-and-quality`、`security-and-hardening`、`using-agent-skills`；保留原文和声明，增加 Manifest、Schema、哈希、角色绑定、权限、风险、Grant、双重评测和版本生命周期 | 初赛 | 五个 Skill 分别锁定 commit/License/hash；Manifest、权限白名单、AgentTeams 角色、上游 Eval、AgentLoom-Bench 和真实调用证据齐全；任一门禁失败则保持隔离，全部内容不得批量直装 |
 | vercel-labs/skills | 设计借鉴 | Source Connector、Distributor | 借鉴 Git 来源发现和安装体验；不复制 CLI，统一转为 AgentLoom ImportRun | 初赛后 | 契约测试覆盖 Git URL、commit、路径和重复导入；若增加复杂度则删除该 Connector |
 | mcp-scan | 设计借鉴，可选规则转换 | L1 Scanner | 借鉴风险分类；规则转换为 AgentLoom Finding Schema，不直接信任其 verdict | 初赛 | 用恶意/正常 fixture 验证误报漏报；不可用时保留自建最小规则集 |
@@ -1109,24 +1145,31 @@ AgentTeams v1.1.2 官方本地安装（该版本运行资源仍使用 HiClaw 名
 | SWE-bench | 方法/数据条款参考 | AgentLoom-Bench | 借鉴问题、补丁、容器验证结构；初赛不用未筛选数据集，采用自建小样例 | 复赛候选 | 逐任务核验许可、资源成本和可复现性；不满足即继续自建任务 |
 | DeepSec | 设计借鉴 | Task Engine、Evidence | 借鉴分阶段、幂等、追加记录、独立 revalidate 和中断恢复 | 初赛 | 状态恢复和证据重放 E2E；不复制其安全业务代码 |
 | VulnClaw | 设计借鉴 | Runtime Policy、L3 Verifier | 借鉴按需 Skill、角色工具白名单、证据闸门 | 初赛 | 越权测试和 Skill 最小注入测试；不引入渗透工具及场景代码 |
+| OpenCodeReview | 先行工作/竞品对照 | 产品边界、Verifier 非目标 | 只比较“代码审查工具”与“SkillOps 治理控制面”的输入、流程、产物和安全边界 | 初赛材料 | 仓库、锁文件、运行镜像和代码扫描中均无该项目依赖；Code Review Skill 只作为 Verifier 的普通只读能力 |
+| Strix | 先行工作/竞品对照 | 产品边界、L3 非目标 | 只说明 AgentLoom 不做自主渗透、攻击验证平台或安全工具集合 | 初赛材料 | 不运行未授权目标，不引入攻击镜像、Skill 或工具链；安全检测仅服务 Skill/补丁准入 |
+| Orca | 先行工作/竞品对照 | 产品边界、TUI 非目标 | 只说明 TUI 是 AgentLoom 结构化控制面客户端，不是通用 Agent IDE | 初赛材料 | AgentTeams 保持唯一协同运行时；不引入第二套 Agent/会话/worktree 编排 |
 | OpenSandbox | 可选直接依赖 | Sandbox Adapter | Worker 容器边界不足时，通过 MCP 后端创建更强隔离环境 | 复赛/风险触发 | 逃逸、网络、挂载、资源限制测试通过才启用；失败时阻断需要强隔离的任务，不能降级放行 |
 | ToolHive | 设计借鉴 | Policy Broker | 借鉴 MCP 身份、容器隔离、策略与审计模型 | 复赛候选 | Broker 压测或企业部署需要时评估；避免同时部署两套网关控制面 |
 | OpenLIT | 设计借鉴 | Observability Adapter | 借鉴编码 Agent Span 和 OTel 字段 | 初赛 | Trace Schema 测试通过；后续优先接比赛推荐观测后端 |
 | MCP Registry | 设计借鉴 | Registry、Tool Contract | 借鉴名称、版本、来源和发布模型 | 复赛 | 与官方规范做契约对照；不复制未知许可证的服务端代码 |
 
-团队原创贡献定义为：
+团队原创贡献以 2.3 节为唯一权威定义。本节只记录外部关系，不能通过“参考”扩大团队贡献，也不能因为许可证兼容就省略来源。所有实际引入的代码、模型、数据、Skill 和服务必须进入 `THIRD_PARTY.md` 与 `provenance/sources.yaml`；先行工作/竞品对照不进入运行依赖清单，但应在提交材料的竞品分析中如实列出。
 
-1. 面向多来源 Skill 的统一 Manifest 与生命周期；
-2. Skill 风险、权限、评测、发布和回滚一体化门禁；
-3. 基于历史验证数据的 Skill 预筛选与路由；
-4. AgentTeams 与 SkillOps 控制面的协同契约；
-5. 软件修复场景中的独立验证和证据闸门；
-6. Agent、Skill、MCP/Adapter、沙箱和证据的统一 Trace；
-7. 可复现的 AgentLoom-Bench 样例任务与对比报告。
+### 17.2 独立开发证据时间线
 
-所有实际引入的代码、模型、数据、Skill 和服务必须进入 `THIRD_PARTY.md` 与 `provenance/sources.yaml`；本表只是设计阶段清单，不能替代最终依赖披露。
+以下 Git 提交用于证明 AgentLoom 核心架构和实现的形成过程。时间线只证明本仓库的可追溯演进，不声称相关工程思想此前从未出现：
 
-### 17.2 开放、模型、API 与数据披露基线
+| 日期 | 提交 | 已形成的团队实现 |
+| --- | --- | --- |
+| 2026-07-30 | `e1cdc30`、`a7965cf`、`0271d89` | 架构与严格契约基线、Skill 绑定工具授权、fail-closed 检测流水线 |
+| 2026-07-31 | `ab1f3d0`、`83b2c15`、`b19ee88`、`bea8e53` | 受治理 Grant、上游 Skill 隔离目录、Policy Broker MCP、完整修复状态机 |
+| 2026-07-31 至 2026-08-03 | `f630720` 至 `a790a90` | AgentTeams 固定版本部署、三个 Worker 协作、MinIO 产物和严格消息 E2E |
+| 2026-08-04 | `626edc4` 至 `d36fcb8` | 可复现 Demo Case、确定性修复产物和 Textual TUI |
+| 2026-08-04 | `0d160b6`、`ed74e3e`、`a4b755c` | 参数绑定审批契约、持久化审批账本和控制 API |
+
+OpenCodeReview、Strix 和 Orca 于 2026-08-04 首次进入本项目的公开仓库对照审查。审查只读取公开元数据、README、许可证、目录和少量关键源码；未将仓库克隆到 AgentLoom，未复制内容，未加入依赖。评估时记录的上游提交分别为 OpenCodeReview `ef731a1e2396a5c1c4c4cc836507224703eb8233`、Strix `6719a70611a09b45313d36f714a91d2d2e78bad6`、Orca `2548b816c05a2fe85c12e7f1cd7958512096fab9`。
+
+### 17.3 开放、模型、API 与数据披露基线
 
 | 项目 | 初赛确定边界 | 必交证据 |
 | --- | --- | --- |
@@ -1195,7 +1238,7 @@ agentloom/
 
 ### 19.1 独立开发阶段的 Codex 分层模型策略
 
-本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型 `qwen3.7-plus` 及其本地回退。
+本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。当前 Qwen `qwen3.7-plus` 已有运行证据；DeepSeek `deepseek-v4-flash` 已于 2026-08-04 通过四容器连接探测与 Manager + 三 Worker 消息 E2E，可用于低成本 Baseline。`deepseek-v4-pro` 保留给最终真实修复 E2E。每次运行必须记录实际 Provider/模型，不得覆盖原 Qwen 证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
 
 模型在 Codex 任务创建、续接或显式交接边界选择。可选的外部 DevDispatcher 工具可以读取本架构、本地任务账本、Git 状态和验收命令，在任务边界选择目标模型；它不属于本仓库的产品代码，也不允许运行中的模型自行改写路由。当前分层使用以下准确模型 ID：
 
@@ -1289,7 +1332,7 @@ agentloom/
 
 | 迁移项 | 触发条件 | 实施步骤 | 验证闸门 | 回滚 |
 | --- | --- | --- | --- | --- |
-| AgentTeams `v1.1.2` 到后续稳定版 | 新版提供不可替代能力且稳定发布 | 导出 CR/Room/Artifact 引用；建立独立环境；转换 `hiclaw.io` 到新 API；固定镜像；重放基准任务；再切换 | 4 Agent 身份、Team/Human、Matrix、MinIO、MCP、审批和 E2E 全通过 | 保留旧环境和资源清单；DNS/配置切回；不原地覆盖旧数据 |
+| AgentTeams `v1.1.2` 到后续稳定版 | 新版提供不可替代能力且稳定发布 | 导出 CR/Room/Artifact 引用；建立独立环境；转换 `hiclaw.io` 到新 API；固定镜像；重放基准任务；再切换 | Manager 编排资源、3 个业务 Agent Identity、Team/Human、Matrix、MinIO、MCP、审批和 E2E 全通过 | 保留旧环境和资源清单；DNS/配置切回；不原地覆盖旧数据 |
 | SQLite 到 PostgreSQL/PolarDB | 多实例、并发写或长期审计查询需求出现 | Alembic 升级目标库；快照源库；批量复制；校验行数/哈希/外键；短期双写；影子读；切换 Repository DSN | 核心实体数量一致、随机记录哈希一致、状态机和 append-only 测试通过、回滚演练通过 | 停止双写，DSN 切回 SQLite 快照；保留目标库供排查 |
 | 本地 Registry/MinIO package 到 Nacos | 需要多环境远程 Skill/AgentSpec 分发 | 冻结 Manifest；上传不可变 package；记录 Nacos URI/版本/标签；AgentTeams `spec.package` 灰度指向；校验下载哈希 | 分发哈希等于 SkillVersion；离线缓存、认证失败和回滚标签测试通过 | `spec.package` 切回本地/MinIO URI；不删除旧 package |
 | 本地 OTel/静态报告到 AgentLoop、LoongSuite 或 Studio | 进入复赛，需要集中查询和展示 | 固定 canonical Span；部署一个后端；OTLP 双发；核对 Trace/Log/Metrics；再设为主查询面 | Span 数、TraceId、EvidenceRef、时延和脱敏抽样一致；后端故障不影响任务状态 | 停止新 exporter；静态报告和本地 Evidence 保持权威 |
@@ -1342,12 +1385,14 @@ agentloom/
 
 #### 20.2.2 P1：初赛加分原型
 
-- [ ] 实际运行 `agentscope-ai/AgentTeams`，版本、镜像摘要和配置已锁定。
-- [ ] Manager、3 个 Worker、Team 和 Human 资源可在 AgentTeams Controller/`hiclaw` 中查验。
-- [ ] Element Team Room 显示任务委派、Worker 进展、审批和最终结果；MinIO 可查验补丁、日志和报告。
+- [x] 实际运行 `agentscope-ai/AgentTeams`，版本、镜像摘要和配置已锁定。
+- [x] Manager、3 个 Worker、Team 和 Human 资源可在 AgentTeams Controller/`hiclaw` 中查验。
+- [x] Element Team Room 显示任务委派、Worker 进展和最终结果；MinIO 可查验补丁和报告。L2/L3 人工审批仍需单独演示。
+- [x] 固定分页任务已从空 Team 前缀经 Qwen 三 Agent 无人协作跑通；精确 filesync、输入指纹、真实 Matrix Event、主机隐藏测试和静态检查证据齐全。
+- [x] Textual TUI 已实现本地确定性的“首次验证失败 -> 回滚 -> 单次重试 -> 完成”十步状态分支，并生成 `failure-retry-evidence.json`；该证据不冒充 AgentTeams/Matrix Trace。
 - [ ] 5 个核心 Skill 均有完整 Manifest，主任务至少真实调用其中 3 个；至少 1 个为团队原创 Skill。
 - [ ] Worker 只配置 Policy Broker MCP；缺少、过期或重放 SkillExecutionGrant 的调用被拒绝。
-- [ ] 至少 1 个固定任务跑通正常链路，并展示 1 个失败重试和 1 个人工审批分支。
+- [ ] 在 AgentTeams/Element 中录制 1 个由 Human 审阅并发送结构化决定的 L2 审批分支；严格 Matrix 事件验证器和 Prepare/Collect 驱动已实现，本地 TUI 控件仍不能替代真实 Human 事件，当前仅缺最终凭据轮换与真人证据采集。
 - [ ] L1/L2/L3 对主任务产生 DetectionResult/Evidence，Implementer 与 Verifier 权限分离。
 - [ ] 所有最终结论回链 Evidence ID；成功、失败和不确定结果形成 ExperienceRecord。
 - [ ] `THIRD_PARTY.md`、来源、License、模型/API、费用、数据授权和团队原创边界完整。
@@ -1355,7 +1400,8 @@ agentloom/
 #### 20.2.3 P2：不阻塞初赛
 
 - [ ] 两模式对比与 3-5 个评测任务。
-- [ ] 最小 TUI、视频、清洁环境 Docker 一键复现。
+- [x] 最小 TUI 可选择 Case、展示四角色状态、事件、产物、失败重试和本地审批账本。
+- [ ] 比赛视频和清洁环境 Docker 一键复现。
 - [ ] SQLite Alembic upgrade/downgrade、route rollback 和完整迁移演练。
 - [ ] 真实 GitHub PR、官方用云 Skill、Nacos 或集中式观测后端；只在必要且可真实验证时接入。
 
@@ -1371,7 +1417,7 @@ agentloom/
 2. 研发缺陷修复中的真实问题与价值；
 3. 为什么现有 Skill 仓库不能直接进入企业运行；
 4. 完整任务闭环；
-5. AgentTeams 与四个 Agent 的分工；
+5. AgentTeams Manager 与三个业务 Agent 的协同分工；
 6. SkillOps 生命周期和原创贡献；
 7. Skill、MCP/Adapter、沙箱与工具链；
 8. 安全审批、回滚和证据闸门；
@@ -1477,6 +1523,15 @@ agentloom/
 - **替代方案**：知识库 RAG、领域继续预训练、监督微调或偏好优化、全部工具使用本地私有协议。
 - **代价**：初赛不展示模型训练或向量检索亮点；换取更小系统、更低成本和更强复现性。RAG/Post-training 只有在基准数据证明当前方案存在稳定瓶颈时重新提案，Pre-training 不进入 AgentLoom 路线图。
 
+### ADR-013：比赛版本不集成 OpenCodeReview、Strix 或 Orca
+
+- **状态**：Accepted
+- **决策日期**：2026-08-04
+- **背景**：三者分别在代码审查、自主安全测试和通用多 Agent IDE 领域形成成熟产品。直接复用会模糊 AgentLoom 的 SkillOps 控制面定位，引入第二套编排或高风险工具链，并增加来源解释和成果归属风险。
+- **决定**：初赛和复赛主线不克隆、不依赖、不封装、不移植三者的源码、规则、Prompt、Schema、Skill、镜像或编排实现。它们只作为公开先行工作和竞品对照，帮助说明非目标与差异化；若未来确有独立需求，必须新建 ADR、完成许可证/来源记录、隔离 PoC 和贡献边界审查后再决定。
+- **替代方案**：将 OpenCodeReview 包装为 Verifier Skill；采用 Strix 安全 Skill/沙箱；采用 Orca worktree 或会话控制面。
+- **代价**：不能直接获得其成熟的文件筛选、攻击验证或桌面工作台能力；换取单一 AgentTeams 控制面、清晰原创边界、更小交付范围和更低比赛合规风险。
+
 ## 23. 主要风险与缓解
 
 | 风险 | 影响 | 缓解措施 |
@@ -1491,6 +1546,7 @@ agentloom/
 | 额外沙箱搭建耗时 | 初赛延期 | 初赛先使用 AgentTeams 独立 Worker 容器与清洁快照；OpenSandbox 仅在边界不足时接入 |
 | 评测任务太难 | 无法形成稳定指标 | 从小型确定性 Bug 开始，保留失败案例但不追求全通过 |
 | 上游许可证混杂 | 取消资格或扣分 | 锁定文件级来源与 License；不使用授权不清内容 |
+| 与成熟代码审查或多 Agent 工具定位重叠 | 评委误判为套壳，原创贡献难以辨识 | 将 SkillOps 控制面作为产品本体、软件修复作为参考场景；竞品只做对照；保留 Git 时间线、来源披露、原创契约测试和运行证据 |
 | 架构过重 | 独立开发无法按时完成 | 严守非目标；UI、RAG、分布式和多租户延后 |
 | 开发模型误路由 | 低层模型返工，或高层模型浪费额度 | Terra 默认；按风险和失败证据升降级；Sol 定策后回落；每 10 个代表性任务复盘升级率、返工和验收结果 |
 

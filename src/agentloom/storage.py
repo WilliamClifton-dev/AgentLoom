@@ -277,6 +277,23 @@ class Database:
             row = session.get(ApprovalRow, approval_id)
             return self._to_approval_record(row) if row else None
 
+    def list_approvals(
+        self,
+        *,
+        status: ApprovalStatus | None = None,
+    ) -> list[ApprovalRecord]:
+        with self._sessions() as session:
+            statement = select(ApprovalRow)
+            if status is not None:
+                statement = statement.where(ApprovalRow.status == status)
+            rows = session.scalars(
+                statement.order_by(
+                    ApprovalRow.created_at.desc(),
+                    ApprovalRow.approval_id.desc(),
+                )
+            ).all()
+        return [self._to_approval_record(row) for row in rows]
+
     def decide_approval(
         self,
         approval_id: str,

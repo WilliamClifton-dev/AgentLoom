@@ -99,3 +99,37 @@ def test_database_rejects_approval_for_an_unknown_task(tmp_path: Path) -> None:
 
     with pytest.raises(ApprovalTaskNotFound):
         database.create_approval(make_approval("task-missing"))
+
+
+def test_database_lists_approvals_newest_first_and_filters_status(
+    tmp_path: Path,
+) -> None:
+    database = Database(f"sqlite:///{tmp_path / 'agentloom.db'}")
+    database.create_schema()
+    task_id = make_task(database)
+    rejected = database.create_approval(make_approval(task_id))
+    database.decide_approval(
+        rejected.approval_id,
+        ApprovalDecisionRequest(
+            expected_approval_version=0,
+            status="REJECTED",
+            actor="agentloom-developer",
+            reason="External write is outside the demo boundary.",
+        ),
+    )
+    pending = database.create_approval(
+        make_approval(task_id).model_copy(
+            update={"grant_id": "grant-02", "parameter_digest": "c" * 64}
+        )
+    )
+
+    approvals = database.list_approvals()
+
+    assert [item.approval_id for item in approvals] == [
+        pending.approval_id,
+        rejected.approval_id,
+    ]
+    assert database.list_approvals(status="PENDING") == [pending]
+    assert database.list_approvals(status="REJECTED")[0].approval_id == (
+        rejected.approval_id
+    )

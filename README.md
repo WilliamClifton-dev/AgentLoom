@@ -11,13 +11,16 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 > optimistic state projection, SQLite persistence, migrations, the Policy Broker
 > MCP transport, bounded repair workflow, and pinned AgentTeams four-role runtime
 > are implemented. The manifest-driven Mock repair-artifact E2E is complete; the
-> local TUI is complete; the live model-generated repair path is still in progress.
+> local TUI is complete; an unattended Qwen model-generated repair has passed the
+> independent hidden-test boundary with strict AgentTeams and MinIO evidence.
 
 ## Competition Scope
 
 - Track: Agent Infra
 - Direction: software-development lifecycle collaboration
 - Runtime: AgentTeams/HiClaw `v1.1.2`
+- Live repair model: `qwen3.7-plus` unattended repair independently verified
+- Message baseline: `deepseek-v4-flash` Manager + three-Worker messaging only
 - Language: Python 3.12
 - Initial storage: SQLite
 - Safety default: fail closed
@@ -61,8 +64,16 @@ Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.m
 - Hash-verified AgentTeams global-to-team parent-task namespace bridge
 - Manifest-driven offline repair-artifact E2E with two independent failing cases,
   isolated hidden tests, patch-scope enforcement, and evidence
+- Fail-closed verifier for role-traced live AgentTeams submissions, including
+  patch hash/path binding and independent visible, hidden, and static checks
+- Unattended `qwen3.7-plus` AgentTeams repair E2E with automatic clean-task
+  staging, three role-owned Matrix events, allowlisted MinIO artifacts, immutable
+  input fingerprints, and host-only hidden tests
 - Textual control panel for selecting cases and viewing role status, task events,
-  verified artifacts, and local failure states
+  verified artifacts, approval queue/detail, Human decisions, and local failure
+  states
+- Fail-closed L2 Matrix approval verifier with exact Manager request, Team Room,
+  Human sender, timestamp, request hash, route, and rollback-plan binding
 - Unit and integration test suite
 
 ## Local Development
@@ -75,7 +86,12 @@ python -m venv .venv
 .venv\Scripts\python -m pytest
 .venv\Scripts\ruff check .
 .venv\Scripts\mypy src tests
+.venv\Scripts\python -m pip_audit .
 ```
+
+`pip-audit` is installed by the `.[dev]` extra. To add it to an existing virtual
+environment without reinstalling the project, run
+`.venv\Scripts\python -m pip install "pip-audit>=2.10,<3"`.
 
 Create a local database:
 
@@ -131,17 +147,65 @@ Launch the local demo control panel:
 .venv\Scripts\agentloom tui
 ```
 
-The panel runs only the deterministic local Case workflow. It shows the Manager,
-Investigator, Implementer, and Verifier states, append-only task events, root
-cause, patch hash, verification verdict, risk verdict, and artifact directory.
-It does not call a cloud model or expose deployment credentials.
+The panel runs the deterministic local Case workflow and reads the ignored local
+approval database. It shows the Manager, Investigator, Implementer, and Verifier
+states, append-only task events, root cause, patch hash, verification verdict, risk
+verdict, artifact directory, and parameter-bound L2 approval decisions. The
+`Run failure / retry` action produces a local ten-transition demonstration in
+which the first configured workflow outcome fails, `ROLLING_BACK` and
+`ROLLED_BACK` are recorded, one bounded retry reaches completion, and
+`failure-retry-evidence.json` records the branch.
+Use
+`--approval-database` to point the panel at a database populated through the local
+approval API. Approval and rejection require a Human button click plus a non-empty
+reason. The panel does not call a cloud model, expose deployment credentials, or
+claim that its deterministic retry evidence is a live AgentTeams Trace. The retry
+branch is state-machine evidence only: it does not generate a patch or run tests
+and risk checks.
+
+## Live Repair Verification Boundary
+
+After a live AgentTeams run, assemble the three business Agents' role-owned
+Matrix events, structured repair bundle, and exact model-generated unified diff
+into a strict `agentloom.live-repair-submission/v1alpha1` JSON document. Verify
+that submission against the frozen Case in a clean local workspace:
+
+```powershell
+.venv\Scripts\agentloom verify-live `
+  --submission .\artifacts\agentteams\live-repair-submission.json `
+  --case-root .\demo\cases\severity-normalization `
+  --output-root .\artifacts\live-repair\severity-normalization
+```
+
+The verifier accepts only `qwen3.7-plus` through DashScope or
+`deepseek-v4-pro` through DeepSeek. It requires distinct Investigator,
+Implementer, and Verifier Matrix events, checks every artifact against the task
+and patch hash, rejects paths outside the Case allowlist, applies the patch with
+`git apply`, and independently reruns the original failure, visible tests,
+verifier-only hidden tests, and static checks. It does not call a model or create
+Matrix evidence; the live orchestration step must supply authentic event IDs.
+
+On 2026-08-04, task `AL-LIVE-PAGINATION-UNATTENDED-20260804-03` passed this
+boundary with
+`qwen3.7-plus`. The Investigator reproduced the exact-multiple pagination bug,
+the Implementer generated patch SHA-256
+`7d9d571a833eabaedf97eac73dad50f6290bfa332d3ef504882398ba2e6d0833`, and the
+Verifier independently approved the corrected artifact. AgentLoom then reproduced
+the original failure and passed visible tests, an undisclosed host-only hidden
+test, and static compilation. The task started from an empty Team prefix, staged
+only four inputs, used role-owned exact-file `filesync push` operations, and
+completed without resume, host file transfer, or recovery messages. Strict run
+evidence is in
+`artifacts/agentteams/live-repair-pagination-qwen-unattended-03.json`; independent
+verification evidence is under
+`artifacts/live-repair/AL-LIVE-PAGINATION-UNATTENDED-20260804-03/verified/artifacts/`.
 
 ## Roadmap to Demo
 
-1. Replace Mock role outputs with one live four-role repair-artifact workflow.
+1. Record a separate L2 Human approval demonstration in AgentTeams/Element.
 2. Evaluate and publish the five quarantined upstream Skills.
-3. Connect live AgentTeams role outputs, approvals, and rollback evidence to the TUI.
-4. Add reproducible Docker launch.
+3. Connect live AgentTeams role outputs and rollback evidence to the TUI.
+4. Add reproducible Docker launch and the competition demo script.
 
 ## Provenance
 
