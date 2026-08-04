@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from click import unstyle
 from typer.testing import CliRunner
 
 from agentloom.cli import app
@@ -12,37 +13,41 @@ from agentloom.storage import Database
 
 def test_tui_command_exposes_local_case_and_output_options() -> None:
     result = CliRunner().invoke(app, ["tui", "--help"])
+    output = unstyle(result.output)
 
     assert result.exit_code == 0
-    assert "Usage:" in result.output
-    assert "Launch the local Textual demo control panel" in result.output
-    assert "--cases-root" in result.output
-    assert "--runs-root" in result.output
-    assert "--approval-database" in result.output
+    assert "Usage:" in output
+    assert "Launch the local Textual demo control panel" in output
+    assert "--cases-root" in output
+    assert "--runs-root" in output
+    assert "--approval-database" in output
 
 
 def test_verify_live_command_exposes_submission_case_and_output_options() -> None:
     result = CliRunner().invoke(app, ["verify-live", "--help"])
+    output = unstyle(result.output)
 
     assert result.exit_code == 0
-    assert "Verify one role-traced live AgentTeams repair submission" in result.output
-    assert "--submission" in result.output
-    assert "--case-root" in result.output
-    assert "--output-root" in result.output
+    assert "Verify one role-traced live AgentTeams repair submission" in output
+    assert "--submission" in output
+    assert "--case-root" in output
+    assert "--output-root" in output
 
 
 def test_l2_approval_commands_expose_separate_prepare_and_verify_phases() -> None:
     prepare = CliRunner().invoke(app, ["prepare-l2", "--help"])
     verify = CliRunner().invoke(app, ["verify-l2", "--help"])
+    prepare_output = unstyle(prepare.output)
+    verify_output = unstyle(verify.output)
 
     assert prepare.exit_code == 0
-    assert "Create one short-lived L2 approval request" in prepare.output
-    assert "--database" in prepare.output
-    assert "--output" in prepare.output
+    assert "Create one short-lived L2 approval request" in prepare_output
+    assert "--database" in prepare_output
+    assert "--output" in prepare_output
     assert verify.exit_code == 0
-    assert "Verify collected Manager and Human Matrix events" in verify.output
-    assert "--submission" in verify.output
-    assert "--evidence" in verify.output
+    assert "Verify collected Manager and Human Matrix events" in verify_output
+    assert "--submission" in verify_output
+    assert "--evidence" in verify_output
 
 
 def test_l2_cli_prepares_and_verifies_one_exact_human_decision(
