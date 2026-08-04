@@ -236,6 +236,12 @@ class SkillExecutionGrant(ContractModel):
     )
     tool_name: str = Field(alias="toolName", min_length=1)
     action: str = Field(min_length=1)
+    route_id: str | None = Field(default=None, alias="routeId", min_length=1)
+    rollback_plan_hash: Sha256Digest | None = Field(
+        default=None,
+        alias="rollbackPlanHash",
+        pattern=r"^[a-f0-9]{64}$",
+    )
     parameter_digest: Sha256Digest = Field(
         alias="parameterDigest", pattern=r"^[a-f0-9]{64}$"
     )

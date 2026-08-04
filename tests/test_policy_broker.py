@@ -5,6 +5,7 @@ import pytest
 
 from agentloom.contracts import (
     AgentIdentity,
+    ApprovalRecord,
     SignedSkillExecutionGrant,
     SkillEvaluation,
     SkillExecutionGrant,
@@ -94,7 +95,7 @@ def issue_grant(
     authorizer: SkillGrantAuthorizer,
     grant: SkillExecutionGrant | None = None,
     *,
-    valid_approval_refs: set[str] | None = None,
+    approval: ApprovalRecord | None = None,
 ) -> SignedSkillExecutionGrant:
     return authorizer.issue(
         grant or make_grant(),
@@ -102,7 +103,7 @@ def issue_grant(
         agent=implementer_identity(),
         requested_paths=["src/parser.py"],
         task_allowed_paths=["src/parser.py"],
-        valid_approval_refs=valid_approval_refs or set(),
+        approval=approval,
     )
 
 
@@ -159,10 +160,96 @@ def test_expired_grant_is_rejected() -> None:
 def test_l2_grant_requires_valid_approval_reference() -> None:
     authorizer = make_authorizer()
 
-    with pytest.raises(PolicyDenied, match="L2/L3 grant approval is not valid"):
+    with pytest.raises(PolicyDenied, match="L2 grant approval is not valid"):
         issue_grant(
             authorizer,
-            make_grant(risk_level="L2", approval_ref="approval-01"),
+            make_grant(
+                risk_level="L2",
+                approval_ref="approval-01",
+                route_id="github-pr-v1",
+                rollback_plan_hash="c" * 64,
+            ),
+        )
+
+
+def test_l2_grant_requires_matching_approved_request() -> None:
+    authorizer = make_authorizer()
+    grant = make_grant(
+        risk_level="L2",
+        approval_ref="approval-01",
+        route_id="github-pr-v1",
+        rollback_plan_hash="c" * 64,
+    )
+    now = datetime.now(UTC)
+    approval = ApprovalRecord(
+        approval_id="approval-01",
+        task_id=grant.task_id,
+        grant_id=grant.grant_id,
+        parameter_digest=grant.parameter_digest,
+        risk_level="L2",
+        route_id="github-pr-v1",
+        rollback_plan_hash="c" * 64,
+        action_summary="Create the reviewed pull request.",
+        requested_by=grant.agent_name,
+        expires_at=now + timedelta(minutes=5),
+        created_at=now,
+        status="APPROVED",
+        approval_version=1,
+        decided_by="agentloom-developer",
+        decision_reason="Exact parameters and rollback plan reviewed.",
+        decided_at=now,
+    )
+
+    signed = issue_grant(authorizer, grant, approval=approval)
+
+    assert signed.grant.risk_level == "L2"
+    with pytest.raises(PolicyDenied, match="L2 grant approval is not valid"):
+        issue_grant(
+            authorizer,
+            grant.model_copy(update={"parameter_digest": "d" * 64}),
+            approval=approval,
+        )
+
+
+def test_l2_grant_rejects_an_expired_approval() -> None:
+    authorizer = make_authorizer()
+    grant = make_grant(
+        risk_level="L2",
+        approval_ref="approval-01",
+        route_id="github-pr-v1",
+        rollback_plan_hash="c" * 64,
+    )
+    created_at = datetime.now(UTC) - timedelta(minutes=10)
+    approval = ApprovalRecord(
+        approval_id="approval-01",
+        task_id=grant.task_id,
+        grant_id=grant.grant_id,
+        parameter_digest=grant.parameter_digest,
+        risk_level="L2",
+        route_id="github-pr-v1",
+        rollback_plan_hash="c" * 64,
+        action_summary="Create the reviewed pull request.",
+        requested_by=grant.agent_name,
+        expires_at=created_at + timedelta(minutes=5),
+        created_at=created_at,
+        status="APPROVED",
+        approval_version=1,
+        decided_by="agentloom-developer",
+        decision_reason="Exact parameters and rollback plan reviewed.",
+        decided_at=created_at + timedelta(minutes=1),
+    )
+
+    with pytest.raises(PolicyDenied, match="L2 grant approval is not valid"):
+        issue_grant(authorizer, grant, approval=approval)
+
+
+def test_l3_grant_is_never_signed_in_the_competition_runtime() -> None:
+    authorizer = make_authorizer()
+
+    with pytest.raises(PolicyDenied, match="L3 action execution is disabled"):
+        issue_grant(
+            authorizer,
+            make_grant(risk_level="L3", approval_ref="approval-01"),
         )
 
 

@@ -11,6 +11,7 @@ from threading import Lock
 
 from agentloom.contracts import (
     AgentIdentity,
+    ApprovalRecord,
     SignedSkillExecutionGrant,
     SkillExecutionGrant,
     SkillManifest,
@@ -65,7 +66,8 @@ class SkillGrantAuthorizer:
         agent: AgentIdentity,
         requested_paths: list[str],
         task_allowed_paths: list[str],
-        valid_approval_refs: set[str],
+        approval: ApprovalRecord | None = None,
+        valid_approval_refs: set[str] | None = None,
     ) -> SignedSkillExecutionGrant:
         """Authorize and sign a grant using a trusted Registry manifest."""
         if manifest.lifecycle_state != "PUBLISHED":
@@ -95,8 +97,12 @@ class SkillGrantAuthorizer:
                 raise PolicyDenied("Requested path is not allowed by the Skill")
             if not self._path_allowed(requested_path, task_allowed_paths):
                 raise PolicyDenied("Requested path is not allowed by the task")
-        if grant.risk_level in {"L2", "L3"} and grant.approval_ref not in valid_approval_refs:
-            raise PolicyDenied("L2/L3 grant approval is not valid")
+        if grant.risk_level == "L3":
+            raise PolicyDenied("L3 action execution is disabled in the competition runtime")
+        if grant.risk_level == "L2" and not self._approval_matches(grant, approval, now):
+            raise PolicyDenied("L2 grant approval is not valid")
+        if valid_approval_refs:
+            raise PolicyDenied("approval references must be represented by an ApprovalRecord")
         return self._sign(grant)
 
     def verify(
@@ -139,3 +145,25 @@ class SkillGrantAuthorizer:
         if risk_level is None:
             return 4
         return {"L0": 0, "L1": 1, "L2": 2, "L3": 3}[risk_level]
+
+    @staticmethod
+    def _approval_matches(
+        grant: SkillExecutionGrant,
+        approval: ApprovalRecord | None,
+        now: datetime,
+    ) -> bool:
+        return bool(
+            approval
+            and grant.approval_ref
+            and grant.route_id
+            and grant.rollback_plan_hash
+            and approval.status == "APPROVED"
+            and approval.approval_id == grant.approval_ref
+            and approval.task_id == grant.task_id
+            and approval.grant_id == grant.grant_id
+            and approval.parameter_digest == grant.parameter_digest
+            and approval.risk_level == "L2"
+            and approval.route_id == grant.route_id
+            and approval.rollback_plan_hash == grant.rollback_plan_hash
+            and now < approval.expires_at
+        )
