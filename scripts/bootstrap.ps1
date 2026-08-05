@@ -2,9 +2,9 @@
 param(
     [ValidateSet("lite", "full")]
     [string]$Profile = "lite",
-    [ValidateSet("none", "qwen", "deepseek")]
+    [ValidateSet("none", "qwen", "deepseek", "stepfun")]
     [string]$Provider = "none",
-    [ValidateSet("qwen3.7-plus", "deepseek-v4-flash", "deepseek-v4-pro")]
+    [ValidateSet("qwen3.7-plus", "deepseek-v4-flash", "deepseek-v4-pro", "step-3.7-flash")]
     [string]$Model = "qwen3.7-plus",
     [string]$PythonExecutable = "",
     [string]$EvidencePath = "",
@@ -85,13 +85,16 @@ function Assert-FullProfilePrerequisites {
         throw "The full profile requires PowerShell 7 or newer."
     }
     if ($Provider -eq "none") {
-        throw "The full profile requires -Provider qwen or -Provider deepseek."
+        throw "The full profile requires -Provider qwen, deepseek, or stepfun."
     }
     if ($Provider -eq "qwen" -and $Model -ne "qwen3.7-plus") {
         throw "The qwen provider requires -Model qwen3.7-plus."
     }
     if ($Provider -eq "deepseek" -and $Model -notlike "deepseek-*") {
         throw "The deepseek provider requires a supported DeepSeek model."
+    }
+    if ($Provider -eq "stepfun" -and $Model -ne "step-3.7-flash") {
+        throw "The stepfun provider requires -Model step-3.7-flash."
     }
 
     $null = Get-Command "docker" -ErrorAction Stop
@@ -104,11 +107,10 @@ function Assert-FullProfilePrerequisites {
         throw "The AgentTeams controller is not running."
     }
 
-    $requiredVariable = if ($Provider -eq "qwen") {
-        "QWEN_API_KEY"
-    }
-    else {
-        "DEEPSEEK_API_KEY"
+    $requiredVariable = switch ($Provider) {
+        "qwen" { "QWEN_API_KEY" }
+        "deepseek" { "DEEPSEEK_API_KEY" }
+        "stepfun" { "STEPFUN_API_KEY" }
     }
     if (-not (Test-EnvironmentVariablePresent -Name $requiredVariable)) {
         throw "Environment variable $requiredVariable is missing."
@@ -162,8 +164,12 @@ if ($Provider -eq "qwen") {
     & (Join-Path $agentTeamsRoot "configure-provider.ps1") `
         -Model $Model -SkipConnectionTest:$SkipProviderConnectionTest
 }
-else {
+elseif ($Provider -eq "deepseek") {
     & (Join-Path $agentTeamsRoot "configure-deepseek-provider.ps1") `
+        -Model $Model -SkipConnectionTest:$SkipProviderConnectionTest
+}
+else {
+    & (Join-Path $agentTeamsRoot "configure-stepfun-provider.ps1") `
         -Model $Model -SkipConnectionTest:$SkipProviderConnectionTest
 }
 

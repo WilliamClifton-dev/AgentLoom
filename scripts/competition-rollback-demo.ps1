@@ -5,9 +5,9 @@ param(
     [string]$TaskId = "",
     [string]$HealthEvidencePath = "",
     [string]$RollbackEvidencePath = "",
-    [ValidateSet("dashscope", "deepseek")]
+    [ValidateSet("dashscope", "deepseek", "stepfun")]
     [string]$Provider = "dashscope",
-    [ValidateSet("qwen3.7-plus", "deepseek-v4-pro")]
+    [ValidateSet("qwen3.7-plus", "deepseek-v4-pro", "step-3.7-flash")]
     [string]$Model = "qwen3.7-plus",
     [ValidateRange(60, 3600)]
     [int]$TimeoutSeconds = 1200,
@@ -36,6 +36,14 @@ if ($Mode -eq "live") {
     if ($TaskId -notmatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$") {
         throw "Live rollback mode requires a safe, non-empty -TaskId."
     }
+    $approvedPairs = @{
+        dashscope = "qwen3.7-plus"
+        deepseek = "deepseek-v4-pro"
+        stepfun = "step-3.7-flash"
+    }
+    if ($approvedPairs[$Provider] -ne $Model) {
+        throw "Provider and model are not an approved live E2E pair."
+    }
 }
 
 function Invoke-AgentLoom {
@@ -60,6 +68,18 @@ if ($Mode -eq "live") {
         (Test-Path -LiteralPath $runEvidencePath)
     ) {
         throw "Live rollback mode refuses to overwrite an existing task or evidence path."
+    }
+    if ($Provider -eq "dashscope") {
+        & (Join-Path $agentTeamsRoot "configure-provider.ps1") `
+            -Model $Model -SkipConnectionTest
+    }
+    elseif ($Provider -eq "deepseek") {
+        & (Join-Path $agentTeamsRoot "configure-deepseek-provider.ps1") `
+            -Model $Model -SkipConnectionTest
+    }
+    else {
+        & (Join-Path $agentTeamsRoot "configure-stepfun-provider.ps1") `
+            -Model $Model -SkipConnectionTest
     }
     & (Join-Path $agentTeamsRoot "run-live-rollback.ps1") `
         -TaskId $TaskId `

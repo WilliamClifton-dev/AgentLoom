@@ -1238,7 +1238,7 @@ agentloom/
 
 ### 19.1 独立开发阶段的 Codex 分层模型策略
 
-本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。当前 Qwen `qwen3.7-plus` 已有运行证据；DeepSeek `deepseek-v4-flash` 已于 2026-08-04 通过四容器连接探测与 Manager + 三 Worker 消息 E2E，可用于低成本 Baseline。`deepseek-v4-pro` 保留给最终真实修复 E2E。每次运行必须记录实际 Provider/模型，不得覆盖原 Qwen 证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
+本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。当前 Qwen `qwen3.7-plus` 已有运行证据；DeepSeek `deepseek-v4-flash` 已于 2026-08-04 通过四容器连接探测与 Manager + 三 Worker 消息 E2E，可用于低成本 Baseline；StepFun `step-3.7-flash` 通过 Step Plan 接口用于真实回滚 E2E，并以 `reasoning_effort=low` 控制成本。`deepseek-v4-pro` 保留给高质量真实修复 E2E。每次运行必须记录实际 Provider/模型，不得覆盖其他 Provider 的历史证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
 
 模型在 Codex 任务创建、续接或显式交接边界选择。可选的外部 DevDispatcher 工具可以读取本架构、本地任务账本、Git 状态和验收命令，在任务边界选择目标模型；它不属于本仓库的产品代码，也不允许运行中的模型自行改写路由。当前分层使用以下准确模型 ID：
 

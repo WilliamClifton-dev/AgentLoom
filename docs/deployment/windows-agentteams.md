@@ -11,7 +11,7 @@ runtime.
 - PowerShell 7 or newer
 - Git and Python 3.12
 - Recommended minimum: 4 CPU cores, 8 GB RAM, and 20 GB free disk
-- A Qwen or DeepSeek account with available API quota
+- A Qwen, DeepSeek, or StepFun account with available API quota
 
 ## 1. Install the pinned upstream runtime
 
@@ -44,8 +44,9 @@ lower-cost default for deployment validation:
 )
 ```
 
-For Qwen, set `QWEN_API_KEY` in the same way. Do not edit `.env.example`, commit
-a key, paste it into a resource JSON file, or include it in screenshots.
+For Qwen, set `QWEN_API_KEY` in the same way. For StepFun, set
+`STEPFUN_API_KEY`. Do not edit `.env.example`, commit a key, paste it into a
+resource JSON file, or include it in screenshots.
 
 ## 3. Bootstrap AgentLoom
 
@@ -65,7 +66,15 @@ Provider activation is deliberately last because applying an AgentTeams resource
 restores `hiclaw-gateway`.
 
 Use `deepseek-v4-pro` for the final live repair when quality matters more than
-cost, or use `-Provider qwen -Model qwen3.7-plus` for Qwen.
+cost, or use `-Provider qwen -Model qwen3.7-plus` for Qwen. For the live
+rollback path, use StepFun Step Plan:
+
+```powershell
+.\scripts\bootstrap.ps1 `
+  -Profile full `
+  -Provider stepfun `
+  -Model step-3.7-flash
+```
 
 ## 4. Verify and collect evidence
 
