@@ -6,7 +6,7 @@
 >
 > 项目：AgentLoom：多智能体 Skill 治理与可验证修复平台
 >
-> 材料状态：初赛内容底稿；StepFun 真实回滚证据已固化，PPT、PDF、最终真人审批证据和录屏尚待生成
+> 材料状态：初赛内容底稿；StepFun 真实回滚与真人 L2 审批证据已固化，PPT、PDF、录屏和最终提交包尚待生成
 >
 > 依据：赛事参赛手册、官方 19 页 PPT 模板、当前仓库及本地可验证证据
 
@@ -161,7 +161,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 - 工程检查：全量 pytest、Ruff、strict mypy、pip-audit 全通过。
 - 安全：L0-L3、短时参数绑定 Grant、路径/工具白名单、Human 审批、密钥脱敏。
 - 可观测：Task/Step/Agent/Skill/Grant/ToolCall/Artifact/Verdict 全链路 ID。
-- 当前缺口：真人 Element L2 审批证据和最终录屏待完成；不声称已向真实 GitHub 仓库写入 PR。
+- 当前缺口：最终录屏和提交材料待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
 
 ### 第 14 页：章节页 - 开放与开源
 
@@ -177,15 +177,15 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 ### 第 16 页：章节页 - 进展与规划
 
-只保留章节标题和一句话：主修复链已跑通，提交前聚焦真人审批证据与可复现演示。
+只保留章节标题和一句话：主修复链与真人审批已跑通，提交前聚焦可复现演示和材料一致性。
 
 ### 第 17 页：当前进展、里程碑与风险
 
 三列展示：
 
-- 已完成：AgentTeams 部署、三 Agent、真实修复与 StepFun 回滚 E2E、隐藏测试、TUI、检测/授权/回滚基础。
-- 提交前：真人 L2 审批、脱敏 Evidence、演示录屏、PPT/PDF、公开仓库检查。
-- 复赛候选：真实 GitHub Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
+- 已完成：AgentTeams 部署、三 Agent、真实修复与 StepFun 回滚 E2E、真人 L2 审批、隐藏测试、TUI、检测/授权/回滚基础。
+- 提交前：演示录屏、PPT/PDF、公开仓库检查、提交包一致性审计。
+- 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
 主要风险：模型波动、AgentTeams 版本变化、第三方 Skill 漂移、Demo 环境复杂、范围过大。每项风险都配固定版本、回放证据、降级方案和非目标约束。
 
@@ -321,38 +321,39 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - Python 控制面基础：契约、任务状态、检测、Policy Broker MCP、审批账本、存储、API、CLI。
 - TUI：任务时间线、证据、失败/回滚/重试 Demo、审批队列和决策操作。
 - L2 Human 审批的 Prepare/Collect 和严格事件校验脚本已实现。
+- 真人 L2 审批 E2E：Manager 发起精确绑定的 `github-pr-v1` 请求，`agentloom-developer` 以独立 Matrix 身份批准，采集结果为 `APPROVED`；见 [L2 审批与上游贡献证据](l2-approval-and-upstream-contribution-evidence.md)。
+- 发现并修复 AgentTeams v1.1.2 更新 Team 时未持久化 `humanMembers` 的上游缺陷，回归测试已通过，修复已提交 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)，当前等待维护者审核。
 - 2026-08-05 本次复核：全量 pytest、Ruff、strict mypy 和 pip-audit 均通过；StepFun 回滚 E2E 通过。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
 
-1. 在 Element 中由真实 `agentloom-developer` Human 对一次 L2 请求做明确审批或拒绝。
-2. 运行 Collect，生成并保留脱敏的真人审批 Evidence；必要时先轮换已暴露过的演示密码。
-3. 制作最终演示录屏并上传，获得可公开访问的 Demo 链接。
-4. 按本纲要完成官方模板 PPT，导出 PDF，并检查字体、架构图和所有截图可读。
-5. 从仓库与附件中清除 Key、个人路径、密码、临时文件和未脱敏 Trace。
-6. PPT 与附件完成后，创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
-7. 确认 GitHub 仓库对评委可访问，建立提交用 tag/release，并制作最终 ZIP。
+1. 制作最终演示录屏并上传，获得可公开访问的 Demo 链接。
+2. 按本纲要完成官方模板 PPT，导出 PDF，并检查字体、架构图和所有截图可读。
+3. 从仓库与附件中清除 Key、个人路径、密码、临时文件和未脱敏 Trace。
+4. 确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
+5. PPT 与附件完成后，创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
+6. 确认 GitHub 仓库对评委可访问，并制作最终 ZIP。
 
 ### 10.3 不应写成已完成
 
-- 当前没有对真实第三方 GitHub 仓库执行创建 PR、评论或合并等外部写操作。
+- AgentTeams 上游 PR #1141 已真实创建但尚未合并；AgentLoom 尚未把自动修复结果写入真实业务仓库的 Issue/PR。
 - 五个 `addyosmani/agent-skills` 当前为 `QUARANTINED`，尚未完成 Eval 和正式 `PUBLISHED`。
 - 团队原创 `skill-supply-chain-audit` 尚未以独立可执行 Skill 完成全量 Eval。
-- 最终真人 Element 审批 Evidence 和比赛录屏尚未完成。
+- 比赛录屏尚未完成。
 - 第二业务场景、真实云 Skill、RAG、模型训练和生产级多租户均不是初赛已交付能力。
 
 ## 11. 最终提交检查表
 
 - [ ] 作品名称与 PPT、PDF、仓库 README 完全一致。
-- [ ] 赛题选择“赛题三：软件研发全流程协同”。
-- [ ] 作品简介不超过 500 字且未夸大当前进展。
+- [x] 赛题选择“赛题三：软件研发全流程协同”。
+- [x] 作品简介不超过 500 字且未夸大当前进展。
 - [ ] PPT 使用官方 19 页模板，不删除必需章节。
-- [ ] 三个 Agent 的角色、输入、输出、边界和 Trace 均完整。
-- [ ] 核心 Skill 清单包含来源、契约、依赖、失败、安全、复用和状态。
-- [ ] AgentTeams 在架构、运行证据和协作流程中均为实际必选运行时。
-- [ ] 正常、失败、审批、拒绝/超时、回滚和审计分支均有说明。
-- [ ] 开源范围、许可证、第三方来源、模型/API 和数据边界已披露。
+- [x] 三个 Agent 的角色、输入、输出、边界和 Trace 均完整。
+- [x] 核心 Skill 清单包含来源、契约、依赖、失败、安全、复用和状态。
+- [x] AgentTeams 在架构、运行证据和协作流程中均为实际必选运行时。
+- [x] 正常、失败、审批、拒绝/超时、回滚和审计分支均有说明。
+- [x] 开源范围、许可证、第三方来源、模型/API 和数据边界已披露。
 - [ ] 所有“已完成”能力都有代码、测试、Trace、哈希或截图支撑。
 - [ ] GitHub 仓库可访问，默认分支或提交链接固定，README 可复现。
 - [ ] Demo 链接若填写，必须公网可访问；无链接则留空，不填本地地址。
