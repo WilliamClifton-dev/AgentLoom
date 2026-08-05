@@ -235,12 +235,12 @@ async def test_tui_renders_bound_live_rollback_evidence(tmp_path: Path) -> None:
     role_events = tuple(
         RollbackRoleEvent(
             phase=phase,
-            agentName=agent,
-            matrixUserId=f"@{local}:example.test",
-            roomId="!repair:example.test",
-            eventId=f"${local}-{index}",
-            originServerTimestamp=1_700_000_000_000 + index,
-            bindingSha256="d" * 64,
+            agent_name=agent,
+            matrix_user_id=f"@{local}:example.test",
+            room_id="!repair:example.test",
+            event_id=f"${local}-{index}",
+            origin_server_timestamp=1_700_000_000_000 + index,
+            binding_sha256="d" * 64,
         )
         for index, (phase, agent, local) in enumerate(
             (
