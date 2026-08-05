@@ -4,10 +4,12 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
 from agentloom.cli import app
+from agentloom.live_evidence import LiveEvidenceSummary
 from agentloom.storage import Database
 
 
@@ -17,10 +19,23 @@ def test_tui_command_exposes_local_case_and_output_options() -> None:
 
     assert result.exit_code == 0
     assert "Usage:" in output
-    assert "Launch the local Textual demo control panel" in output
+    assert "Launch the Textual panel for local or verified live evidence" in output
     assert "--cases-root" in output
     assert "--runs-root" in output
     assert "--approval-database" in output
+    assert "--health-evidence" in output
+    assert "--run-evidence" in output
+    assert "--verified-evidence" in output
+
+
+def test_tui_requires_all_live_evidence_layers(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        ["tui", "--health-evidence", str(tmp_path / "health.json")],
+    )
+
+    assert result.exit_code == 1
+    assert "must be provided together" in result.output
 
 
 def test_verify_live_command_exposes_submission_case_and_output_options() -> None:
@@ -32,6 +47,55 @@ def test_verify_live_command_exposes_submission_case_and_output_options() -> Non
     assert "--submission" in output
     assert "--case-root" in output
     assert "--output-root" in output
+
+
+def test_inspect_live_outputs_stable_redacted_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary = LiveEvidenceSummary(
+        task_id="AL-LIVE-CLI-01",
+        case_id="pagination-boundary",
+        provider="dashscope",
+        model="qwen3.7-plus",
+        patch_sha256="a" * 64,
+        manager_status="HEALTHY",
+        role_events=(),
+        hidden_tests_passed=True,
+        artifacts_dir=tmp_path / "artifacts",
+    )
+    monkeypatch.setattr(
+        "agentloom.cli.LiveEvidenceService.load",
+        lambda _self, **_paths: summary,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "inspect-live",
+            "--health-evidence",
+            str(tmp_path / "health.json"),
+            "--run-evidence",
+            str(tmp_path / "run.json"),
+            "--verified-evidence",
+            str(tmp_path / "verified.json"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload == {
+        "artifactsDirectory": str(summary.artifacts_dir.resolve()),
+        "caseId": "pagination-boundary",
+        "hiddenTestsPassed": True,
+        "managerStatus": "HEALTHY",
+        "model": "qwen3.7-plus",
+        "patchSha256": "a" * 64,
+        "provider": "dashscope",
+        "roleEventCount": 0,
+        "schemaVersion": "agentloom.live-evidence-summary/v1alpha1",
+        "status": "PASS",
+        "taskId": "AL-LIVE-CLI-01",
+    }
 
 
 def test_l2_approval_commands_expose_separate_prepare_and_verify_phases() -> None:

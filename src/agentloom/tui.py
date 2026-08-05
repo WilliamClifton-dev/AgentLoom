@@ -25,6 +25,7 @@ from agentloom.contracts import (
     VerificationResult,
 )
 from agentloom.demo_case import DemoCase, DemoCaseError, load_demo_case
+from agentloom.live_evidence import LiveEvidenceSummary
 from agentloom.mock_repair import MockRepairError, MockRepairRunner
 from agentloom.storage import ApprovalVersionConflict, Database
 from agentloom.workflow import RepairWorkflow
@@ -248,7 +249,7 @@ class ApprovalQueueService:
 
 
 class AgentLoomApp(App[None]):
-    """Compact local dashboard for a deterministic repair demonstration."""
+    """Compact dashboard for local demos and verified live evidence."""
 
     CSS = """
     Screen { background: #101716; color: #e6efeb; }
@@ -275,29 +276,60 @@ class AgentLoomApp(App[None]):
         self,
         service: DemoRunService,
         approval_service: ApprovalQueueService | None = None,
+        live_summary: LiveEvidenceSummary | None = None,
     ) -> None:
         super().__init__()
         self._service = service
         self._cases = service.list_cases()
         self._approval_service = approval_service
         self._approvals: tuple[ApprovalRecord, ...] = ()
+        self._live_summary = live_summary
+        if live_summary is not None and not any(
+            case.case_id == live_summary.case_id for case in self._cases
+        ):
+            raise DemoRunError("live evidence does not match an available demo case")
 
     def compose(self) -> ComposeResult:
         options = [(case.title, case.case_id) for case in self._cases]
-        yield Static("AgentLoom  |  Governed repair control plane", id="titlebar")
+        title = "AgentLoom  |  Governed repair control plane"
+        if self._live_summary is not None:
+            title = "AgentLoom  |  Verified AgentTeams repair evidence"
+        yield Static(title, id="titlebar")
         with Horizontal(id="main"):
             with Vertical(id="sidebar"):
                 yield Static("DEMO CASE", classes="section-label")
                 yield Select[str](
                     options,
-                    value=self._cases[0].case_id,
+                    value=(
+                        self._live_summary.case_id
+                        if self._live_summary is not None
+                        else self._cases[0].case_id
+                    ),
                     allow_blank=False,
+                    disabled=self._live_summary is not None,
                     id="case-selector",
                 )
-                yield Button("Run selected case", id="run-case", variant="success")
-                yield Button("Run failure / retry", id="run-failure-retry", variant="warning")
-                yield Button("Refresh details", id="refresh-case")
-                yield Static("LOCAL MODE\nNo cloud model is called.", id="run-status")
+                yield Button(
+                    "Run selected case",
+                    id="run-case",
+                    variant="success",
+                    disabled=self._live_summary is not None,
+                )
+                yield Button(
+                    "Run failure / retry",
+                    id="run-failure-retry",
+                    variant="warning",
+                    disabled=self._live_summary is not None,
+                )
+                yield Button(
+                    "Refresh details",
+                    id="refresh-case",
+                    disabled=self._live_summary is not None,
+                )
+                mode = "LOCAL MODE\nNo cloud model is called."
+                if self._live_summary is not None:
+                    mode = "LIVE EVIDENCE MODE\nNo model call is made by this viewer."
+                yield Static(mode, id="run-status")
             with VerticalScroll(id="workspace"):
                 yield Static("", id="case-details")
                 yield Static("AGENT STATUS", classes="section-label")
@@ -316,14 +348,20 @@ class AgentLoomApp(App[None]):
 
     def on_mount(self) -> None:
         self.query_one("#agent-status", DataTable).add_columns("Agent", "State", "Output")
-        self.query_one("#task-events", DataTable).add_columns(
-            "Version", "Transition", "Reason"
-        )
+        self.query_one("#task-events", DataTable).add_columns("Order", "Evidence", "Detail")
         self.query_one("#approval-queue", DataTable).add_columns(
             "Status", "Risk", "Route", "Requested by", "Expires"
         )
-        self._show_case(self._cases[0].case_id)
+        selected_case = (
+            self._live_summary.case_id
+            if self._live_summary is not None
+            else self._cases[0].case_id
+        )
+        self._show_case(selected_case)
         self._show_approval_queue()
+        if self._live_summary is not None:
+            self.show_live_summary(self._live_summary)
+            return
         self._render_roles(
             (
                 RoleStatus("Manager", "READY", "Awaiting a selected case."),
@@ -395,6 +433,52 @@ class AgentLoomApp(App[None]):
                 f"Task: {summary.task_id}\n"
                 f"Root cause: {summary.root_cause}\n"
                 f"Patch SHA-256: {summary.patch_sha256 or 'N/A (state-machine demo)'}\n"
+                f"Path: {summary.artifacts_dir}"
+            )
+        )
+
+    def show_live_summary(self, summary: LiveEvidenceSummary) -> None:
+        role_details = {
+            "agentloom-investigator": "Matrix event bound to root-cause evidence.",
+            "agentloom-implementer": "Matrix event bound to the patch artifact.",
+            "agentloom-verifier": "Matrix event bound to host verification.",
+        }
+        self._render_roles(
+            (
+                RoleStatus(
+                    "Manager",
+                    summary.manager_status,
+                    "AgentTeams runtime health evidence passed.",
+                ),
+                *tuple(
+                    RoleStatus(
+                        event.agent_name.removeprefix("agentloom-").title(),
+                        "TRACE_VERIFIED",
+                        role_details[event.agent_name],
+                    )
+                    for event in summary.role_events
+                ),
+            )
+        )
+        events = self.query_one("#task-events", DataTable)
+        events.clear()
+        for order, event in enumerate(summary.role_events, start=1):
+            events.add_row(
+                str(order),
+                event.agent_name.removeprefix("agentloom-").title(),
+                event.event_id,
+            )
+        self.query_one("#run-status", Static).update(
+            Text(f"LIVE VERIFIED  |  {summary.model}  |  hidden tests PASSED")
+        )
+        self.query_one("#artifact-details", Static).update(
+            Text(
+                "LIVE EVIDENCE\n"
+                f"Task: {summary.task_id}\n"
+                f"Case: {summary.case_id}  |  Provider: {summary.provider}\n"
+                f"Model: {summary.model}\n"
+                f"Hidden tests: {'PASSED' if summary.hidden_tests_passed else 'FAILED'}\n"
+                f"Patch SHA-256: {summary.patch_sha256}\n"
                 f"Path: {summary.artifacts_dir}"
             )
         )
