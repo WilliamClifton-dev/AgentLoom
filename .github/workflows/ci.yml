@@ -26,3 +26,23 @@ jobs:
         run: ruff check .
       - name: Type check
         run: mypy src tests
+      - name: Audit dependencies
+        run: python -m pip_audit .
+      - name: Parse deployment scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem scripts/*.ps1 | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$parseErrors
+            ) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $failed = $true
+              $parseErrors | ForEach-Object { Write-Error $_.Message }
+            }
+          }
+          if ($failed) { exit 1 }

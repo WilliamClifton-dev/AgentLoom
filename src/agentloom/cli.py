@@ -15,6 +15,7 @@ from agentloom.l2_approval import (
     parse_l2_submission_json,
     prepare_l2_demo,
 )
+from agentloom.live_evidence import LiveEvidenceError, LiveEvidenceService
 from agentloom.live_repair import LiveRepairError, LiveRepairVerifier
 from agentloom.storage import Database
 from agentloom.tui import (
@@ -51,17 +52,47 @@ def tui(
         Path,
         typer.Option(help="SQLite database for the local Human approval queue."),
     ] = _DEFAULT_APPROVAL_DATABASE,
+    health_evidence: Annotated[
+        Path | None,
+        typer.Option(help="Redacted AgentTeams deployment health evidence."),
+    ] = None,
+    run_evidence: Annotated[
+        Path | None,
+        typer.Option(help="Strict AgentTeams live repair run evidence."),
+    ] = None,
+    verified_evidence: Annotated[
+        Path | None,
+        typer.Option(help="Independent host verification evidence."),
+    ] = None,
 ) -> None:
-    """Launch the local Textual demo control panel."""
+    """Launch the Textual panel for local or verified live evidence."""
     try:
+        live_paths = (health_evidence, run_evidence, verified_evidence)
+        if any(path is not None for path in live_paths) and not all(
+            path is not None for path in live_paths
+        ):
+            raise LiveEvidenceError(
+                "health, run, and verified evidence must be provided together"
+            )
+        live_summary = None
+        if all(path is not None for path in live_paths):
+            assert health_evidence is not None
+            assert run_evidence is not None
+            assert verified_evidence is not None
+            live_summary = LiveEvidenceService().load(
+                health_path=health_evidence,
+                run_path=run_evidence,
+                verified_path=verified_evidence,
+            )
         approval_database.parent.mkdir(parents=True, exist_ok=True)
         database = Database(f"sqlite:///{approval_database.resolve()}")
         database.create_schema()
         AgentLoomApp(
             DemoRunService(cases_root=cases_root, runs_root=runs_root),
             approval_service=ApprovalQueueService(database),
+            live_summary=live_summary,
         ).run()
-    except (DemoRunError, OSError, SQLAlchemyError) as exc:
+    except (DemoRunError, LiveEvidenceError, OSError, SQLAlchemyError) as exc:
         typer.echo(f"agentloom tui failed: {exc}", err=True)
         raise typer.Exit(code=1) from exc
 
@@ -99,6 +130,51 @@ def verify_live(
                 "artifactsDirectory": str(result.artifacts_dir),
             },
             indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("inspect-live")
+def inspect_live(
+    health_evidence: Annotated[
+        Path,
+        typer.Option(help="Redacted AgentTeams deployment health evidence."),
+    ],
+    run_evidence: Annotated[
+        Path,
+        typer.Option(help="Strict AgentTeams live repair run evidence."),
+    ],
+    verified_evidence: Annotated[
+        Path,
+        typer.Option(help="Independent host verification evidence."),
+    ],
+) -> None:
+    """Validate and summarize one bound live AgentTeams evidence chain."""
+    try:
+        summary = LiveEvidenceService().load(
+            health_path=health_evidence,
+            run_path=run_evidence,
+            verified_path=verified_evidence,
+        )
+    except LiveEvidenceError as exc:
+        typer.echo(f"agentloom live evidence inspection failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.live-evidence-summary/v1alpha1",
+                "status": "PASS",
+                "taskId": summary.task_id,
+                "caseId": summary.case_id,
+                "provider": summary.provider,
+                "model": summary.model,
+                "managerStatus": summary.manager_status,
+                "roleEventCount": len(summary.role_events),
+                "hiddenTestsPassed": summary.hidden_tests_passed,
+                "patchSha256": summary.patch_sha256,
+                "artifactsDirectory": str(summary.artifacts_dir.resolve()),
+            },
             sort_keys=True,
         )
     )

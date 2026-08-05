@@ -257,6 +257,18 @@ and verify the Human is Active in the Team Room before preparing a new run.
 
 ## Unattended live repair E2E
 
+The top-level guarded competition entrypoint can replay the latest completed
+run, validate all three evidence layers, and open the TUI without calling a
+model:
+
+```powershell
+.\scripts\competition-demo.ps1 -Mode replay
+```
+
+Use the lower-level commands below when collecting a fresh run or diagnosing one
+phase independently. Fresh paid execution remains opt-in through
+`competition-demo.ps1 -Mode live -ConfirmPaidRun`.
+
 `run-live-repair.ps1` is the strict collector for the current pagination Case.
 For an empty task prefix it automatically stages only `spec.md`, `base/lib/`, and
 `base/tests/` from the frozen pagination Case. A non-empty prefix must already

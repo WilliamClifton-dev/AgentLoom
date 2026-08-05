@@ -6,9 +6,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from textual.widgets import DataTable, Input, Select, Static
+from textual.widgets import Button, DataTable, Input, Select, Static
 
 from agentloom.contracts import ApprovalCreate, TaskCreate
+from agentloom.live_evidence import EvidenceRoleEvent, LiveEvidenceSummary
 from agentloom.storage import Database
 from agentloom.tui import (
     AgentLoomApp,
@@ -181,6 +182,50 @@ async def test_tui_renders_case_and_completed_evidence(tmp_path: Path) -> None:
         assert agents.row_count == 4
         assert events.row_count == len(summary.events)
         assert "PASSED" in str(app.query_one("#run-status", Static).render())
+
+
+@pytest.mark.asyncio
+async def test_tui_renders_bound_live_agentteams_evidence(tmp_path: Path) -> None:
+    service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
+    role_events = tuple(
+        EvidenceRoleEvent(
+            agent_name=f"agentloom-{role}",
+            matrix_user_id=f"@agentloom-{role}:example.test",
+            room_id="!repair:example.test",
+            event_id=f"${role}",
+            origin_server_timestamp=1_700_000_000_000 + index,
+        )
+        for index, role in enumerate(
+            ("investigator", "implementer", "verifier"), start=1
+        )
+    )
+    live_summary = LiveEvidenceSummary(
+        task_id="AL-LIVE-TUI-01",
+        case_id="pagination-boundary",
+        provider="dashscope",
+        model="qwen3.7-plus",
+        patch_sha256="a" * 64,
+        manager_status="HEALTHY",
+        role_events=role_events,
+        hidden_tests_passed=True,
+        artifacts_dir=tmp_path / "verified" / "artifacts",
+    )
+    app = AgentLoomApp(service, live_summary=live_summary)
+
+    async with app.run_test(size=(150, 52)):
+        agents = app.query_one("#agent-status", DataTable)
+        events = app.query_one("#task-events", DataTable)
+
+        assert app.query_one("#case-selector", Select).disabled
+        assert app.query_one("#run-case", Button).disabled
+        assert agents.row_count == 4
+        assert agents.get_row_at(0)[1] == "HEALTHY"
+        assert agents.get_row_at(3)[1] == "TRACE_VERIFIED"
+        assert events.row_count == 3
+        assert "LIVE VERIFIED" in str(app.query_one("#run-status", Static).render())
+        artifact_text = str(app.query_one("#artifact-details", Static).render())
+        assert "AL-LIVE-TUI-01" in artifact_text
+        assert "Hidden tests: PASSED" in artifact_text
 
 
 @pytest.mark.asyncio
