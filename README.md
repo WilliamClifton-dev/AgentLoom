@@ -13,6 +13,8 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 > are implemented. The manifest-driven Mock repair-artifact E2E is complete; the
 > local TUI is complete; an unattended Qwen model-generated repair has passed the
 > independent hidden-test boundary with strict AgentTeams and MinIO evidence.
+> A StepFun four-role rollback and a Human-owned L2 approval have also passed
+> fail-closed evidence collection.
 
 ## Competition Scope
 
@@ -94,6 +96,13 @@ does not currently provide a standalone one-container distribution.
   explicit confirmation gate before a paid cloud-model live rollback
 - Fail-closed L2 Matrix approval verifier with exact Manager request, Team Room,
   Human sender, timestamp, request hash, route, and rollback-plan binding
+- Verified StepFun four-role rollback with chronological Matrix identities,
+  approved snapshot restoration, hidden tests, static checks, and bound hashes
+- Verified Human L2 approval with an independent `agentloom-developer` identity
+  and a [redacted evidence summary](docs/competition/l2-approval-and-upstream-contribution-evidence.md)
+- AgentTeams `humanMembers` update defect reproduced and fixed in
+  [upstream PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141),
+  currently open for maintainer review
 - Unit and integration test suite
 
 ## Local Development
@@ -215,6 +224,17 @@ without a model call:
 .\scripts\competition-rollback-demo.ps1 -Mode replay
 ```
 
+For screenshots or a public recording, redact local filesystem paths in both
+the JSON summary and TUI:
+
+```powershell
+.\scripts\competition-rollback-demo.ps1 -Mode replay -PublicOutput
+```
+
+Use `-NoTui` with `-PublicOutput` when only the terminal evidence summary is
+needed. See the [competition recording runbook](docs/competition/demo-recording-runbook.md)
+for the safe capture sequence.
+
 For a live StepFun run, set `STEPFUN_API_KEY` outside the repository and use:
 
 ```powershell
@@ -267,14 +287,16 @@ evidence is in
 verification evidence is under
 `artifacts/live-repair/AL-LIVE-PAGINATION-UNATTENDED-20260804-03/verified/artifacts/`.
 
-## Roadmap to Demo
+## Remaining Roadmap
 
-1. Record a separate L2 Human approval demonstration in AgentTeams/Element.
+1. Record the public competition demo from the verified L2 approval and rollback
+   evidence; replay mode avoids another paid model call.
 2. Evaluate and publish the five quarantined upstream Skills.
-3. Record the first paid role-owned live rollback run; the guarded collector,
-   independent snapshot restore verifier, CLI, and TUI projection are implemented.
-4. Validate Full bootstrap on additional clean Windows machines and publish a
+3. Validate Full bootstrap on additional clean Windows machines and publish a
    deployment compatibility matrix.
+4. Finalize the presentation from the
+   [AI-ready production spec](docs/competition/ppt-production-spec.md), PDF,
+   release tag, and redacted submission package.
 
 ## Provenance
 

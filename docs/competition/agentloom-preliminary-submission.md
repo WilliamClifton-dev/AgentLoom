@@ -63,6 +63,9 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 ## 4. PPT 纲要（严格对应官方 19 页模板）
 
+可直接交给 AI 执行的逐页文案、证据素材、模板继承和 QA 规范见
+[PPT 生产规格](ppt-production-spec.md)。
+
 ### 第 1 页：封面
 
 - 标题：AgentLoom
