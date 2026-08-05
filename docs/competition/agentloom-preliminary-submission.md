@@ -6,7 +6,7 @@
 >
 > 项目：AgentLoom：多智能体 Skill 治理与可验证修复平台
 >
-> 材料状态：初赛内容底稿；PPT、PDF、最终真人审批证据和录屏尚待生成
+> 材料状态：初赛内容底稿；StepFun 真实回滚证据已固化，PPT、PDF、最终真人审批证据和录屏尚待生成
 >
 > 依据：赛事参赛手册、官方 19 页 PPT 模板、当前仓库及本地可验证证据
 
@@ -32,6 +32,7 @@ AgentLoom-初赛提交包.zip
 ├── 04-Agent-Identity清单.pdf
 ├── 05-核心Skill清单.pdf
 ├── 06-开源与第三方依赖说明.pdf
+├── 07-StepFun回滚证据.pdf
 └── README.txt
 ```
 
@@ -75,7 +76,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 - 痛点：第三方 Skill 来源不清、权限不可控、效果不可证、失败不可回退。
 - 方案：AgentTeams 三 Agent 协作 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
 - 主流程：Issue -> 调查 -> 受控修复 -> 独立验证 -> 审批/回滚 -> Evidence 报告。
-- 已验证：AgentTeams v1.1.2、三业务 Agent、真实模型修复、隐藏测试、TUI、146 项测试。
+- 已验证：AgentTeams v1.1.2、三业务 Agent、真实模型修复、StepFun 真实回滚、隐藏测试与 TUI。
 - 差异化：不是通用 Coding Agent，而是跨场景可复用的 Skill 治理控制面。
 
 ### 第 3 页：目录
@@ -122,7 +123,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 - AgentTeams 管理 Manager、Worker、Team、Human、Matrix 和共享产物。
 - AgentLoom 管理 Skill 准入、风险、路由、授权、任务状态和证据。
-- Qwen/DeepSeek 等模型通过兼容接口配置注入，不写死在业务契约中。
+- Qwen/DeepSeek/StepFun 等模型通过兼容接口配置注入，不写死在业务契约中。
 - Python 3.12、FastAPI、Pydantic、SQLAlchemy、MCP、Typer/Textual/Rich。
 
 ### 第 8 页：章节页 - 多 Agent 协同
@@ -156,8 +157,8 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 ### 第 13 页：运行证据、可观测、安全与云选择
 
-- 真实证据：AgentTeams v1.1.2；Qwen 无人值守修复；三角色 Matrix 事件；隐藏测试通过；补丁哈希。
-- 工程检查：146 项 pytest、Ruff、strict mypy、pip-audit 全通过。
+- 真实证据：AgentTeams v1.1.2；Qwen 无人值守修复；StepFun 四角色回滚；隐藏测试通过；补丁与回滚计划哈希。
+- 工程检查：全量 pytest、Ruff、strict mypy、pip-audit 全通过。
 - 安全：L0-L3、短时参数绑定 Grant、路径/工具白名单、Human 审批、密钥脱敏。
 - 可观测：Task/Step/Agent/Skill/Grant/ToolCall/Artifact/Verdict 全链路 ID。
 - 当前缺口：真人 Element L2 审批证据和最终录屏待完成；不声称已向真实 GitHub 仓库写入 PR。
@@ -182,7 +183,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 三列展示：
 
-- 已完成：AgentTeams 部署、三 Agent、真实修复 E2E、隐藏测试、TUI、检测/授权/回滚基础、146 项测试。
+- 已完成：AgentTeams 部署、三 Agent、真实修复与 StepFun 回滚 E2E、隐藏测试、TUI、检测/授权/回滚基础。
 - 提交前：真人 L2 审批、脱敏 Evidence、演示录屏、PPT/PDF、公开仓库检查。
 - 复赛候选：真实 GitHub Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
@@ -304,7 +305,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 | `addyosmani/agent-skills` | 上游 Skill 内容源 | MIT；锁定 commit `7829ffd...` 和五个内容哈希 | 当前只保存来源元数据和 Manifest，未 vendoring；不得宣称上游工作流为原创 |
 | DeepSec、VulnClaw、mcp-scan、Promptfoo、SWE-bench、ToolHive、OpenLIT 等 | 设计/方法参考 | 各自许可证或数据条款 | 只披露借鉴点；未复制的项目不写成运行时依赖 |
 | Python 依赖 | 直接依赖 | 以各包许可证为准 | FastAPI、Pydantic、SQLAlchemy、MCP、OpenTelemetry、Typer、Textual、Rich、httpx 等由 `pyproject.toml` 和 `uv.lock` 锁定 |
-| Qwen/DeepSeek API | 可替换模型服务 | 商业服务条款 | 只通过配置注入；记录实际模型、Token 和费用；不上传密钥和不必要数据 |
+| Qwen/DeepSeek/StepFun API | 可替换模型服务 | 商业服务条款 | 只通过配置注入；记录实际模型、Token 和费用；不上传密钥和不必要数据 |
 
 仓库已有 `LICENSE`、`THIRD_PARTY.md`、`provenance/sources.yaml`、`pyproject.toml` 和 `uv.lock` 作为披露与复现依据。
 
@@ -315,11 +316,12 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - AgentTeams v1.1.2 固定版本部署；Manager、Team、3 个业务 Worker 和 Human 资源可运行。
 - AgentTeams 严格角色消息 E2E；角色事件按真实 Matrix 身份归属。
 - Qwen 无人值守真实修复 E2E：从空任务前缀开始，由三个业务 Agent 分别生成角色产物。
+- StepFun 真实回滚 E2E：四个角色事件、回滚计划哈希和独立主机验证均通过；见 [StepFun 回滚证据包](stepfun-live-rollback-evidence.md)。
 - 独立本地隐藏测试验证通过；补丁、输入和提交均有 SHA-256 绑定。
 - Python 控制面基础：契约、任务状态、检测、Policy Broker MCP、审批账本、存储、API、CLI。
 - TUI：任务时间线、证据、失败/回滚/重试 Demo、审批队列和决策操作。
 - L2 Human 审批的 Prepare/Collect 和严格事件校验脚本已实现。
-- 2026-08-04 本次复核：146 项 pytest 通过；Ruff 通过；strict mypy 对 17 个源文件通过；pip-audit 未发现已知漏洞。
+- 2026-08-05 本次复核：全量 pytest、Ruff、strict mypy 和 pip-audit 均通过；StepFun 回滚 E2E 通过。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
@@ -329,7 +331,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 3. 制作最终演示录屏并上传，获得可公开访问的 Demo 链接。
 4. 按本纲要完成官方模板 PPT，导出 PDF，并检查字体、架构图和所有截图可读。
 5. 从仓库与附件中清除 Key、个人路径、密码、临时文件和未脱敏 Trace。
-6. 处理当前 Git 状态：本地分支比远端多 20 个提交且工作区仍有修改；审查、提交并推送最终参赛版本。
+6. PPT 与附件完成后，创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
 7. 确认 GitHub 仓库对评委可访问，建立提交用 tag/release，并制作最终 ZIP。
 
 ### 10.3 不应写成已完成
