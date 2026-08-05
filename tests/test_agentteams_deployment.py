@@ -212,6 +212,8 @@ def test_live_rollback_runner_is_paid_guarded_and_collects_role_owned_events() -
     assert "ROLLBACK_VERIFIED" in script
     assert "agentloom.live-rollback-submission/v1alpha1" in script
     assert "failedPatchSha256" in script
+    assert "bindingSha256" in script
+    assert "$bindingSha256" in script
     assert "RESTORE_APPROVED_SNAPSHOT" in script
     assert "originServerTimestamp" in script
     assert "initialPassword" not in script

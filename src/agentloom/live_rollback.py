@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import shutil
 import subprocess
@@ -74,6 +75,7 @@ class RollbackRoleEvent(ContractModel):
     room_id: str = Field(alias="roomId", pattern=r"^![^\s]+$")
     event_id: str = Field(alias="eventId", pattern=r"^\$[^\s]+$")
     origin_server_timestamp: int = Field(alias="originServerTimestamp", ge=1)
+    binding_sha256: str = Field(alias="bindingSha256", pattern=r"^[a-f0-9]{64}$")
 
 
 class RollbackPlan(ContractModel):
@@ -107,6 +109,7 @@ class LiveRollbackSubmission(ContractModel):
     failed_patch_sha256: str = Field(
         alias="failedPatchSha256", pattern=r"^[a-f0-9]{64}$"
     )
+    binding_sha256: str = Field(alias="bindingSha256", pattern=r"^[a-f0-9]{64}$")
     rollback_plan: RollbackPlan = Field(alias="rollbackPlan")
     role_events: list[RollbackRoleEvent] = Field(
         alias="roleEvents", min_length=4, max_length=4
@@ -116,23 +119,15 @@ class LiveRollbackSubmission(ContractModel):
     def evidence_chain_is_ordered_and_bound(self) -> LiveRollbackSubmission:
         if self.model != _PROVIDER_MODELS[self.provider]:
             raise ValueError("provider and model are not an approved live E2E pair")
-        flow = tuple((event.phase, event.agent_name) for event in self.role_events)
-        if flow != _EXPECTED_EVENT_FLOW:
-            raise ValueError("role events do not match the required rollback flow")
-        if len({event.event_id for event in self.role_events}) != 4:
-            raise ValueError("role events must use distinct Matrix event IDs")
-        if len({event.room_id for event in self.role_events}) != 1:
-            raise ValueError("role events must belong to one Team Room")
-        timestamps = [event.origin_server_timestamp for event in self.role_events]
-        if timestamps != sorted(timestamps) or len(set(timestamps)) != 4:
-            raise ValueError("role events must be strictly chronological")
-        verifier_ids = {
-            event.matrix_user_id
-            for event in self.role_events
-            if event.agent_name == "agentloom-verifier"
-        }
-        if len(verifier_ids) != 1:
-            raise ValueError("Verifier events must use one Matrix identity")
+        _validate_role_event_chain(self.role_events, self.binding_sha256)
+        expected_binding = _rollback_binding(
+            task_id=self.task_id,
+            case_id=self.case_id,
+            failed_patch_sha256=self.failed_patch_sha256,
+            plan=self.rollback_plan,
+        )
+        if not hmac.compare_digest(self.binding_sha256, expected_binding):
+            raise ValueError("rollback binding does not match the submitted plan")
         if "\x00" in self.failed_patch:
             raise ValueError("failedPatch must not contain NUL bytes")
         return self
@@ -155,6 +150,26 @@ class LiveRollbackResult:
     artifacts_dir: Path
 
 
+class RollbackFailureEvidence(ContractModel):
+    reproduced: Literal[True]
+    failed_snapshot_sha256: str = Field(
+        alias="failedSnapshotSha256", pattern=r"^[a-f0-9]{64}$"
+    )
+
+
+class RollbackExecutionEvidence(ContractModel):
+    executed: Literal[True]
+    approved_snapshot_sha256: str = Field(
+        alias="approvedSnapshotSha256", pattern=r"^[a-f0-9]{64}$"
+    )
+    approved_snapshot_restored: Literal[True] = Field(
+        alias="approvedSnapshotRestored"
+    )
+    visible_tests_passed: Literal[True] = Field(alias="visibleTestsPassed")
+    hidden_tests_passed: Literal[True] = Field(alias="hiddenTestsPassed")
+    static_checks_passed: Literal[True] = Field(alias="staticChecksPassed")
+
+
 class VerifiedRollbackEvidence(ContractModel):
     schema_version: Literal["agentloom.live-rollback-evidence/v1alpha1"] = Field(
         alias="schemaVersion"
@@ -173,36 +188,25 @@ class VerifiedRollbackEvidence(ContractModel):
     failed_patch_sha256: str = Field(
         alias="failedPatchSha256", pattern=r"^[a-f0-9]{64}$"
     )
+    binding_sha256: str = Field(alias="bindingSha256", pattern=r"^[a-f0-9]{64}$")
     test_results_sha256: str = Field(alias="testResultsSha256", pattern=r"^[a-f0-9]{64}$")
     role_events: list[RollbackRoleEvent] = Field(alias="roleEvents", min_length=4, max_length=4)
     rollback_plan: RollbackPlan = Field(alias="rollbackPlan")
-    failure: dict[str, object]
-    rollback: dict[str, object]
+    failure: RollbackFailureEvidence
+    rollback: RollbackExecutionEvidence
 
     @model_validator(mode="after")
     def rollback_is_proven(self) -> VerifiedRollbackEvidence:
-        flow = tuple((event.phase, event.agent_name) for event in self.role_events)
-        if flow != _EXPECTED_EVENT_FLOW:
-            raise ValueError("rollback evidence role events are incomplete")
-        if len({event.event_id for event in self.role_events}) != 4:
-            raise ValueError("rollback evidence role events must be distinct")
-        if self.failure.get("reproduced") is not True:
-            raise ValueError("rollback evidence lacks reproduced failure")
-        if self.rollback.get("executed") is not True:
-            raise ValueError("rollback evidence lacks execution proof")
-        if self.rollback.get("approvedSnapshotRestored") is not True:
-            raise ValueError("rollback evidence lacks restored snapshot proof")
-        if self.rollback.get("visibleTestsPassed") is not True:
-            raise ValueError("rollback evidence lacks visible test proof")
-        if self.rollback.get("hiddenTestsPassed") is not True:
-            raise ValueError("rollback evidence lacks hidden test proof")
-        if self.rollback.get("staticChecksPassed") is not True:
-            raise ValueError("rollback evidence lacks static check proof")
-        failed = self.failure.get("failedSnapshotSha256")
-        approved = self.rollback.get("approvedSnapshotSha256")
-        if not isinstance(failed, str) or not isinstance(approved, str):
-            raise ValueError("rollback evidence lacks snapshot hashes")
-        if failed == approved:
+        _validate_role_event_chain(self.role_events, self.binding_sha256)
+        expected_binding = _rollback_binding(
+            task_id=self.task_id,
+            case_id=self.case_id,
+            failed_patch_sha256=self.failed_patch_sha256,
+            plan=self.rollback_plan,
+        )
+        if not hmac.compare_digest(self.binding_sha256, expected_binding):
+            raise ValueError("rollback evidence binding does not match the plan")
+        if self.failure.failed_snapshot_sha256 == self.rollback.approved_snapshot_sha256:
             raise ValueError("rollback evidence must distinguish failed and approved snapshots")
         return self
 
@@ -248,10 +252,8 @@ class RollbackEvidenceService:
             provider=evidence.provider,
             model=evidence.model,
             failed_patch_sha256=evidence.failed_patch_sha256,
-            failed_snapshot_sha256=str(evidence.failure["failedSnapshotSha256"]),
-            approved_snapshot_sha256=str(
-                evidence.rollback["approvedSnapshotSha256"]
-            ),
+            failed_snapshot_sha256=evidence.failure.failed_snapshot_sha256,
+            approved_snapshot_sha256=evidence.rollback.approved_snapshot_sha256,
             role_events=tuple(evidence.role_events),
             manager_status="HEALTHY",
             artifacts_dir=rollback_path.resolve().parent,
@@ -293,6 +295,10 @@ class LiveRollbackVerifier:
         shutil.copytree(approved, workspace)
         artifacts.mkdir()
 
+        if _changed_paths(self._case.source_root, approved) != allowed_paths:
+            raise LiveRollbackError(
+                "approved snapshot changes do not match the case allowlist"
+            )
         approved_hash = snapshot_sha256(approved)
         baseline_results = _run_approved_checks(
             self._case, approved, root / "baseline-verifier"
@@ -478,6 +484,7 @@ def _write_evidence(
         "model": submission.model,
         "submissionSha256": _file_hash(submission_path),
         "failedPatchSha256": submission.failed_patch_sha256,
+        "bindingSha256": submission.binding_sha256,
         "testResultsSha256": _file_hash(results_path),
         "roleEvents": [
             event.model_dump(mode="json", by_alias=True)
@@ -504,3 +511,50 @@ def _write_evidence(
         encoding="utf-8",
         newline="\n",
     )
+
+
+def _validate_role_event_chain(
+    events: list[RollbackRoleEvent], binding_sha256: str
+) -> None:
+    flow = tuple((event.phase, event.agent_name) for event in events)
+    if flow != _EXPECTED_EVENT_FLOW:
+        raise ValueError("role events do not match the required rollback flow")
+    if len({event.event_id for event in events}) != 4:
+        raise ValueError("role events must use distinct Matrix event IDs")
+    if len({event.room_id for event in events}) != 1:
+        raise ValueError("role events must belong to one Team Room")
+    timestamps = [event.origin_server_timestamp for event in events]
+    if timestamps != sorted(timestamps) or len(set(timestamps)) != 4:
+        raise ValueError("role events must be strictly chronological")
+    verifier_ids = {
+        event.matrix_user_id
+        for event in events
+        if event.agent_name == "agentloom-verifier"
+    }
+    if len(verifier_ids) != 1:
+        raise ValueError("Verifier events must use one Matrix identity")
+    if any(
+        not hmac.compare_digest(event.binding_sha256, binding_sha256)
+        for event in events
+    ):
+        raise ValueError("role events do not match the rollback binding")
+
+
+def _rollback_binding(
+    *,
+    task_id: str,
+    case_id: str,
+    failed_patch_sha256: str,
+    plan: RollbackPlan,
+) -> str:
+    payload = "\n".join(
+        (
+            task_id,
+            case_id,
+            failed_patch_sha256,
+            plan.strategy,
+            ",".join(sorted(plan.allowed_changed_paths)),
+            plan.reason,
+        )
+    ).encode("utf-8")
+    return sha256(payload).hexdigest()

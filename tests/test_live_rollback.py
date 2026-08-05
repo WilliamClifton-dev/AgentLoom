@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,20 @@ def _failed_patch() -> str:
 
 def _submission(path: Path) -> Path:
     failed_patch = _failed_patch()
+    failed_patch_sha256 = sha256(failed_patch.encode("utf-8")).hexdigest()
+    reason = "Verifier rejected the candidate at an exact page boundary."
+    binding_sha256 = sha256(
+        "\n".join(
+            (
+                TASK_ID,
+                "pagination-boundary",
+                failed_patch_sha256,
+                "RESTORE_APPROVED_SNAPSHOT",
+                "lib/pagination.py",
+                reason,
+            )
+        ).encode("utf-8")
+    ).hexdigest()
     events = [
         (
             "VERIFICATION_FAILED",
@@ -58,13 +73,12 @@ def _submission(path: Path) -> Path:
         "provider": "dashscope",
         "model": "qwen3.7-plus",
         "failedPatch": failed_patch,
-        "failedPatchSha256": __import__("hashlib").sha256(
-            failed_patch.encode("utf-8")
-        ).hexdigest(),
+        "failedPatchSha256": failed_patch_sha256,
+        "bindingSha256": binding_sha256,
         "rollbackPlan": {
             "strategy": "RESTORE_APPROVED_SNAPSHOT",
             "allowedChangedPaths": ["lib/pagination.py"],
-            "reason": "Verifier rejected the candidate at an exact page boundary.",
+            "reason": reason,
         },
         "roleEvents": [
             {
@@ -74,6 +88,7 @@ def _submission(path: Path) -> Path:
                 "roomId": "!agentloom:example.test",
                 "eventId": event_id,
                 "originServerTimestamp": 1_700_000_000_000 + index,
+                "bindingSha256": binding_sha256,
             }
             for index, (phase, agent_name, matrix_user_id, event_id) in enumerate(
                 events, start=1
@@ -166,6 +181,18 @@ def test_live_rollback_rejects_failed_patch_hash_mismatch_without_echoing_conten
         LiveRollbackVerifier(CASE_ROOT).run(submission, tmp_path / "verified")
 
     assert "DO-NOT-ECHO-ROLLBACK-CONTENT" not in str(captured.value)
+
+
+def test_live_rollback_rejects_plan_rebound_to_existing_matrix_events(
+    tmp_path: Path,
+) -> None:
+    submission = _submission(tmp_path / "submission.json")
+    payload = json.loads(submission.read_text(encoding="utf-8"))
+    payload["rollbackPlan"]["reason"] = "A different unreviewed rollback reason."
+    submission.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(LiveRollbackError):
+        LiveRollbackVerifier(CASE_ROOT).run(submission, tmp_path / "verified")
 
 
 def test_live_rollback_refuses_nonempty_output_directory(tmp_path: Path) -> None:

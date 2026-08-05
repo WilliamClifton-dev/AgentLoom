@@ -240,6 +240,7 @@ async def test_tui_renders_bound_live_rollback_evidence(tmp_path: Path) -> None:
             roomId="!repair:example.test",
             eventId=f"${local}-{index}",
             originServerTimestamp=1_700_000_000_000 + index,
+            bindingSha256="d" * 64,
         )
         for index, (phase, agent, local) in enumerate(
             (

@@ -194,6 +194,7 @@ function Find-StrictMarkers {
                         roomId = $RoomId
                         eventId = $event.event_id
                         originServerTimestamp = $event.origin_server_ts
+                        bindingSha256 = $requirement.bindingSha256
                     }
                 }
             }
@@ -249,6 +250,20 @@ $failedPatch = [IO.File]::ReadAllText(
 $failedPatchSha256 = [Convert]::ToHexString(
     [Security.Cryptography.SHA256]::HashData(
         [Text.Encoding]::UTF8.GetBytes($failedPatch)
+    )
+).ToLowerInvariant()
+$rollbackReason = "Verifier rejected the candidate; restore the last approved snapshot."
+$bindingPayload = @(
+    $TaskId,
+    "pagination-boundary",
+    $failedPatchSha256,
+    "RESTORE_APPROVED_SNAPSHOT",
+    "lib/pagination.py",
+    $rollbackReason
+) -join "`n"
+$bindingSha256 = [Convert]::ToHexString(
+    [Security.Cryptography.SHA256]::HashData(
+        [Text.Encoding]::UTF8.GetBytes($bindingPayload)
     )
 ).ToLowerInvariant()
 
@@ -312,10 +327,10 @@ if ([string]::IsNullOrWhiteSpace($authToken)) {
 
 $startedAt = [DateTimeOffset]::UtcNow
 $deadline = $startedAt.AddSeconds($TimeoutSeconds)
-$failureMarker = "[$TaskId] VERIFICATION_FAILED"
-$rollbackMarker = "[$TaskId] ROLLBACK_REQUESTED"
-$executedMarker = "[$TaskId] ROLLBACK_EXECUTED"
-$verifiedMarker = "[$TaskId] ROLLBACK_VERIFIED"
+$failureMarker = "[$TaskId] VERIFICATION_FAILED $bindingSha256"
+$rollbackMarker = "[$TaskId] ROLLBACK_REQUESTED $bindingSha256"
+$executedMarker = "[$TaskId] ROLLBACK_EXECUTED $bindingSha256"
+$verifiedMarker = "[$TaskId] ROLLBACK_VERIFIED $bindingSha256"
 $prompt = @"
 $($investigator.matrixUserID) [$TaskId] Coordinate a real AgentTeams rollback trace for the supplied L1 candidate. The independent AgentLoom host will execute the candidate and rollback after collecting your role-owned events.
 
@@ -340,6 +355,7 @@ $failureRequirements = @(
         agentName = "agentloom-verifier"
         sender = $verifier.matrixUserID
         marker = $failureMarker
+        bindingSha256 = $bindingSha256
     }
 )
 $failureEvents = Wait-StrictMarkers -RoomId $team.teamRoomID `
@@ -367,6 +383,7 @@ $managerEvidence = [ordered]@{
     roomId = $team.teamRoomID
     eventId = $managerEvent.event_id
     originServerTimestamp = $managerEvent.origin_server_ts
+    bindingSha256 = $bindingSha256
 }
 
 $finalRequirements = @(
@@ -375,12 +392,14 @@ $finalRequirements = @(
         agentName = "agentloom-implementer"
         sender = $implementer.matrixUserID
         marker = $executedMarker
+        bindingSha256 = $bindingSha256
     },
     [ordered]@{
         phase = "ROLLBACK_VERIFIED"
         agentName = "agentloom-verifier"
         sender = $verifier.matrixUserID
         marker = $verifiedMarker
+        bindingSha256 = $bindingSha256
     }
 )
 $finalEvents = Wait-StrictMarkers -RoomId $team.teamRoomID `
@@ -409,10 +428,11 @@ $submission = [ordered]@{
     model = $Model
     failedPatch = $failedPatch
     failedPatchSha256 = $failedPatchSha256
+    bindingSha256 = $bindingSha256
     rollbackPlan = [ordered]@{
         strategy = "RESTORE_APPROVED_SNAPSHOT"
         allowedChangedPaths = @("lib/pagination.py")
-        reason = "Verifier rejected the candidate; restore the last approved snapshot."
+        reason = $rollbackReason
     }
     roleEvents = $roleEvents
 }
@@ -426,6 +446,7 @@ $runEvidence = [ordered]@{
     startedAt = $startedAt.ToUniversalTime().ToString("o")
     completedAt = [DateTimeOffset]::UtcNow.ToString("o")
     failedPatchSha256 = $failedPatchSha256
+    bindingSha256 = $bindingSha256
     roleEvents = $roleEvents
 }
 
