@@ -34,8 +34,8 @@ AgentName = Literal[
     "agentloom-implementer",
     "agentloom-verifier",
 ]
-ProviderName = Literal["dashscope", "deepseek"]
-ModelName = Literal["qwen3.7-plus", "deepseek-v4-pro"]
+ProviderName = Literal["dashscope", "deepseek", "stepfun"]
+ModelName = Literal["qwen3.7-plus", "deepseek-v4-pro", "step-3.7-flash"]
 
 _EXPECTED_AGENTS: tuple[AgentName, ...] = (
     "agentloom-investigator",
@@ -45,6 +45,7 @@ _EXPECTED_AGENTS: tuple[AgentName, ...] = (
 _PROVIDER_MODELS: dict[ProviderName, ModelName] = {
     "dashscope": "qwen3.7-plus",
     "deepseek": "deepseek-v4-pro",
+    "stepfun": "step-3.7-flash",
 }
 _HIDDEN_WORKSPACE = ".agentloom-hidden-tests"
 _MAX_PATCH_BYTES = 131_072

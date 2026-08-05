@@ -30,6 +30,7 @@ _REQUIRED_HEALTH_CHECKS = {
 _PROVIDER_MODELS: dict[ProviderName, ModelName] = {
     "dashscope": "qwen3.7-plus",
     "deepseek": "deepseek-v4-pro",
+    "stepfun": "step-3.7-flash",
 }
 
 

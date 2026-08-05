@@ -16,9 +16,9 @@ param(
     [string]$FailedPatchPath = "",
     [string]$SubmissionPath = "",
     [string]$EvidencePath = "",
-    [ValidateSet("dashscope", "deepseek")]
+    [ValidateSet("dashscope", "deepseek", "stepfun")]
     [string]$Provider = "dashscope",
-    [ValidateSet("qwen3.7-plus", "deepseek-v4-pro")]
+    [ValidateSet("qwen3.7-plus", "deepseek-v4-pro", "step-3.7-flash")]
     [string]$Model = "qwen3.7-plus",
     [switch]$ConfirmPaidRun
 )
@@ -31,6 +31,7 @@ if (-not $ConfirmPaidRun) {
 $approvedPairs = @{
     dashscope = "qwen3.7-plus"
     deepseek = "deepseek-v4-pro"
+    stepfun = "step-3.7-flash"
 }
 if ($approvedPairs[$Provider] -ne $Model) {
     throw "Provider and model are not an approved live E2E pair."
@@ -67,6 +68,36 @@ function Get-HiclawJson {
         $Arguments + @("-o", "json")
     return (Invoke-Docker -Arguments $dockerArguments | Out-String) |
         ConvertFrom-Json
+}
+
+function Get-CoPawBaseUri {
+    param([Parameter(Mandatory)][string]$Container)
+
+    $containerPort = if ($Container -eq $ManagerContainer) { 18799 } else { 8088 }
+    $binding = Invoke-Docker -Arguments @(
+        "port", $Container, "$containerPort/tcp"
+    ) | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace([string]$binding)) {
+        throw "Cannot resolve CoPaw port for $Container."
+    }
+    if ([string]$binding -notmatch ":(?<port>\d+)$") {
+        throw "Unexpected Docker port output for $Container."
+    }
+    return "http://127.0.0.1:$($Matches.port)"
+}
+
+function Assert-ActiveModel {
+    param([Parameter(Mandatory)][string]$Container)
+
+    $baseUri = Get-CoPawBaseUri -Container $Container
+    $active = Invoke-RestMethod -Method Get `
+        -Uri "$baseUri/api/models/active" -TimeoutSec 20
+    if (
+        $active.active_llm.provider_id -ne $Provider -or
+        $active.active_llm.model -ne $Model
+    ) {
+        throw "AgentTeams active provider/model does not match requested live evidence metadata in $Container."
+    }
 }
 
 function Invoke-Matrix {
@@ -204,16 +235,31 @@ function Wait-StrictMarkers {
         [Parameter(Mandatory)][object[]]$Requirements,
         [Parameter(Mandatory)][string]$AuthToken,
         [Parameter(Mandatory)][long]$StartedAtMilliseconds,
-        [Parameter(Mandatory)][DateTimeOffset]$Deadline
+        [Parameter(Mandatory)][DateTimeOffset]$Deadline,
+        [ValidateRange(0, 3600)][int]$ReminderAfterSeconds = 0,
+        [scriptblock]$OnReminder = $null
     )
 
     $markers = @{}
+    $reminderSent = $false
+    $reminderAt = [DateTimeOffset]::FromUnixTimeMilliseconds(
+        $StartedAtMilliseconds
+    ).AddSeconds($ReminderAfterSeconds)
     while ([DateTimeOffset]::UtcNow -lt $Deadline) {
         $markers = Find-StrictMarkers -RoomIds $RoomIds `
             -Requirements $Requirements -AuthToken $AuthToken `
             -StartedAtMilliseconds $StartedAtMilliseconds
         if ($markers.Count -eq $Requirements.Count) {
             return $markers
+        }
+        if (
+            -not $reminderSent -and
+            $null -ne $OnReminder -and
+            $ReminderAfterSeconds -gt 0 -and
+            [DateTimeOffset]::UtcNow -ge $reminderAt
+        ) {
+            $null = & $OnReminder
+            $reminderSent = $true
         }
         Start-Sleep -Seconds $PollSeconds
     }
@@ -285,6 +331,15 @@ if ($null -in @($investigator, $implementer, $verifier)) {
 if ($team.phase -ne "Active" -or -not $team.leaderReady) {
     throw "AgentLoom Team is not ready."
 }
+$providerContainers = @(
+    $ManagerContainer,
+    "hiclaw-worker-$($investigator.name)",
+    "hiclaw-worker-$($implementer.name)",
+    "hiclaw-worker-$($verifier.name)"
+)
+foreach ($container in $providerContainers) {
+    Assert-ActiveModel -Container $container
+}
 
 $adminUser = (Invoke-Docker -Arguments @(
     "exec", $ManagerContainer, "printenv", "HICLAW_ADMIN_USER"
@@ -314,11 +369,16 @@ $joinedRooms = Invoke-Matrix -Method Get `
 $joinedRoomIds = @($joinedRooms.joined_rooms)
 if (
     $joinedRoomIds -notcontains $manager.roomID -or
+    $joinedRoomIds -notcontains $investigator.roomID -or
     $joinedRoomIds -notcontains $team.teamRoomID
 ) {
-    throw "Matrix admin cannot observe the Manager and Team rooms."
+    throw "Matrix admin cannot observe the Manager, Leader DM, and Team rooms."
 }
-$roomIds = @($manager.roomID, $team.teamRoomID)
+$roomIds = @(
+    $manager.roomID,
+    $investigator.roomID,
+    $team.teamRoomID
+)
 
 $startedAt = [DateTimeOffset]::UtcNow
 $deadline = $startedAt.AddSeconds($TimeoutSeconds)
@@ -374,9 +434,84 @@ $requirements = @(
         bindingSha256 = $bindingSha256
     }
 )
-$events = Wait-StrictMarkers -RoomIds $roomIds `
-    -Requirements $requirements -AuthToken $authToken `
+$failureRequirements = @($requirements[0])
+$failureEvents = Wait-StrictMarkers -RoomIds $roomIds `
+    -Requirements $failureRequirements -AuthToken $authToken `
     -StartedAtMilliseconds $startedAt.ToUnixTimeMilliseconds() -Deadline $deadline
+$failureEvent = $failureEvents.VERIFICATION_FAILED
+
+$continuationPrompt = @"
+$($manager.matrixUserID) [$TaskId] Continue the existing workflow after the Verifier failure event.
+
+The Verifier posted this exact event in the AgentLoom Team Room:
+$failureMarker
+
+Verify the role-owned event, then post $rollbackMarker as an exact standalone line from your own Manager identity and direct $($investigator.matrixUserID) to continue. Never fabricate another identity's marker.
+"@.Trim()
+$null = Send-MatrixText -RoomId $manager.roomID -Text $continuationPrompt `
+    -MentionUserId $manager.matrixUserID -AuthToken $authToken
+
+$managerRequirements = @($requirements[1])
+$managerEvents = Wait-StrictMarkers -RoomIds $roomIds `
+    -Requirements $managerRequirements -AuthToken $authToken `
+    -StartedAtMilliseconds $failureEvent.originServerTimestamp -Deadline $deadline
+$managerEvent = $managerEvents.ROLLBACK_REQUESTED
+
+$implementerReminder = {
+    $text = @"
+$($implementer.matrixUserID) [$TaskId] Retry Phase 3 using this complete inline bound plan. The shared task directory is not required for this acknowledgement.
+
+Failed candidate SHA-256: $failedPatchSha256
+Strategy: RESTORE_APPROVED_SNAPSHOT
+Allowed changed path: lib/pagination.py
+Reason: $rollbackReason
+Binding SHA-256: $bindingSha256
+
+Confirm the prior Manager rollback request in Matrix. If valid, post this exact standalone line from your own Implementer identity:
+$executedMarker
+
+Do not fabricate another identity's marker.
+"@.Trim()
+    $null = Send-MatrixText -RoomId $team.teamRoomID -Text $text `
+        -MentionUserId $implementer.matrixUserID -AuthToken $authToken
+}
+$implementerRequirements = @($requirements[2])
+$implementerEvents = Wait-StrictMarkers -RoomIds $roomIds `
+    -Requirements $implementerRequirements -AuthToken $authToken `
+    -StartedAtMilliseconds $managerEvent.originServerTimestamp -Deadline $deadline `
+    -ReminderAfterSeconds 45 -OnReminder $implementerReminder
+$implementerEvent = $implementerEvents.ROLLBACK_EXECUTED
+
+$verifierContinuationPrompt = {
+    $text = @"
+$($verifier.matrixUserID) [$TaskId] Retry Phase 4 using this complete inline bound plan. The shared task directory is not required for this check.
+
+Failed candidate SHA-256: $failedPatchSha256
+Strategy: RESTORE_APPROVED_SNAPSHOT
+Allowed changed path: lib/pagination.py
+Reason: $rollbackReason
+Binding SHA-256: $bindingSha256
+Expected prior event: $executedMarker
+
+Independently confirm in Matrix that the expected event came from $($implementer.matrixUserID) after the Manager rollback request and matches this binding. If valid, post this exact standalone line from your own Verifier identity:
+$verifiedMarker
+
+Do not repeat ROLLBACK_EXECUTED and do not fabricate another identity.
+"@.Trim()
+    $null = Send-MatrixText -RoomId $team.teamRoomID -Text $text `
+        -MentionUserId $verifier.matrixUserID -AuthToken $authToken
+}
+$verifierRequirements = @($requirements[3])
+$verifierEvents = Wait-StrictMarkers -RoomIds $roomIds `
+    -Requirements $verifierRequirements -AuthToken $authToken `
+    -StartedAtMilliseconds $implementerEvent.originServerTimestamp -Deadline $deadline `
+    -ReminderAfterSeconds 45 -OnReminder $verifierContinuationPrompt
+$events = @{
+    VERIFICATION_FAILED = $failureEvent
+    ROLLBACK_REQUESTED = $managerEvent
+    ROLLBACK_EXECUTED = $implementerEvent
+    ROLLBACK_VERIFIED = $verifierEvents.ROLLBACK_VERIFIED
+}
 if (
     $events.ROLLBACK_REQUESTED.originServerTimestamp -le
         $events.VERIFICATION_FAILED.originServerTimestamp -or

@@ -12,8 +12,11 @@ def test_bootstrap_exposes_bounded_lite_and_full_profiles() -> None:
     script = read_script("bootstrap.ps1")
 
     assert '[ValidateSet("lite", "full")]' in script
-    assert '[ValidateSet("none", "qwen", "deepseek")]' in script
-    assert '[ValidateSet("qwen3.7-plus", "deepseek-v4-flash", "deepseek-v4-pro")]' in script
+    assert '[ValidateSet("none", "qwen", "deepseek", "stepfun")]' in script
+    assert (
+        '[ValidateSet("qwen3.7-plus", "deepseek-v4-flash", '
+        '"deepseek-v4-pro", "step-3.7-flash")]'
+    ) in script
     assert "$PSScriptRoot" in script
     assert "sys.version_info[:2]" in script
     assert '"3.12"' in script
@@ -39,8 +42,10 @@ def test_full_bootstrap_fails_closed_and_preserves_provider_order() -> None:
     assert "GetEnvironmentVariable" in script
     assert "configure-provider.ps1" in script
     assert "configure-deepseek-provider.ps1" in script
+    assert "configure-stepfun-provider.ps1" in script
     assert script.index('"deploy.ps1"') < script.index('"configure-provider.ps1"')
     assert script.index('"deploy.ps1"') < script.index('"configure-deepseek-provider.ps1"')
+    assert script.index('"deploy.ps1"') < script.index('"configure-stepfun-provider.ps1"')
     assert "apiKey" not in script
     assert "sk-" not in script
 
@@ -107,6 +112,19 @@ def test_competition_rollback_demo_replays_free_and_guards_live_collection() -> 
     assert "ConfirmPaidRun" in script
     assert '"health-check.ps1"' in script
     assert '"run-live-rollback.ps1"' in script
+    assert '"configure-provider.ps1"' in script
+    assert '"configure-deepseek-provider.ps1"' in script
+    assert '"configure-stepfun-provider.ps1"' in script
+    assert "-SkipConnectionTest" in script
+    assert script.index('"configure-provider.ps1"') < script.index(
+        '"run-live-rollback.ps1"'
+    )
+    assert script.index('"configure-deepseek-provider.ps1"') < script.index(
+        '"run-live-rollback.ps1"'
+    )
+    assert script.index('"configure-stepfun-provider.ps1"') < script.index(
+        '"run-live-rollback.ps1"'
+    )
     assert '"verify-rollback"' in script
     assert '"inspect-rollback"' in script
     assert '"--rollback-evidence"' in script

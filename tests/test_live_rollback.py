@@ -9,6 +9,7 @@ import pytest
 from agentloom.demo_case import snapshot_sha256
 from agentloom.live_rollback import (
     LiveRollbackError,
+    LiveRollbackSubmission,
     LiveRollbackVerifier,
     RollbackEvidenceService,
 )
@@ -24,7 +25,12 @@ def _failed_patch() -> str:
     )
 
 
-def _submission(path: Path) -> Path:
+def _submission(
+    path: Path,
+    *,
+    provider: str = "dashscope",
+    model: str = "qwen3.7-plus",
+) -> Path:
     failed_patch = _failed_patch()
     failed_patch_sha256 = sha256(failed_patch.encode("utf-8")).hexdigest()
     reason = "Verifier rejected the candidate at an exact page boundary."
@@ -70,8 +76,8 @@ def _submission(path: Path) -> Path:
         "schemaVersion": "agentloom.live-rollback-submission/v1alpha1",
         "taskId": TASK_ID,
         "caseId": "pagination-boundary",
-        "provider": "dashscope",
-        "model": "qwen3.7-plus",
+        "provider": provider,
+        "model": model,
         "failedPatch": failed_patch,
         "failedPatchSha256": failed_patch_sha256,
         "bindingSha256": binding_sha256,
@@ -101,6 +107,21 @@ def _submission(path: Path) -> Path:
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def test_live_rollback_contract_accepts_stepfun_pair(tmp_path: Path) -> None:
+    submission = _submission(
+        tmp_path / "submission.json",
+        provider="stepfun",
+        model="step-3.7-flash",
+    )
+
+    parsed = LiveRollbackSubmission.model_validate_json(
+        submission.read_text(encoding="utf-8")
+    )
+
+    assert parsed.provider == "stepfun"
+    assert parsed.model == "step-3.7-flash"
 
 
 def _health(path: Path) -> Path:

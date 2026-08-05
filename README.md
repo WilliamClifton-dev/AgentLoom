@@ -20,6 +20,7 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 - Direction: software-development lifecycle collaboration
 - Runtime: AgentTeams/HiClaw `v1.1.2`
 - Live repair model: `qwen3.7-plus` unattended repair independently verified
+- Live rollback model: `step-3.7-flash` through StepFun Step Plan
 - Message baseline: `deepseek-v4-flash` Manager + three-Worker messaging only
 - Language: Python 3.12
 - Initial storage: SQLite
@@ -90,7 +91,7 @@ does not currently provide a standalone one-container distribution.
 - Strict three-layer live evidence projection in the TUI, binding current
   AgentTeams health, role-owned Matrix events, and independent host verification
 - Guarded competition entrypoint with free evidence replay by default and an
-  explicit confirmation gate before a paid Qwen live repair
+  explicit confirmation gate before a paid cloud-model live rollback
 - Fail-closed L2 Matrix approval verifier with exact Manager request, Team Room,
   Human sender, timestamp, request hash, route, and rollback-plan binding
 - Unit and integration test suite
@@ -214,8 +215,20 @@ without a model call:
 .\scripts\competition-rollback-demo.ps1 -Mode replay
 ```
 
-The verifier and TUI path are implemented, but no live rollback run is claimed in
-this repository until the paid collection command completes successfully.
+For a live StepFun run, set `STEPFUN_API_KEY` outside the repository and use:
+
+```powershell
+.\scripts\competition-rollback-demo.ps1 `
+  -Mode live `
+  -TaskId AL-LIVE-ROLLBACK-001 `
+  -Provider stepfun `
+  -Model step-3.7-flash `
+  -ConfirmPaidRun
+```
+
+StepFun uses the Step Plan endpoint and `reasoning_effort=low`. The runner checks
+that Manager and all three Workers actually have the requested provider and
+model active before collecting role-owned evidence.
 
 ## Live Repair Verification Boundary
 
@@ -231,8 +244,8 @@ that submission against the frozen Case in a clean local workspace:
   --output-root .\artifacts\live-repair\severity-normalization
 ```
 
-The verifier accepts only `qwen3.7-plus` through DashScope or
-`deepseek-v4-pro` through DeepSeek. It requires distinct Investigator,
+The verifier accepts `qwen3.7-plus` through DashScope, `deepseek-v4-pro` through
+DeepSeek, or `step-3.7-flash` through StepFun. It requires distinct Investigator,
 Implementer, and Verifier Matrix events, checks every artifact against the task
 and patch hash, rejects paths outside the Case allowlist, applies the patch with
 `git apply`, and independently reruns the original failure, visible tests,

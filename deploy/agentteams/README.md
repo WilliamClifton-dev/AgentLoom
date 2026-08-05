@@ -60,6 +60,20 @@ not accept an arbitrary provider endpoint and never writes or prints the key.
 Use `-SkipConnectionTest` only for configuration staging; it does not prove the
 key or quota works.
 
+StepFun Step Plan is the recommended bounded alternative for the live rollback
+demo when Qwen quota is unavailable. Put the key in `STEPFUN_API_KEY`, then run:
+
+```powershell
+.\deploy\agentteams\configure-stepfun-provider.ps1
+```
+
+The script fixes the provider to `stepfun`, the model to `step-3.7-flash`, and
+the endpoint to `https://api.stepfun.com/step_plan/v1`. It activates the same
+model for Manager and all three AgentLoom Workers with
+`reasoning_effort=low`. It never accepts an arbitrary endpoint or writes or
+prints the key. Use `-SkipConnectionTest` only when a subsequent live run will
+provide the connection evidence.
+
 For the official OpsPilot baseline, first switch the Manager so it can create
 the Team, then configure the five new Worker containers after creation:
 
@@ -110,6 +124,15 @@ the previously configured Qwen route:
 
 Use `-Model deepseek-v4-pro` on both commands for the final live repair run when
 quality is more important than the lower-cost Baseline path.
+
+For StepFun, deploy the resources first and activate the direct provider last:
+
+```powershell
+.\deploy\agentteams\deploy.ps1 `
+  -Model step-3.7-flash `
+  -EvidencePath .\artifacts\agentteams\deployment-stepfun.json
+.\deploy\agentteams\configure-stepfun-provider.ps1
+```
 
 Keep Qwen evidence as an independent historical run. To roll back the active
 runtime, deploy with `-Model qwen3.7-plus` first, then run

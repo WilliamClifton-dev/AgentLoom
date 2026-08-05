@@ -123,6 +123,21 @@ def test_deepseek_provider_script_is_bounded_and_redacts_credentials() -> None:
     assert "sk-" not in script
 
 
+def test_stepfun_provider_script_is_bounded_and_redacts_credentials() -> None:
+    script = (DEPLOY / "configure-stepfun-provider.ps1").read_text(encoding="utf-8")
+
+    assert 'ApiKeyEnvironmentVariable = "STEPFUN_API_KEY"' in script
+    assert '$ProviderId = "stepfun"' in script
+    assert '[string]$Model = "step-3.7-flash"' in script
+    assert '$BaseUrl = "https://api.stepfun.com/step_plan/v1"' in script
+    assert 'reasoning_effort = "low"' in script
+    assert "/api/models/custom-providers" in script
+    assert "/api/models/$ProviderId/config" in script
+    assert "/api/models/$ProviderId/models/test" in script
+    assert "apiKey" not in script
+    assert "sk-" not in script
+
+
 def test_e2e_script_requires_role_owned_exact_line_markers() -> None:
     script = (DEPLOY / "e2e.ps1").read_text(encoding="utf-8")
 
@@ -219,7 +234,29 @@ def test_live_rollback_runner_is_paid_guarded_and_collects_role_owned_events() -
     assert "$manager.roomID" in script
     assert "joined_rooms" in script
     assert "[string[]]$RoomIds" in script
-    assert "$roomIds = @($manager.roomID, $team.teamRoomID)" in script
+    assert "$roomIds = @(\n    $manager.roomID,\n    $investigator.roomID," in script
+    assert "$failureEvents = Wait-StrictMarkers" in script
+    assert "Continue the existing workflow after the Verifier failure event" in script
+    assert script.index("$failureEvents = Wait-StrictMarkers") < script.index(
+        "Continue the existing workflow after the Verifier failure event"
+    )
+    assert "[int]$ReminderAfterSeconds" in script
+    assert "[scriptblock]$OnReminder" in script
+    assert "$reminderSent = $false" in script
+    assert "-not $reminderSent -and" in script
+    assert "$implementerEvents = Wait-StrictMarkers" in script
+    assert "-OnReminder $implementerReminder" in script
+    assert "The shared task directory is not required" in script
+    assert "$verifierContinuationPrompt" in script
+    assert script.index("$implementerEvents = Wait-StrictMarkers") < script.index(
+        "$verifierContinuationPrompt"
+    )
+    assert "$verifierEvents = Wait-StrictMarkers" in script
+    assert "$finalRequirements" not in script
+    assert "/api/models/active" in script
+    assert "$active.active_llm.provider_id" in script
+    assert "$active.active_llm.model" in script
+    assert "active provider/model does not match" in script
     assert "catch {\n                break\n            }" not in script
     assert "$adminMatrixUserId -ne $manager.matrixUserID" not in script
     assert "initialPassword" not in script
