@@ -10,6 +10,7 @@ from textual.widgets import Button, DataTable, Input, Select, Static
 
 from agentloom.contracts import ApprovalCreate, TaskCreate
 from agentloom.live_evidence import EvidenceRoleEvent, LiveEvidenceSummary
+from agentloom.live_rollback import RollbackEvidenceSummary, RollbackRoleEvent
 from agentloom.storage import Database
 from agentloom.tui import (
     AgentLoomApp,
@@ -226,6 +227,57 @@ async def test_tui_renders_bound_live_agentteams_evidence(tmp_path: Path) -> Non
         artifact_text = str(app.query_one("#artifact-details", Static).render())
         assert "AL-LIVE-TUI-01" in artifact_text
         assert "Hidden tests: PASSED" in artifact_text
+
+
+@pytest.mark.asyncio
+async def test_tui_renders_bound_live_rollback_evidence(tmp_path: Path) -> None:
+    service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
+    role_events = tuple(
+        RollbackRoleEvent(
+            phase=phase,
+            agent_name=agent,
+            matrix_user_id=f"@{local}:example.test",
+            room_id="!repair:example.test",
+            event_id=f"${local}-{index}",
+            origin_server_timestamp=1_700_000_000_000 + index,
+            binding_sha256="d" * 64,
+        )
+        for index, (phase, agent, local) in enumerate(
+            (
+                ("VERIFICATION_FAILED", "agentloom-verifier", "agentloom-verifier"),
+                ("ROLLBACK_REQUESTED", "agentloom-manager", "manager"),
+                ("ROLLBACK_EXECUTED", "agentloom-implementer", "agentloom-implementer"),
+                ("ROLLBACK_VERIFIED", "agentloom-verifier", "agentloom-verifier"),
+            ),
+            start=1,
+        )
+    )
+    rollback_summary = RollbackEvidenceSummary(
+        task_id="AL-LIVE-ROLLBACK-TUI-01",
+        case_id="pagination-boundary",
+        provider="dashscope",
+        model="qwen3.7-plus",
+        failed_patch_sha256="a" * 64,
+        failed_snapshot_sha256="b" * 64,
+        approved_snapshot_sha256="c" * 64,
+        role_events=role_events,
+        manager_status="HEALTHY",
+        artifacts_dir=tmp_path / "rollback" / "artifacts",
+    )
+    app = AgentLoomApp(service, rollback_summary=rollback_summary)
+
+    async with app.run_test(size=(150, 52)):
+        agents = app.query_one("#agent-status", DataTable)
+        events = app.query_one("#task-events", DataTable)
+
+        assert app.query_one("#case-selector", Select).disabled
+        assert agents.row_count == 4
+        assert agents.get_row_at(0)[1] == "HEALTHY"
+        assert agents.get_row_at(1)[1] == "TRACE_VERIFIED"
+        assert events.row_count == 4
+        assert "ROLLBACK VERIFIED" in str(app.query_one("#run-status", Static).render())
+        artifact_text = str(app.query_one("#artifact-details", Static).render())
+        assert "Approved snapshot SHA-256" in artifact_text
 
 
 @pytest.mark.asyncio

@@ -26,6 +26,7 @@ def test_tui_command_exposes_local_case_and_output_options() -> None:
     assert "--health-evidence" in output
     assert "--run-evidence" in output
     assert "--verified-evidence" in output
+    assert "--rollback-evidence" in output
 
 
 def test_tui_requires_all_live_evidence_layers(tmp_path: Path) -> None:
@@ -47,6 +48,86 @@ def test_verify_live_command_exposes_submission_case_and_output_options() -> Non
     assert "--submission" in output
     assert "--case-root" in output
     assert "--output-root" in output
+
+
+def test_verify_rollback_command_exposes_submission_case_and_output_options() -> None:
+    result = CliRunner().invoke(app, ["verify-rollback", "--help"])
+    output = unstyle(result.output)
+
+    assert result.exit_code == 0
+    assert "Verify and execute one role-traced live rollback" in output
+    assert "--submission" in output
+    assert "--case-root" in output
+    assert "--output-root" in output
+
+
+def test_verify_rollback_outputs_redacted_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class StubResult:
+        task_id = "AL-LIVE-ROLLBACK-CLI-01"
+        case_id = "pagination-boundary"
+        provider = "dashscope"
+        model = "qwen3.7-plus"
+        failed_patch_sha256 = "a" * 64
+        failed_snapshot_sha256 = "b" * 64
+        approved_snapshot_sha256 = "c" * 64
+        failure_reproduced = True
+        rollback_executed = True
+        post_rollback_tests_passed = True
+        role_event_ids = ("$failed", "$requested", "$executed", "$verified")
+        artifacts_dir = tmp_path / "artifacts"
+
+    class StubVerifier:
+        def __init__(self, case_root: Path) -> None:
+            assert case_root == tmp_path / "case"
+
+        def run(self, submission: Path, output_root: Path) -> StubResult:
+            assert submission == tmp_path / "submission.json"
+            assert output_root == tmp_path / "output"
+            return StubResult()
+
+    monkeypatch.setattr("agentloom.cli.LiveRollbackVerifier", StubVerifier)
+    result = CliRunner().invoke(
+        app,
+        [
+            "verify-rollback",
+            "--submission",
+            str(tmp_path / "submission.json"),
+            "--case-root",
+            str(tmp_path / "case"),
+            "--output-root",
+            str(tmp_path / "output"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "approvedSnapshotSha256": "c" * 64,
+        "artifactsDirectory": str((tmp_path / "artifacts").resolve()),
+        "caseId": "pagination-boundary",
+        "failedPatchSha256": "a" * 64,
+        "failedSnapshotSha256": "b" * 64,
+        "failureReproduced": True,
+        "model": "qwen3.7-plus",
+        "postRollbackTestsPassed": True,
+        "provider": "dashscope",
+        "roleEventCount": 4,
+        "rollbackExecuted": True,
+        "schemaVersion": "agentloom.live-rollback-summary/v1alpha1",
+        "status": "PASS",
+        "taskId": "AL-LIVE-ROLLBACK-CLI-01",
+    }
+
+
+def test_inspect_rollback_command_exposes_health_and_evidence_options() -> None:
+    result = CliRunner().invoke(app, ["inspect-rollback", "--help"])
+    output = unstyle(result.output)
+
+    assert result.exit_code == 0
+    assert "Validate one bound live AgentTeams rollback evidence chain" in output
+    assert "--health-evidence" in output
+    assert "--rollback-evidence" in output
 
 
 def test_inspect_live_outputs_stable_redacted_summary(

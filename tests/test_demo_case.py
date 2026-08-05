@@ -9,6 +9,19 @@ from pydantic import ValidationError
 from agentloom.demo_case import DemoCaseError, load_demo_case, snapshot_sha256
 
 
+def test_snapshot_hash_is_stable_across_platform_text_line_endings(
+    tmp_path: Path,
+) -> None:
+    lf_root = tmp_path / "lf"
+    crlf_root = tmp_path / "crlf"
+    lf_root.mkdir()
+    crlf_root.mkdir()
+    (lf_root / "module.py").write_bytes(b"def value():\n    return 1\n")
+    (crlf_root / "module.py").write_bytes(b"def value():\r\n    return 1\r\n")
+
+    assert snapshot_sha256(lf_root) == snapshot_sha256(crlf_root)
+
+
 def _write_case(root: Path, **overrides: object) -> Path:
     (root / "before" / "src").mkdir(parents=True)
     (root / "before" / "tests").mkdir(parents=True)

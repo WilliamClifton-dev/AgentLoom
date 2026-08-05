@@ -17,6 +17,11 @@ from agentloom.l2_approval import (
 )
 from agentloom.live_evidence import LiveEvidenceError, LiveEvidenceService
 from agentloom.live_repair import LiveRepairError, LiveRepairVerifier
+from agentloom.live_rollback import (
+    LiveRollbackError,
+    LiveRollbackVerifier,
+    RollbackEvidenceService,
+)
 from agentloom.storage import Database
 from agentloom.tui import (
     AgentLoomApp,
@@ -64,17 +69,28 @@ def tui(
         Path | None,
         typer.Option(help="Independent host verification evidence."),
     ] = None,
+    rollback_evidence: Annotated[
+        Path | None,
+        typer.Option(help="Verified live rollback evidence."),
+    ] = None,
 ) -> None:
     """Launch the Textual panel for local or verified live evidence."""
     try:
+        if rollback_evidence is not None and (
+            run_evidence is not None or verified_evidence is not None
+        ):
+            raise LiveEvidenceError(
+                "repair and rollback evidence modes are mutually exclusive"
+            )
         live_paths = (health_evidence, run_evidence, verified_evidence)
-        if any(path is not None for path in live_paths) and not all(
+        if rollback_evidence is None and any(path is not None for path in live_paths) and not all(
             path is not None for path in live_paths
         ):
             raise LiveEvidenceError(
                 "health, run, and verified evidence must be provided together"
             )
         live_summary = None
+        rollback_summary = None
         if all(path is not None for path in live_paths):
             assert health_evidence is not None
             assert run_evidence is not None
@@ -84,6 +100,15 @@ def tui(
                 run_path=run_evidence,
                 verified_path=verified_evidence,
             )
+        if rollback_evidence is not None:
+            if health_evidence is None:
+                raise LiveEvidenceError(
+                    "rollback evidence requires deployment health evidence"
+                )
+            rollback_summary = RollbackEvidenceService().load(
+                health_path=health_evidence,
+                rollback_path=rollback_evidence,
+            )
         approval_database.parent.mkdir(parents=True, exist_ok=True)
         database = Database(f"sqlite:///{approval_database.resolve()}")
         database.create_schema()
@@ -91,6 +116,7 @@ def tui(
             DemoRunService(cases_root=cases_root, runs_root=runs_root),
             approval_service=ApprovalQueueService(database),
             live_summary=live_summary,
+            rollback_summary=rollback_summary,
         ).run()
     except (DemoRunError, LiveEvidenceError, OSError, SQLAlchemyError) as exc:
         typer.echo(f"agentloom tui failed: {exc}", err=True)
@@ -135,6 +161,50 @@ def verify_live(
     )
 
 
+@app.command("verify-rollback")
+def verify_rollback(
+    submission: Annotated[
+        Path,
+        typer.Option(help="Strict AgentTeams rollback submission assembled from Matrix events."),
+    ],
+    case_root: Annotated[
+        Path,
+        typer.Option(help="Directory containing the frozen AgentLoom demo case."),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(help="Empty directory for rollback verification artifacts."),
+    ],
+) -> None:
+    """Verify and execute one role-traced live rollback."""
+    try:
+        result = LiveRollbackVerifier(case_root).run(submission, output_root)
+    except (LiveRollbackError, OSError, ValueError, UnicodeError) as exc:
+        typer.echo(f"agentloom rollback verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.live-rollback-summary/v1alpha1",
+                "status": "PASS",
+                "taskId": result.task_id,
+                "caseId": result.case_id,
+                "provider": result.provider,
+                "model": result.model,
+                "failedPatchSha256": result.failed_patch_sha256,
+                "failedSnapshotSha256": result.failed_snapshot_sha256,
+                "approvedSnapshotSha256": result.approved_snapshot_sha256,
+                "failureReproduced": result.failure_reproduced,
+                "rollbackExecuted": result.rollback_executed,
+                "postRollbackTestsPassed": result.post_rollback_tests_passed,
+                "roleEventCount": len(result.role_event_ids),
+                "artifactsDirectory": str(result.artifacts_dir.resolve()),
+            },
+            sort_keys=True,
+        )
+    )
+
+
 @app.command("inspect-live")
 def inspect_live(
     health_evidence: Annotated[
@@ -173,6 +243,47 @@ def inspect_live(
                 "roleEventCount": len(summary.role_events),
                 "hiddenTestsPassed": summary.hidden_tests_passed,
                 "patchSha256": summary.patch_sha256,
+                "artifactsDirectory": str(summary.artifacts_dir.resolve()),
+            },
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("inspect-rollback")
+def inspect_rollback(
+    health_evidence: Annotated[
+        Path,
+        typer.Option(help="Redacted AgentTeams deployment health evidence."),
+    ],
+    rollback_evidence: Annotated[
+        Path,
+        typer.Option(help="Host-verified AgentTeams rollback evidence."),
+    ],
+) -> None:
+    """Validate one bound live AgentTeams rollback evidence chain."""
+    try:
+        summary = RollbackEvidenceService().load(
+            health_path=health_evidence,
+            rollback_path=rollback_evidence,
+        )
+    except LiveEvidenceError as exc:
+        typer.echo(f"agentloom rollback evidence inspection failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.live-rollback-summary/v1alpha1",
+                "status": "PASS",
+                "taskId": summary.task_id,
+                "caseId": summary.case_id,
+                "provider": summary.provider,
+                "model": summary.model,
+                "managerStatus": summary.manager_status,
+                "roleEventCount": len(summary.role_events),
+                "failedPatchSha256": summary.failed_patch_sha256,
+                "failedSnapshotSha256": summary.failed_snapshot_sha256,
+                "approvedSnapshotSha256": summary.approved_snapshot_sha256,
                 "artifactsDirectory": str(summary.artifacts_dir.resolve()),
             },
             sort_keys=True,

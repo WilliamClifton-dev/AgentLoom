@@ -1390,6 +1390,7 @@ agentloom/
 - [x] Element Team Room 显示任务委派、Worker 进展和最终结果；MinIO 可查验补丁和报告。L2/L3 人工审批仍需单独演示。
 - [x] 固定分页任务已从空 Team 前缀经 Qwen 三 Agent 无人协作跑通；精确 filesync、输入指纹、真实 Matrix Event、主机隐藏测试和静态检查证据齐全。
 - [x] Textual TUI 已实现本地确定性的“首次验证失败 -> 回滚 -> 单次重试 -> 完成”十步状态分支，并生成 `failure-retry-evidence.json`；该证据不冒充 AgentTeams/Matrix Trace。
+- [x] 真实回滚验证器、付费保护采集脚本和 TUI 投影已实现：绑定四阶段 Matrix 事件，在隔离工作区复现失败并恢复已批准快照；尚未执行首次付费实跑，因此当前不宣称已有真实回滚 Trace。
 - [ ] 5 个核心 Skill 均有完整 Manifest，主任务至少真实调用其中 3 个；至少 1 个为团队原创 Skill。
 - [ ] Worker 只配置 Policy Broker MCP；缺少、过期或重放 SkillExecutionGrant 的调用被拒绝。
 - [ ] 在 AgentTeams/Element 中录制 1 个由 Human 审阅并发送结构化决定的 L2 审批分支；严格 Matrix 事件验证器和 Prepare/Collect 驱动已实现，本地 TUI 控件仍不能替代真实 Human 事件，当前仅缺最终凭据轮换与真人证据采集。

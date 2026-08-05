@@ -26,6 +26,7 @@ from agentloom.contracts import (
 )
 from agentloom.demo_case import DemoCase, DemoCaseError, load_demo_case
 from agentloom.live_evidence import LiveEvidenceSummary
+from agentloom.live_rollback import RollbackEvidenceSummary
 from agentloom.mock_repair import MockRepairError, MockRepairRunner
 from agentloom.storage import ApprovalVersionConflict, Database
 from agentloom.workflow import RepairWorkflow
@@ -277,6 +278,7 @@ class AgentLoomApp(App[None]):
         service: DemoRunService,
         approval_service: ApprovalQueueService | None = None,
         live_summary: LiveEvidenceSummary | None = None,
+        rollback_summary: RollbackEvidenceSummary | None = None,
     ) -> None:
         super().__init__()
         self._service = service
@@ -284,8 +286,18 @@ class AgentLoomApp(App[None]):
         self._approval_service = approval_service
         self._approvals: tuple[ApprovalRecord, ...] = ()
         self._live_summary = live_summary
-        if live_summary is not None and not any(
-            case.case_id == live_summary.case_id for case in self._cases
+        self._rollback_summary = rollback_summary
+        if live_summary is not None and rollback_summary is not None:
+            raise DemoRunError("live repair and rollback evidence are mutually exclusive")
+        evidence_case_id = (
+            live_summary.case_id
+            if live_summary is not None
+            else rollback_summary.case_id
+            if rollback_summary is not None
+            else None
+        )
+        if evidence_case_id is not None and not any(
+            case.case_id == evidence_case_id for case in self._cases
         ):
             raise DemoRunError("live evidence does not match an available demo case")
 
@@ -294,6 +306,9 @@ class AgentLoomApp(App[None]):
         title = "AgentLoom  |  Governed repair control plane"
         if self._live_summary is not None:
             title = "AgentLoom  |  Verified AgentTeams repair evidence"
+        elif self._rollback_summary is not None:
+            title = "AgentLoom  |  Verified AgentTeams rollback evidence"
+        evidence_mode = self._live_summary is not None or self._rollback_summary is not None
         yield Static(title, id="titlebar")
         with Horizontal(id="main"):
             with Vertical(id="sidebar"):
@@ -303,32 +318,36 @@ class AgentLoomApp(App[None]):
                     value=(
                         self._live_summary.case_id
                         if self._live_summary is not None
+                        else self._rollback_summary.case_id
+                        if self._rollback_summary is not None
                         else self._cases[0].case_id
                     ),
                     allow_blank=False,
-                    disabled=self._live_summary is not None,
+                    disabled=evidence_mode,
                     id="case-selector",
                 )
                 yield Button(
                     "Run selected case",
                     id="run-case",
                     variant="success",
-                    disabled=self._live_summary is not None,
+                    disabled=evidence_mode,
                 )
                 yield Button(
                     "Run failure / retry",
                     id="run-failure-retry",
                     variant="warning",
-                    disabled=self._live_summary is not None,
+                    disabled=evidence_mode,
                 )
                 yield Button(
                     "Refresh details",
                     id="refresh-case",
-                    disabled=self._live_summary is not None,
+                    disabled=evidence_mode,
                 )
                 mode = "LOCAL MODE\nNo cloud model is called."
                 if self._live_summary is not None:
                     mode = "LIVE EVIDENCE MODE\nNo model call is made by this viewer."
+                elif self._rollback_summary is not None:
+                    mode = "LIVE ROLLBACK EVIDENCE MODE\nNo model call is made by this viewer."
                 yield Static(mode, id="run-status")
             with VerticalScroll(id="workspace"):
                 yield Static("", id="case-details")
@@ -355,12 +374,17 @@ class AgentLoomApp(App[None]):
         selected_case = (
             self._live_summary.case_id
             if self._live_summary is not None
+            else self._rollback_summary.case_id
+            if self._rollback_summary is not None
             else self._cases[0].case_id
         )
         self._show_case(selected_case)
         self._show_approval_queue()
         if self._live_summary is not None:
             self.show_live_summary(self._live_summary)
+            return
+        if self._rollback_summary is not None:
+            self.show_rollback_summary(self._rollback_summary)
             return
         self._render_roles(
             (
@@ -479,6 +503,51 @@ class AgentLoomApp(App[None]):
                 f"Model: {summary.model}\n"
                 f"Hidden tests: {'PASSED' if summary.hidden_tests_passed else 'FAILED'}\n"
                 f"Patch SHA-256: {summary.patch_sha256}\n"
+                f"Path: {summary.artifacts_dir}"
+            )
+        )
+
+    def show_rollback_summary(self, summary: RollbackEvidenceSummary) -> None:
+        role_details = {
+            "VERIFICATION_FAILED": "Verifier failure event bound to the candidate snapshot.",
+            "ROLLBACK_REQUESTED": "Manager rollback request bound to the failure.",
+            "ROLLBACK_EXECUTED": "Implementer rollback event bound to host restoration.",
+            "ROLLBACK_VERIFIED": "Verifier post-rollback event bound to passing checks.",
+        }
+        self._render_roles(
+            (
+                RoleStatus(
+                    "Manager",
+                    summary.manager_status,
+                    "AgentTeams runtime health evidence passed.",
+                ),
+                *tuple(
+                    RoleStatus(
+                        event.agent_name.removeprefix("agentloom-").title(),
+                        "TRACE_VERIFIED",
+                        role_details[event.phase],
+                    )
+                    for event in summary.role_events
+                    if event.phase != "ROLLBACK_REQUESTED"
+                ),
+            )
+        )
+        events = self.query_one("#task-events", DataTable)
+        events.clear()
+        for order, event in enumerate(summary.role_events, start=1):
+            events.add_row(str(order), event.phase, event.event_id)
+        self.query_one("#run-status", Static).update(
+            Text(f"ROLLBACK VERIFIED  |  {summary.model}  |  snapshot restored")
+        )
+        self.query_one("#artifact-details", Static).update(
+            Text(
+                "LIVE ROLLBACK EVIDENCE\n"
+                f"Task: {summary.task_id}\n"
+                f"Case: {summary.case_id}  |  Provider: {summary.provider}\n"
+                f"Model: {summary.model}\n"
+                f"Failed patch SHA-256: {summary.failed_patch_sha256}\n"
+                f"Failed snapshot SHA-256: {summary.failed_snapshot_sha256}\n"
+                f"Approved snapshot SHA-256: {summary.approved_snapshot_sha256}\n"
                 f"Path: {summary.artifacts_dir}"
             )
         )
