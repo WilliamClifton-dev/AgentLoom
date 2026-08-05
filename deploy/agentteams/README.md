@@ -109,6 +109,13 @@ Start the official `v1.1.2` embedded deployment first. Then run:
   -EvidencePath .\artifacts\agentteams\deployment.json
 ```
 
+AgentTeams `v1.1.2` accepts `spec.humanMembers` while creating a Team but drops
+that field when `hiclaw apply` updates an existing Team. AgentLoom immediately
+reapplies the declared members through the embedded Kubernetes merge-patch API
+and verifies the returned Team spec before continuing. This compatibility step
+is version-scoped, idempotent, and fails the deployment if the member list is
+not persisted; it does not expose the embedded API token.
+
 For DeepSeek, deploy the resources with the alternative model ID first, then
 activate the direct provider last. Applying AgentTeams resources restores
 `hiclaw-gateway`, so reversing this order can send a DeepSeek model ID through

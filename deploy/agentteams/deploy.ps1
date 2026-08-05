@@ -44,6 +44,65 @@ function Test-HumanExists {
     return $LASTEXITCODE -eq 0
 }
 
+function Set-TeamHumanMembersCompatibilityPatch {
+    param(
+        [Parameter(Mandatory)]
+        [ValidatePattern("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")]
+        [string]$TeamName,
+        [Parameter(Mandatory)][object[]]$HumanMembers,
+        [Parameter(Mandatory)][string]$TemporaryRoot
+    )
+
+    if ($HumanMembers.Count -eq 0) {
+        throw "Team humanMembers compatibility patch requires at least one member"
+    }
+
+    $patch = [ordered]@{
+        spec = [ordered]@{ humanMembers = @($HumanMembers) }
+    }
+    $localPatchPath = Join-Path $TemporaryRoot "team-human-members-patch.json"
+    [IO.File]::WriteAllText(
+        $localPatchPath,
+        ($patch | ConvertTo-Json -Depth 10),
+        [Text.UTF8Encoding]::new($false)
+    )
+    $containerPatchPath = "/tmp/agentloom-team-human-members-$([guid]::NewGuid().ToString('N')).json"
+    $patchScript = @'
+set -eu
+patch_path="$1"
+team_name="$2"
+token="$(cut -d, -f1 "/data/hiclaw-controller/pki/token.csv" | head -n 1)"
+test -n "$token"
+curl --fail --silent --show-error --insecure \
+  --request PATCH \
+  --header "Authorization: Bearer $token" \
+  --header "Content-Type: application/merge-patch+json" \
+  --data-binary "@$patch_path" \
+  "https://127.0.0.1:6443/apis/hiclaw.io/v1beta1/namespaces/default/teams/$team_name"
+'@
+
+    try {
+        [void](Invoke-Docker -Arguments @(
+            "cp", $localPatchPath, "${ControllerContainer}:$containerPatchPath"
+        ))
+        $response = (
+            Invoke-Docker -Arguments @(
+                "exec", $ControllerContainer, "sh", "-c", $patchScript,
+                "agentloom-team-patch", $containerPatchPath, $TeamName
+            ) | Out-String
+        ) | ConvertFrom-Json
+        $expected = @($HumanMembers) | ConvertTo-Json -Depth 10 -Compress
+        $actual = @($response.spec.humanMembers) | ConvertTo-Json -Depth 10 -Compress
+        if ($actual -cne $expected) {
+            throw "Team humanMembers compatibility patch was not persisted"
+        }
+    }
+    finally {
+        & docker exec $ControllerContainer rm -f $containerPatchPath 2>$null
+        Remove-Item -LiteralPath $localPatchPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Assert-ImageDigest {
     param(
         [Parameter(Mandatory)][string]$Reference,
@@ -262,6 +321,12 @@ try {
         $containerFiles += $containerPath
         $localFiles += $localPath
         Invoke-Hiclaw -Arguments @("apply", "-f", $containerPath) | Write-Host
+        if ($resource.kind -eq "Team") {
+            Set-TeamHumanMembersCompatibilityPatch `
+                -TeamName $resource.metadata.name `
+                -HumanMembers @($resource.spec.humanMembers) `
+                -TemporaryRoot $temporaryRoot
+        }
     }
 
     $evidence = Wait-AgentTeamsReady
