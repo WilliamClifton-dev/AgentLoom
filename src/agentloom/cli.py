@@ -17,6 +17,7 @@ from agentloom.l2_approval import (
 )
 from agentloom.live_evidence import LiveEvidenceError, LiveEvidenceService
 from agentloom.live_repair import LiveRepairError, LiveRepairVerifier
+from agentloom.live_rollback import LiveRollbackError, LiveRollbackVerifier
 from agentloom.storage import Database
 from agentloom.tui import (
     AgentLoomApp,
@@ -130,6 +131,50 @@ def verify_live(
                 "artifactsDirectory": str(result.artifacts_dir),
             },
             indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("verify-rollback")
+def verify_rollback(
+    submission: Annotated[
+        Path,
+        typer.Option(help="Strict AgentTeams rollback submission assembled from Matrix events."),
+    ],
+    case_root: Annotated[
+        Path,
+        typer.Option(help="Directory containing the frozen AgentLoom demo case."),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(help="Empty directory for rollback verification artifacts."),
+    ],
+) -> None:
+    """Verify and execute one role-traced live rollback."""
+    try:
+        result = LiveRollbackVerifier(case_root).run(submission, output_root)
+    except (LiveRollbackError, OSError, ValueError, UnicodeError) as exc:
+        typer.echo(f"agentloom rollback verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.live-rollback-summary/v1alpha1",
+                "status": "PASS",
+                "taskId": result.task_id,
+                "caseId": result.case_id,
+                "provider": result.provider,
+                "model": result.model,
+                "failedPatchSha256": result.failed_patch_sha256,
+                "failedSnapshotSha256": result.failed_snapshot_sha256,
+                "approvedSnapshotSha256": result.approved_snapshot_sha256,
+                "failureReproduced": result.failure_reproduced,
+                "rollbackExecuted": result.rollback_executed,
+                "postRollbackTestsPassed": result.post_rollback_tests_passed,
+                "roleEventCount": len(result.role_event_ids),
+                "artifactsDirectory": str(result.artifacts_dir.resolve()),
+            },
             sort_keys=True,
         )
     )
