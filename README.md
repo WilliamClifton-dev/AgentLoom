@@ -87,6 +87,10 @@ does not currently provide a standalone one-container distribution.
 - Textual control panel for selecting cases and viewing role status, task events,
   verified artifacts, approval queue/detail, Human decisions, and local failure
   states
+- Strict three-layer live evidence projection in the TUI, binding current
+  AgentTeams health, role-owned Matrix events, and independent host verification
+- Guarded competition entrypoint with free evidence replay by default and an
+  explicit confirmation gate before a paid Qwen live repair
 - Fail-closed L2 Matrix approval verifier with exact Manager request, Team Room,
   Human sender, timestamp, request hash, route, and rollback-plan binding
 - Unit and integration test suite
@@ -178,6 +182,18 @@ claim that its deterministic retry evidence is a live AgentTeams Trace. The retr
 branch is state-machine evidence only: it does not generate a patch or run tests
 and risk checks.
 
+Replay the latest verified AgentTeams repair in the same panel without calling a
+model:
+
+```powershell
+.\scripts\competition-demo.ps1 -Mode replay
+```
+
+The viewer fails closed unless `health.json`, the strict AgentTeams run evidence,
+and the independent host verification bind to the same task, model, submission
+hash, and three Matrix events. Local Mock controls are disabled in Live Evidence
+mode so the two evidence classes cannot be confused.
+
 ## Live Repair Verification Boundary
 
 After a live AgentTeams run, assemble the three business Agents' role-owned
@@ -219,7 +235,7 @@ verification evidence is under
 
 1. Record a separate L2 Human approval demonstration in AgentTeams/Element.
 2. Evaluate and publish the five quarantined upstream Skills.
-3. Connect live AgentTeams role outputs and rollback evidence to the TUI.
+3. Add role-owned live rollback evidence to the existing verified-success TUI path.
 4. Validate Full bootstrap on additional clean Windows machines and publish a
    deployment compatibility matrix.
 

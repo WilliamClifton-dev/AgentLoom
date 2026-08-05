@@ -84,6 +84,34 @@ Element is available at `http://127.0.0.1:18088/#/login`. Continue with the
 strict role-message and repair flows in the
 [AgentTeams runbook](../../deploy/agentteams/README.md).
 
+## Competition demo
+
+Replay the newest complete live repair evidence without a model call:
+
+```powershell
+.\scripts\competition-demo.ps1 -Mode replay
+```
+
+For an automated preflight that does not open the TUI:
+
+```powershell
+.\scripts\competition-demo.ps1 -Mode replay -NoTui
+```
+
+A fresh run consumes model quota and therefore requires both a new task ID and
+an explicit confirmation switch:
+
+```powershell
+.\scripts\competition-demo.ps1 `
+  -Mode live `
+  -TaskId AL-LIVE-PAGINATION-DEMO-01 `
+  -ConfirmPaidRun
+```
+
+Live mode refuses to overwrite an existing task, submission, run evidence, or
+verification directory. It currently uses the frozen `pagination-boundary` Case
+and the already configured `qwen3.7-plus` AgentTeams identities.
+
 ## Roll back AgentLoom resources
 
 Delete dependents first; keep the upstream `default` Manager:

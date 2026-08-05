@@ -80,3 +80,20 @@ def test_demo_entrypoint_is_offline_and_case_bounded() -> None:
     assert '"--output-root"' in script
     assert "QWEN_API_KEY" not in script
     assert "DEEPSEEK_API_KEY" not in script
+
+
+def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:
+    script = read_script("competition-demo.ps1")
+
+    assert '[ValidateSet("replay", "live")]' in script
+    assert '[string]$Mode = "replay"' in script
+    assert "ConfirmPaidRun" in script
+    assert '"health-check.ps1"' in script
+    assert '"run-live-repair.ps1"' in script
+    assert '"verify-live"' in script
+    assert '"inspect-live"' in script
+    assert '"tui"' in script
+    assert script.index('"run-live-repair.ps1"') < script.index('"verify-live"')
+    assert script.index('"verify-live"') < script.index('"inspect-live"')
+    assert "QWEN_API_KEY" not in script
+    assert "DEEPSEEK_API_KEY" not in script
