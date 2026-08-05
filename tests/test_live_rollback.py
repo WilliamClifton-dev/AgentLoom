@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from agentloom.demo_case import snapshot_sha256
-from agentloom.live_rollback import LiveRollbackError, LiveRollbackVerifier
+from agentloom.live_rollback import (
+    LiveRollbackError,
+    LiveRollbackVerifier,
+    RollbackEvidenceService,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CASE_ROOT = ROOT / "demo" / "cases" / "pagination-boundary"
@@ -93,6 +97,37 @@ def _submission(path: Path) -> Path:
     return path
 
 
+def _health(path: Path) -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.deployment-health/v1alpha1",
+                "checkedAt": "2026-08-05T05:27:59Z",
+                "status": "PASS",
+                "agentTeams": {
+                    "tag": "v1.1.2",
+                    "commit": "a99457830fafb99c991bdb666aa8a1eef2f83b12",
+                },
+                "failureCode": "",
+                "checks": [
+                    {"name": name, "passed": True, "detail": "verified"}
+                    for name in (
+                        "docker",
+                        "controller",
+                        "manager",
+                        "team",
+                        "workers",
+                        "human",
+                        "matrix-rooms",
+                    )
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_live_rollback_reproduces_failure_and_restores_approved_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -157,3 +192,24 @@ def test_live_rollback_refuses_nonempty_output_directory(tmp_path: Path) -> None
         )
 
     assert (output / "existing.txt").read_text(encoding="utf-8") == "preserve"
+
+
+def test_rollback_evidence_service_binds_deployment_health(tmp_path: Path) -> None:
+    submission = _submission(tmp_path / "submission.json")
+    result = LiveRollbackVerifier(CASE_ROOT).run(submission, tmp_path / "verified")
+    evidence = result.artifacts_dir / "live-rollback-evidence.json"
+
+    summary = RollbackEvidenceService().load(
+        health_path=_health(tmp_path / "health.json"),
+        rollback_path=evidence,
+    )
+
+    assert summary.task_id == TASK_ID
+    assert summary.manager_status == "HEALTHY"
+    assert summary.failed_snapshot_sha256 != summary.approved_snapshot_sha256
+    assert [event.phase for event in summary.role_events] == [
+        "VERIFICATION_FAILED",
+        "ROLLBACK_REQUESTED",
+        "ROLLBACK_EXECUTED",
+        "ROLLBACK_VERIFIED",
+    ]

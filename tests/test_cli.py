@@ -26,6 +26,7 @@ def test_tui_command_exposes_local_case_and_output_options() -> None:
     assert "--health-evidence" in output
     assert "--run-evidence" in output
     assert "--verified-evidence" in output
+    assert "--rollback-evidence" in output
 
 
 def test_tui_requires_all_live_evidence_layers(tmp_path: Path) -> None:
@@ -117,6 +118,16 @@ def test_verify_rollback_outputs_redacted_summary(
         "status": "PASS",
         "taskId": "AL-LIVE-ROLLBACK-CLI-01",
     }
+
+
+def test_inspect_rollback_command_exposes_health_and_evidence_options() -> None:
+    result = CliRunner().invoke(app, ["inspect-rollback", "--help"])
+    output = unstyle(result.output)
+
+    assert result.exit_code == 0
+    assert "Validate one bound live AgentTeams rollback evidence chain" in output
+    assert "--health-evidence" in output
+    assert "--rollback-evidence" in output
 
 
 def test_inspect_live_outputs_stable_redacted_summary(

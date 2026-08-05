@@ -14,6 +14,11 @@ from pydantic import ConfigDict, Field, ValidationError, model_validator
 
 from agentloom.contracts import ContractModel
 from agentloom.demo_case import DemoCase, load_demo_case, snapshot_sha256
+from agentloom.live_evidence import (
+    DeploymentHealthEvidence,
+    LiveEvidenceError,
+    _load_model,
+)
 from agentloom.live_repair import (
     LiveRepairError,
     ModelName,
@@ -148,6 +153,109 @@ class LiveRollbackResult:
     role_event_ids: tuple[str, ...]
     workspace: Path
     artifacts_dir: Path
+
+
+class VerifiedRollbackEvidence(ContractModel):
+    schema_version: Literal["agentloom.live-rollback-evidence/v1alpha1"] = Field(
+        alias="schemaVersion"
+    )
+    evidence_kind: Literal["LIVE_AGENTTEAMS_HOST_VERIFIED_ROLLBACK"] = Field(
+        alias="evidenceKind"
+    )
+    status: Literal["PASS"]
+    task_id: str = Field(
+        alias="taskId", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    )
+    case_id: str = Field(alias="caseId", pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
+    provider: ProviderName
+    model: ModelName
+    submission_sha256: str = Field(alias="submissionSha256", pattern=r"^[a-f0-9]{64}$")
+    failed_patch_sha256: str = Field(
+        alias="failedPatchSha256", pattern=r"^[a-f0-9]{64}$"
+    )
+    test_results_sha256: str = Field(alias="testResultsSha256", pattern=r"^[a-f0-9]{64}$")
+    role_events: list[RollbackRoleEvent] = Field(alias="roleEvents", min_length=4, max_length=4)
+    rollback_plan: RollbackPlan = Field(alias="rollbackPlan")
+    failure: dict[str, object]
+    rollback: dict[str, object]
+
+    @model_validator(mode="after")
+    def rollback_is_proven(self) -> VerifiedRollbackEvidence:
+        flow = tuple((event.phase, event.agent_name) for event in self.role_events)
+        if flow != _EXPECTED_EVENT_FLOW:
+            raise ValueError("rollback evidence role events are incomplete")
+        if len({event.event_id for event in self.role_events}) != 4:
+            raise ValueError("rollback evidence role events must be distinct")
+        if self.failure.get("reproduced") is not True:
+            raise ValueError("rollback evidence lacks reproduced failure")
+        if self.rollback.get("executed") is not True:
+            raise ValueError("rollback evidence lacks execution proof")
+        if self.rollback.get("approvedSnapshotRestored") is not True:
+            raise ValueError("rollback evidence lacks restored snapshot proof")
+        if self.rollback.get("visibleTestsPassed") is not True:
+            raise ValueError("rollback evidence lacks visible test proof")
+        if self.rollback.get("hiddenTestsPassed") is not True:
+            raise ValueError("rollback evidence lacks hidden test proof")
+        if self.rollback.get("staticChecksPassed") is not True:
+            raise ValueError("rollback evidence lacks static check proof")
+        failed = self.failure.get("failedSnapshotSha256")
+        approved = self.rollback.get("approvedSnapshotSha256")
+        if not isinstance(failed, str) or not isinstance(approved, str):
+            raise ValueError("rollback evidence lacks snapshot hashes")
+        if failed == approved:
+            raise ValueError("rollback evidence must distinguish failed and approved snapshots")
+        return self
+
+
+@dataclass(frozen=True)
+class RollbackEvidenceSummary:
+    task_id: str
+    case_id: str
+    provider: ProviderName
+    model: ModelName
+    failed_patch_sha256: str
+    failed_snapshot_sha256: str
+    approved_snapshot_sha256: str
+    role_events: tuple[RollbackRoleEvent, ...]
+    manager_status: Literal["HEALTHY"]
+    artifacts_dir: Path
+
+
+class RollbackEvidenceService:
+    """Bind deployment health to a host-verified AgentTeams rollback."""
+
+    def load(self, *, health_path: Path, rollback_path: Path) -> RollbackEvidenceSummary:
+        health = _load_model(health_path, DeploymentHealthEvidence, "deployment health")
+        evidence = _load_model(
+            rollback_path, VerifiedRollbackEvidence, "live rollback"
+        )
+        passed_checks = {check.name for check in health.checks if check.passed}
+        if any(not check.passed for check in health.checks) or not {
+            "docker",
+            "controller",
+            "manager",
+            "team",
+            "workers",
+            "human",
+            "matrix-rooms",
+        } <= passed_checks:
+            raise LiveEvidenceError("deployment health evidence is incomplete")
+        if evidence.model != _PROVIDER_MODELS[evidence.provider]:
+            raise LiveEvidenceError("provider and model are not an approved pair")
+        return RollbackEvidenceSummary(
+            task_id=evidence.task_id,
+            case_id=evidence.case_id,
+            provider=evidence.provider,
+            model=evidence.model,
+            failed_patch_sha256=evidence.failed_patch_sha256,
+            failed_snapshot_sha256=str(evidence.failure["failedSnapshotSha256"]),
+            approved_snapshot_sha256=str(
+                evidence.rollback["approvedSnapshotSha256"]
+            ),
+            role_events=tuple(evidence.role_events),
+            manager_status="HEALTHY",
+            artifacts_dir=rollback_path.resolve().parent,
+        )
 
 
 class LiveRollbackVerifier:
