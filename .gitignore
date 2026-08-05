@@ -9,6 +9,7 @@ __pycache__/
 htmlcov/
 .env
 .env.*
+!.env.example
 *.db
 *.sqlite3
 artifacts/

@@ -46,6 +46,21 @@ short-lived `SkillExecutionGrant`; L2/L3 operations require explicit approval.
 
 Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.md).
 
+## Deployment
+
+For a no-cloud Windows trial, clone the repository and run:
+
+```powershell
+.\scripts\bootstrap.ps1 -Profile lite
+.\scripts\demo.ps1
+```
+
+See the [five-minute quickstart](docs/deployment/quickstart.md),
+[full AgentTeams deployment](docs/deployment/windows-agentteams.md), and
+[troubleshooting guide](docs/deployment/troubleshooting.md). Full mode requires
+the official AgentTeams/HiClaw `v1.1.2` runtime to be installed first; AgentLoom
+does not currently provide a standalone one-container distribution.
+
 ## Implemented
 
 - Strict Pydantic boundary contracts for agents, skills, evidence, verification,
@@ -205,7 +220,8 @@ verification evidence is under
 1. Record a separate L2 Human approval demonstration in AgentTeams/Element.
 2. Evaluate and publish the five quarantined upstream Skills.
 3. Connect live AgentTeams role outputs and rollback evidence to the TUI.
-4. Add reproducible Docker launch and the competition demo script.
+4. Validate Full bootstrap on additional clean Windows machines and publish a
+   deployment compatibility matrix.
 
 ## Provenance
 
