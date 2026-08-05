@@ -279,6 +279,7 @@ class AgentLoomApp(App[None]):
         approval_service: ApprovalQueueService | None = None,
         live_summary: LiveEvidenceSummary | None = None,
         rollback_summary: RollbackEvidenceSummary | None = None,
+        public_output: bool = False,
     ) -> None:
         super().__init__()
         self._service = service
@@ -287,6 +288,7 @@ class AgentLoomApp(App[None]):
         self._approvals: tuple[ApprovalRecord, ...] = ()
         self._live_summary = live_summary
         self._rollback_summary = rollback_summary
+        self._public_output = public_output
         if live_summary is not None and rollback_summary is not None:
             raise DemoRunError("live repair and rollback evidence are mutually exclusive")
         evidence_case_id = (
@@ -457,7 +459,7 @@ class AgentLoomApp(App[None]):
                 f"Task: {summary.task_id}\n"
                 f"Root cause: {summary.root_cause}\n"
                 f"Patch SHA-256: {summary.patch_sha256 or 'N/A (state-machine demo)'}\n"
-                f"Path: {summary.artifacts_dir}"
+                f"Path: {self._display_path(summary.artifacts_dir)}"
             )
         )
 
@@ -503,7 +505,7 @@ class AgentLoomApp(App[None]):
                 f"Model: {summary.model}\n"
                 f"Hidden tests: {'PASSED' if summary.hidden_tests_passed else 'FAILED'}\n"
                 f"Patch SHA-256: {summary.patch_sha256}\n"
-                f"Path: {summary.artifacts_dir}"
+                f"Path: {self._display_path(summary.artifacts_dir)}"
             )
         )
 
@@ -548,9 +550,12 @@ class AgentLoomApp(App[None]):
                 f"Failed patch SHA-256: {summary.failed_patch_sha256}\n"
                 f"Failed snapshot SHA-256: {summary.failed_snapshot_sha256}\n"
                 f"Approved snapshot SHA-256: {summary.approved_snapshot_sha256}\n"
-                f"Path: {summary.artifacts_dir}"
+                f"Path: {self._display_path(summary.artifacts_dir)}"
             )
         )
+
+    def _display_path(self, path: Path) -> str:
+        return "<redacted>" if self._public_output else str(path)
 
     def _show_approval_queue(self) -> None:
         table = self.query_one("#approval-queue", DataTable)

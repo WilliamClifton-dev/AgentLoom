@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from agentloom.cli import app
 from agentloom.live_evidence import LiveEvidenceSummary
+from agentloom.live_rollback import RollbackEvidenceSummary
 from agentloom.storage import Database
 
 
@@ -27,6 +28,7 @@ def test_tui_command_exposes_local_case_and_output_options() -> None:
     assert "--run-evidence" in output
     assert "--verified-evidence" in output
     assert "--rollback-evidence" in output
+    assert "--public-output" in output
 
 
 def test_tui_requires_all_live_evidence_layers(tmp_path: Path) -> None:
@@ -128,6 +130,60 @@ def test_inspect_rollback_command_exposes_health_and_evidence_options() -> None:
     assert "Validate one bound live AgentTeams rollback evidence chain" in output
     assert "--health-evidence" in output
     assert "--rollback-evidence" in output
+    assert "--public-output" in output
+
+
+def test_inspect_rollback_public_output_redacts_local_artifact_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary = RollbackEvidenceSummary(
+        task_id="AL-LIVE-ROLLBACK-CLI-02",
+        case_id="pagination-boundary",
+        provider="stepfun",
+        model="step-3.7-flash",
+        failed_patch_sha256="a" * 64,
+        failed_snapshot_sha256="b" * 64,
+        approved_snapshot_sha256="c" * 64,
+        role_events=(),
+        manager_status="HEALTHY",
+        artifacts_dir=tmp_path / "private" / "artifacts",
+    )
+    monkeypatch.setattr(
+        "agentloom.cli.RollbackEvidenceService.load",
+        lambda _self, **_paths: summary,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "inspect-rollback",
+            "--health-evidence",
+            str(tmp_path / "health.json"),
+            "--rollback-evidence",
+            str(tmp_path / "rollback.json"),
+            "--public-output",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["artifactsDirectory"] == "<redacted>"
+    assert str(tmp_path) not in result.output
+
+    default_result = CliRunner().invoke(
+        app,
+        [
+            "inspect-rollback",
+            "--health-evidence",
+            str(tmp_path / "health.json"),
+            "--rollback-evidence",
+            str(tmp_path / "rollback.json"),
+        ],
+    )
+    assert default_result.exit_code == 0
+    assert json.loads(default_result.output)["artifactsDirectory"] == str(
+        summary.artifacts_dir.resolve()
+    )
 
 
 def test_inspect_live_outputs_stable_redacted_summary(

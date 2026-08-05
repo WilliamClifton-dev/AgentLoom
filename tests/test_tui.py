@@ -264,7 +264,11 @@ async def test_tui_renders_bound_live_rollback_evidence(tmp_path: Path) -> None:
         manager_status="HEALTHY",
         artifacts_dir=tmp_path / "rollback" / "artifacts",
     )
-    app = AgentLoomApp(service, rollback_summary=rollback_summary)
+    app = AgentLoomApp(
+        service,
+        rollback_summary=rollback_summary,
+        public_output=True,
+    )
 
     async with app.run_test(size=(150, 52)):
         agents = app.query_one("#agent-status", DataTable)
@@ -278,6 +282,8 @@ async def test_tui_renders_bound_live_rollback_evidence(tmp_path: Path) -> None:
         assert "ROLLBACK VERIFIED" in str(app.query_one("#run-status", Static).render())
         artifact_text = str(app.query_one("#artifact-details", Static).render())
         assert "Approved snapshot SHA-256" in artifact_text
+        assert "Path: <redacted>" in artifact_text
+        assert str(tmp_path) not in artifact_text
 
 
 @pytest.mark.asyncio

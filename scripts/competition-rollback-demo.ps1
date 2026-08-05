@@ -12,7 +12,8 @@ param(
     [ValidateRange(60, 3600)]
     [int]$TimeoutSeconds = 1200,
     [switch]$ConfirmPaidRun,
-    [switch]$NoTui
+    [switch]$NoTui,
+    [switch]$PublicOutput
 )
 
 $ErrorActionPreference = "Stop"
@@ -112,16 +113,24 @@ elseif ([string]::IsNullOrWhiteSpace($RollbackEvidencePath)) {
 
 $resolvedHealth = [IO.Path]::GetFullPath($HealthEvidencePath)
 $resolvedRollback = [IO.Path]::GetFullPath($RollbackEvidencePath)
-Invoke-AgentLoom -Arguments @(
+$inspectArguments = @(
     "inspect-rollback",
     "--health-evidence", $resolvedHealth,
     "--rollback-evidence", $resolvedRollback
 )
+if ($PublicOutput) {
+    $inspectArguments += "--public-output"
+}
+Invoke-AgentLoom -Arguments $inspectArguments
 
 if (-not $NoTui) {
-    Invoke-AgentLoom -Arguments @(
+    $tuiArguments = @(
         "tui",
         "--health-evidence", $resolvedHealth,
         "--rollback-evidence", $resolvedRollback
     )
+    if ($PublicOutput) {
+        $tuiArguments += "--public-output"
+    }
+    Invoke-AgentLoom -Arguments $tuiArguments
 }

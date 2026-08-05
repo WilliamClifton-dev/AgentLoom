@@ -73,6 +73,10 @@ def tui(
         Path | None,
         typer.Option(help="Verified live rollback evidence."),
     ] = None,
+    public_output: Annotated[
+        bool,
+        typer.Option(help="Redact local filesystem paths for public demos."),
+    ] = False,
 ) -> None:
     """Launch the Textual panel for local or verified live evidence."""
     try:
@@ -117,6 +121,7 @@ def tui(
             approval_service=ApprovalQueueService(database),
             live_summary=live_summary,
             rollback_summary=rollback_summary,
+            public_output=public_output,
         ).run()
     except (DemoRunError, LiveEvidenceError, OSError, SQLAlchemyError) as exc:
         typer.echo(f"agentloom tui failed: {exc}", err=True)
@@ -260,6 +265,10 @@ def inspect_rollback(
         Path,
         typer.Option(help="Host-verified AgentTeams rollback evidence."),
     ],
+    public_output: Annotated[
+        bool,
+        typer.Option(help="Redact local filesystem paths for public demos."),
+    ] = False,
 ) -> None:
     """Validate one bound live AgentTeams rollback evidence chain."""
     try:
@@ -284,7 +293,11 @@ def inspect_rollback(
                 "failedPatchSha256": summary.failed_patch_sha256,
                 "failedSnapshotSha256": summary.failed_snapshot_sha256,
                 "approvedSnapshotSha256": summary.approved_snapshot_sha256,
-                "artifactsDirectory": str(summary.artifacts_dir.resolve()),
+                "artifactsDirectory": (
+                    "<redacted>"
+                    if public_output
+                    else str(summary.artifacts_dir.resolve())
+                ),
             },
             sort_keys=True,
         )

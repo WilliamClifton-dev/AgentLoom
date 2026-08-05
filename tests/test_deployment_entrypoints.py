@@ -128,6 +128,8 @@ def test_competition_rollback_demo_replays_free_and_guards_live_collection() -> 
     assert '"verify-rollback"' in script
     assert '"inspect-rollback"' in script
     assert '"--rollback-evidence"' in script
+    assert "[switch]$PublicOutput" in script
+    assert '"--public-output"' in script
     assert script.index('"run-live-rollback.ps1"') < script.index('"verify-rollback"')
     assert "QWEN_API_KEY" not in script
     assert "DEEPSEEK_API_KEY" not in script
