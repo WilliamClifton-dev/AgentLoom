@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import difflib
 import json
 from pathlib import Path
 
@@ -19,20 +18,8 @@ TASK_ID = "AL-LIVE-ROLLBACK-TEST-01"
 
 
 def _failed_patch() -> str:
-    approved = (CASE_ROOT / "expected" / "lib" / "pagination.py").read_text(
+    return (CASE_ROOT / "rollback" / "failed.patch").read_text(
         encoding="utf-8"
-    )
-    failed = approved.replace(
-        "return (total_items + page_size - 1) // page_size",
-        "return total_items // page_size + 1",
-    )
-    return "".join(
-        difflib.unified_diff(
-            approved.splitlines(keepends=True),
-            failed.splitlines(keepends=True),
-            fromfile="a/lib/pagination.py",
-            tofile="b/lib/pagination.py",
-        )
     )
 
 

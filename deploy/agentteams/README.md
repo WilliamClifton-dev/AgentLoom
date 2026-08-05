@@ -359,6 +359,26 @@ namespace. Both operations are idempotent for the same immutable `spec.md` and
 fail closed on missing objects or hash mismatches. Evidence contains object
 names and SHA-256 values only; it contains no MinIO or Matrix credentials.
 
+## Live rollback trace
+
+From the repository root, use the guarded competition entrypoint with a new task
+ID. This calls the configured AgentTeams model and therefore requires explicit
+confirmation:
+
+```powershell
+.\scripts\competition-rollback-demo.ps1 `
+  -Mode live `
+  -TaskId AL-LIVE-ROLLBACK-001 `
+  -ConfirmPaidRun
+```
+
+The collector requires Verifier failure, Manager request, Implementer execution,
+and Verifier post-rollback markers from their actual Matrix identities. AgentLoom
+then independently applies the failed candidate, reproduces its failure, restores
+the approved snapshot, checks its hash, and runs visible, hidden, and static tests.
+Use `-Mode replay` after the first successful run to inspect the same evidence in
+the TUI without calling a model.
+
 Run the complete offline artifact path against the live AgentTeams MinIO without
 calling an LLM:
 

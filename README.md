@@ -194,6 +194,29 @@ and the independent host verification bind to the same task, model, submission
 hash, and three Matrix events. Local Mock controls are disabled in Live Evidence
 mode so the two evidence classes cannot be confused.
 
+The rollback path is separate from the local state-machine demonstration. A live
+run collects four role-owned Matrix events, then the independent host applies a
+known failed candidate in an isolated workspace, reproduces the failure, restores
+the approved snapshot byte-for-byte, and reruns visible, hidden, and static checks:
+
+```powershell
+.\scripts\competition-rollback-demo.ps1 `
+  -Mode live `
+  -TaskId AL-LIVE-ROLLBACK-001 `
+  -ConfirmPaidRun
+```
+
+Live mode can consume model quota and refuses to run without the explicit switch
+and a fresh task ID. After one successful collection, replay its verified evidence
+without a model call:
+
+```powershell
+.\scripts\competition-rollback-demo.ps1 -Mode replay
+```
+
+The verifier and TUI path are implemented, but no live rollback run is claimed in
+this repository until the paid collection command completes successfully.
+
 ## Live Repair Verification Boundary
 
 After a live AgentTeams run, assemble the three business Agents' role-owned
@@ -235,7 +258,8 @@ verification evidence is under
 
 1. Record a separate L2 Human approval demonstration in AgentTeams/Element.
 2. Evaluate and publish the five quarantined upstream Skills.
-3. Add role-owned live rollback evidence to the existing verified-success TUI path.
+3. Record the first paid role-owned live rollback run; the guarded collector,
+   independent snapshot restore verifier, CLI, and TUI projection are implemented.
 4. Validate Full bootstrap on additional clean Windows machines and publish a
    deployment compatibility matrix.
 

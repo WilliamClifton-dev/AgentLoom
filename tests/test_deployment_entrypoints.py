@@ -97,3 +97,19 @@ def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:
     assert script.index('"verify-live"') < script.index('"inspect-live"')
     assert "QWEN_API_KEY" not in script
     assert "DEEPSEEK_API_KEY" not in script
+
+
+def test_competition_rollback_demo_replays_free_and_guards_live_collection() -> None:
+    script = read_script("competition-rollback-demo.ps1")
+
+    assert '[ValidateSet("replay", "live")]' in script
+    assert '[string]$Mode = "replay"' in script
+    assert "ConfirmPaidRun" in script
+    assert '"health-check.ps1"' in script
+    assert '"run-live-rollback.ps1"' in script
+    assert '"verify-rollback"' in script
+    assert '"inspect-rollback"' in script
+    assert '"--rollback-evidence"' in script
+    assert script.index('"run-live-rollback.ps1"') < script.index('"verify-rollback"')
+    assert "QWEN_API_KEY" not in script
+    assert "DEEPSEEK_API_KEY" not in script

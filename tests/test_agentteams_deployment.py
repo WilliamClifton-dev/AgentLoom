@@ -199,6 +199,25 @@ def test_live_repair_runner_binds_fresh_role_events_and_task_artifacts() -> None
     assert "Write-Output $authToken" not in script
 
 
+def test_live_rollback_runner_is_paid_guarded_and_collects_role_owned_events() -> None:
+    script = (DEPLOY / "run-live-rollback.ps1").read_text(encoding="utf-8")
+
+    assert "[switch]$ConfirmPaidRun" in script
+    assert "if (-not $ConfirmPaidRun)" in script
+    assert "Test-ExactMarker" in script
+    assert "$event.sender -eq $ExpectedSender" in script
+    assert "VERIFICATION_FAILED" in script
+    assert "ROLLBACK_REQUESTED" in script
+    assert "ROLLBACK_EXECUTED" in script
+    assert "ROLLBACK_VERIFIED" in script
+    assert "agentloom.live-rollback-submission/v1alpha1" in script
+    assert "failedPatchSha256" in script
+    assert "RESTORE_APPROVED_SNAPSHOT" in script
+    assert "originServerTimestamp" in script
+    assert "initialPassword" not in script
+    assert "Write-Output $authToken" not in script
+
+
 def test_opspilot_baseline_script_is_serial_and_keeps_incidents_out_of_manager_room() -> None:
     script = (DEPLOY / "run-opspilot-baseline.ps1").read_text(encoding="utf-8")
 
