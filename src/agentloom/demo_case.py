@@ -237,7 +237,7 @@ def load_demo_case(case_root: Path) -> DemoCase:
 
 
 def snapshot_sha256(root: Path) -> str:
-    """Hash a snapshot from stable POSIX paths and exact file bytes."""
+    """Hash stable POSIX paths and platform-independent file content."""
     if not root.is_dir():
         raise DemoCaseError(f"snapshot root is not a directory: {root}")
     digest = sha256()
@@ -246,12 +246,23 @@ def snapshot_sha256(root: Path) -> str:
         if path.is_symlink():
             raise DemoCaseError(f"snapshot contains a symbolic link: {path}")
         relative = path.relative_to(root).as_posix().encode("utf-8")
-        content = path.read_bytes()
+        content = _canonical_snapshot_content(path.read_bytes())
         digest.update(len(relative).to_bytes(8, "big"))
         digest.update(relative)
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
     return digest.hexdigest()
+
+
+def _canonical_snapshot_content(content: bytes) -> bytes:
+    """Normalize Git-style text line endings while preserving binary bytes."""
+    if b"\x00" in content:
+        return content
+    try:
+        content.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return content
+    return content.replace(b"\r\n", b"\n")
 
 
 def resolve_command(command: tuple[str, ...]) -> list[str]:
