@@ -35,6 +35,9 @@ def test_resources_define_four_distinct_agent_identities() -> None:
 
     assert team["kind"] == "Team"
     assert team["metadata"]["name"] == "agentloom-repair"
+    assert team["spec"]["humanMembers"] == [
+        {"name": "agentloom-developer", "role": "coordinator"}
+    ]
     assert team["spec"]["leader"]["name"] == "agentloom-investigator"
     assert [worker["name"] for worker in team["spec"]["workers"]] == [
         "agentloom-implementer",
@@ -84,6 +87,21 @@ def test_deployment_script_fails_closed_and_redacts_human_password() -> None:
     assert "Test-HumanExists" in script
     assert "Human updates are not supported by AgentTeams v1.1.2" in script
     assert "initialPassword" not in script
+
+
+def test_deployment_patches_v112_team_human_members_and_verifies_result() -> None:
+    script = (DEPLOY / "deploy.ps1").read_text(encoding="utf-8")
+
+    assert "function Set-TeamHumanMembersCompatibilityPatch" in script
+    assert '"Content-Type: application/merge-patch+json"' in script
+    assert '"Authorization: Bearer $token"' in script
+    assert '"/data/hiclaw-controller/pki/token.csv"' in script
+    assert 'spec = [ordered]@{ humanMembers = @($HumanMembers) }' in script
+    assert 'Set-TeamHumanMembersCompatibilityPatch `' in script
+    assert '-HumanMembers @($resource.spec.humanMembers)' in script
+    assert 'Team humanMembers compatibility patch was not persisted' in script
+    assert "Remove-Item -LiteralPath $localPatchPath" in script
+    assert "Write-Output $token" not in script
 
 
 def test_cloud_provider_script_reads_secret_from_environment_and_redacts_output() -> None:
@@ -313,9 +331,36 @@ def test_l2_approval_demo_requires_a_real_human_event_and_redacts_secrets() -> N
     assert "$matrixUri.Port -ne 18080" in script
     assert "$state.databasePath -ne $resolvedDatabasePath" in script
     assert '"--database", $resolvedDatabasePath' in script
-    assert "Send-MatrixText" in script
     assert "decision-template-approved.json" in script
     assert "decision-template-rejected.json" in script
+    assert "function Get-ManagerSession" in script
+    assert '"HICLAW_MANAGER_PASSWORD"' in script
+    assert "$login.user_id -ne $Manager.matrixUserID" in script
+    assert "function Get-AdminSession" in script
+    assert '"HICLAW_ADMIN_PASSWORD"' in script
+    assert "function Ensure-ManagerTeamRoomMembership" in script
+    assert 'send/m.room.member' not in script
+    assert '"/_matrix/client/v3/rooms/$roomSegment/invite"' in script
+    assert '"/_matrix/client/v3/join/$roomSegment"' in script
+    assert "[int]$_.Exception.Response.StatusCode -ne 404" in script
+    assert "-AdminAccessToken $adminSession.token" in script
+    assert "-ManagerAccessToken $managerSession.token" in script
+    assert "-ExpectedSender $resources.manager.matrixUserID" in script
+    assert script.count(
+        "$adminSession = Get-AdminSession -Manager $resources.manager"
+    ) == 2
+    assert "-accessToken $adminSession.token -Body $null" in script
+    assert "function Send-ManagerApprovalRequest" in script
+    assert "-RoomId $resources.team.teamRoomID" in script
+    assert "-RequestBody $requestBody -accessToken $managerSession.token" in script
+    assert '"copaw", "channels", "send"' not in script
+    assert "function Send-ManagerApprovalPrompt" not in script
+    assert "[switch]$ConfirmModelRun" not in script
+    assert "L2 approval preparation can spend model quota" not in script
+    assert "function Wait-ExactManagerRequest" in script
+    assert "$requestEvent = Wait-ExactManagerRequest" in script
+    assert "[ValidateRange(1, 300)][int]$TimeoutSeconds = 30" in script
+    assert "-TimeoutSeconds 30" in script
     assert "L3" not in script
     assert "initialPassword" not in script
     assert "Write-Output $accessToken" not in script

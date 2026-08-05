@@ -7,6 +7,12 @@
   "spec": {
     "description": "AgentLoom evidence-first software repair team",
     "peerMentions": true,
+    "humanMembers": [
+      {
+        "name": "agentloom-developer",
+        "role": "coordinator"
+      }
+    ],
     "leader": {
       "name": "agentloom-investigator",
       "model": "qwen3.7-plus",

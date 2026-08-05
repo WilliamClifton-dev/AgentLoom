@@ -17,6 +17,15 @@ The `failureCode` identifies the failed layer.
 | `images` | A locked image is missing or has the wrong digest | Pull the pinned image and investigate unexpected replacement |
 | `resources` | HiClaw cannot return AgentLoom resources | Inspect `docker logs hiclaw-controller`, then rerun Full bootstrap |
 
+## Human disappears from the Team Room
+
+AgentTeams `v1.1.2` can report an existing Team as configured while silently
+dropping `spec.humanMembers` during update. Do not keep repairing Matrix room
+membership manually: rerun `deploy\agentteams\deploy.ps1`. AgentLoom applies a
+version-scoped Kubernetes merge patch and verifies the persisted Team spec. If
+that step fails, preserve the error and controller logs; do not bypass it, or the
+Team controller can remove the Human again.
+
 ## Python version rejected
 
 AgentLoom requires exactly Python 3.12. Check it with `py -3.12 --version`. When

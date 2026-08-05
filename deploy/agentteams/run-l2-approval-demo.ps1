@@ -115,6 +115,31 @@ function Invoke-Matrix {
 function Get-ManagerSession {
     param([Parameter(Mandatory)]$Manager)
 
+    $managerPassword = (Invoke-Docker -Arguments @(
+        "exec", $ManagerContainer, "printenv", "HICLAW_MANAGER_PASSWORD"
+    ) | Select-Object -First 1).Trim()
+    if ([string]::IsNullOrWhiteSpace($managerPassword)) {
+        throw "Matrix Manager credentials are unavailable"
+    }
+
+    $login = Invoke-Matrix -Method Post -Path "/_matrix/client/v3/login" -Body @{
+        type = "m.login.password"
+        identifier = @{ type = "m.id.user"; user = $Manager.matrixUserID }
+        password = $managerPassword
+    }
+    $accessToken = $login.access_token
+    if (
+        [string]::IsNullOrWhiteSpace($accessToken) -or
+        $login.user_id -ne $Manager.matrixUserID
+    ) {
+        throw "Matrix login did not authenticate the configured Manager"
+    }
+    return [ordered]@{ userId = [string]$login.user_id; token = $accessToken }
+}
+
+function Get-AdminSession {
+    param([Parameter(Mandatory)]$Manager)
+
     $adminUser = (Invoke-Docker -Arguments @(
         "exec", $ManagerContainer, "printenv", "HICLAW_ADMIN_USER"
     ) | Select-Object -First 1).Trim()
@@ -125,24 +150,63 @@ function Get-ManagerSession {
         [string]::IsNullOrWhiteSpace($adminUser) -or
         [string]::IsNullOrWhiteSpace($adminPassword)
     ) {
-        throw "Matrix Manager credentials are unavailable"
+        throw "Matrix administrator credentials are unavailable"
     }
 
     $matrixDomain = $Manager.matrixUserID.Split(":", 2)[1]
-    $matrixUserId = "@$adminUser`:$matrixDomain"
-    if ($matrixUserId -ne $Manager.matrixUserID) {
-        throw "Matrix admin identity is not the configured AgentTeams Manager"
-    }
+    $adminUserId = "@$adminUser`:$matrixDomain"
     $login = Invoke-Matrix -Method Post -Path "/_matrix/client/v3/login" -Body @{
         type = "m.login.password"
-        identifier = @{ type = "m.id.user"; user = $matrixUserId }
+        identifier = @{ type = "m.id.user"; user = $adminUserId }
         password = $adminPassword
     }
-    $accessToken = $login.access_token
-    if ([string]::IsNullOrWhiteSpace($accessToken)) {
-        throw "Matrix login did not return a token"
+    if (
+        [string]::IsNullOrWhiteSpace([string]$login.access_token) -or
+        $login.user_id -ne $adminUserId
+    ) {
+        throw "Matrix login did not authenticate the configured administrator"
     }
-    return [ordered]@{ userId = $matrixUserId; token = $accessToken }
+    return [ordered]@{
+        userId = [string]$login.user_id
+        token = [string]$login.access_token
+    }
+}
+
+function Ensure-ManagerTeamRoomMembership {
+    param(
+        [Parameter(Mandatory)][string]$RoomId,
+        [Parameter(Mandatory)][string]$ManagerUserId,
+        [Parameter(Mandatory)][string]$AdminAccessToken,
+        [Parameter(Mandatory)][string]$ManagerAccessToken
+    )
+
+    $roomSegment = [uri]::EscapeDataString($RoomId)
+    $userSegment = [uri]::EscapeDataString($ManagerUserId)
+    try {
+        $membership = Invoke-Matrix -Method Get `
+            -Path "/_matrix/client/v3/rooms/$roomSegment/state/m.room.member/$userSegment" `
+            -accessToken $AdminAccessToken -Body $null
+    }
+    catch {
+        if ([int]$_.Exception.Response.StatusCode -ne 404) {
+            throw
+        }
+        $membership = [ordered]@{ membership = "leave" }
+    }
+    if ($membership.membership -eq "join") {
+        return
+    }
+    if ($membership.membership -ne "invite") {
+        $null = Invoke-Matrix -Method Post `
+            -Path "/_matrix/client/v3/rooms/$roomSegment/invite" `
+            -accessToken $AdminAccessToken -Body @{ user_id = $ManagerUserId }
+    }
+    $joined = Invoke-Matrix -Method Post `
+        -Path "/_matrix/client/v3/join/$roomSegment" `
+        -accessToken $ManagerAccessToken -Body @{}
+    if ($joined.room_id -ne $RoomId) {
+        throw "Configured Manager did not join the AgentTeams Team Room"
+    }
 }
 
 function Assert-AgentTeamsResources {
@@ -176,10 +240,10 @@ function Invoke-AgentLoom {
     return $output
 }
 
-function Send-MatrixText {
+function Send-ManagerApprovalRequest {
     param(
         [Parameter(Mandatory)][string]$RoomId,
-        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][string]$RequestBody,
         [Parameter(Mandatory)][string]$accessToken
     )
 
@@ -189,48 +253,56 @@ function Send-MatrixText {
         -Path "/_matrix/client/v3/rooms/$roomSegment/send/m.room.message/$transactionId" `
         -accessToken $accessToken -Body @{
             msgtype = "m.text"
-            body = $Text
+            body = $RequestBody
         }
-    if ([string]::IsNullOrWhiteSpace($response.event_id)) {
-        throw "Matrix did not return an event ID for the approval request"
+    if ([string]::IsNullOrWhiteSpace([string]$response.event_id)) {
+        throw "Matrix did not return an event ID for the Manager request"
     }
-    return [string]$response.event_id
 }
 
-function Get-ExactMatrixEvent {
+function Wait-ExactManagerRequest {
     param(
         [Parameter(Mandatory)][string]$RoomId,
-        [Parameter(Mandatory)][string]$EventId,
         [Parameter(Mandatory)][string]$ExpectedSender,
         [Parameter(Mandatory)][string]$ExpectedBody,
-        [Parameter(Mandatory)][string]$accessToken
+        [Parameter(Mandatory)][string]$accessToken,
+        [Parameter(Mandatory)][long]$StartedAtMilliseconds,
+        [ValidateRange(1, 300)][int]$TimeoutSeconds = 30
     )
 
     $roomSegment = [uri]::EscapeDataString($RoomId)
-    $eventSegment = [uri]::EscapeDataString($EventId)
-    $event = Invoke-Matrix -Method Get `
-        -Path "/_matrix/client/v3/rooms/$roomSegment/event/$eventSegment" `
-        -accessToken $accessToken -Body $null
-    if (
-        $event.sender -ne $ExpectedSender -or
-        $event.type -ne "m.room.message" -or
-        $event.content.msgtype -ne "m.text" -or
-        [string]$event.content.body -cne $ExpectedBody -or
-        $null -eq $event.origin_server_ts
-    ) {
-        throw "Stored Matrix request event does not match the exact Manager request"
-    }
-    return [ordered]@{
-        roomId = $RoomId
-        eventId = $EventId
-        sender = [string]$event.sender
-        originServerTimestamp = [long]$event.origin_server_ts
-        type = [string]$event.type
-        content = [ordered]@{
-            msgtype = [string]$event.content.msgtype
-            body = [string]$event.content.body
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $feed = Invoke-Matrix -Method Get `
+            -Path "/_matrix/client/v3/rooms/$roomSegment/messages?dir=b&limit=100" `
+            -accessToken $accessToken -Body $null
+        $matches = @($feed.chunk | Where-Object {
+            $_.sender -eq $ExpectedSender -and
+            $_.origin_server_ts -ge $StartedAtMilliseconds -and
+            $_.type -eq "m.room.message" -and
+            $_.content.msgtype -eq "m.text" -and
+            [string]$_.content.body -ceq $ExpectedBody
+        })
+        if ($matches.Count -eq 1) {
+            $event = $matches[0]
+            return [ordered]@{
+                roomId = $RoomId
+                eventId = [string]$event.event_id
+                sender = [string]$event.sender
+                originServerTimestamp = [long]$event.origin_server_ts
+                type = [string]$event.type
+                content = [ordered]@{
+                    msgtype = [string]$event.content.msgtype
+                    body = [string]$event.content.body
+                }
+            }
         }
+        if ($matches.Count -gt 1) {
+            throw "Expected one fresh Manager approval request event; found multiple"
+        }
+        Start-Sleep -Seconds 2
     }
+    throw "Timed out waiting for the exact Manager approval request event"
 }
 
 function New-DecisionTemplate {
@@ -261,7 +333,6 @@ if ($Phase -eq "Prepare") {
     }
     [void](New-Item -ItemType Directory -Force -Path $runDirectory)
     $resources = Assert-AgentTeamsResources
-    $session = Get-ManagerSession -Manager $resources.manager
 
     $null = Invoke-AgentLoom -Arguments @(
         "prepare-l2",
@@ -279,14 +350,21 @@ if ($Phase -eq "Prepare") {
         throw "AgentLoom returned an invalid L2 preparation record"
     }
     $requestBody = $preparation.request | ConvertTo-Json -Depth 20 -Compress
-    $requestEventId = Send-MatrixText `
+    $adminSession = Get-AdminSession -Manager $resources.manager
+    $managerSession = Get-ManagerSession -Manager $resources.manager
+    Ensure-ManagerTeamRoomMembership `
         -RoomId $resources.team.teamRoomID `
-        -Text $requestBody -accessToken $session.token
-    $requestEvent = Get-ExactMatrixEvent `
+        -ManagerUserId $resources.manager.matrixUserID `
+        -AdminAccessToken $adminSession.token `
+        -ManagerAccessToken $managerSession.token
+    $requestStartedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    Send-ManagerApprovalRequest -RoomId $resources.team.teamRoomID `
+        -RequestBody $requestBody -accessToken $managerSession.token
+    $requestEvent = Wait-ExactManagerRequest `
         -RoomId $resources.team.teamRoomID `
-        -EventId $requestEventId `
         -ExpectedSender $resources.manager.matrixUserID `
-        -ExpectedBody $requestBody -accessToken $session.token
+        -ExpectedBody $requestBody -accessToken $managerSession.token `
+        -StartedAtMilliseconds $requestStartedAt -TimeoutSeconds 30
 
     Write-JsonFile -Path $approvedTemplatePath -Value (
         New-DecisionTemplate -Request $preparation.request -Status "APPROVED" `
@@ -337,11 +415,11 @@ if (
 ) {
     throw "AgentTeams identities or Team Room changed after preparation"
 }
-$session = Get-ManagerSession -Manager $resources.manager
+$adminSession = Get-AdminSession -Manager $resources.manager
 $roomSegment = [uri]::EscapeDataString([string]$state.roomId)
 $feed = Invoke-Matrix -Method Get `
     -Path "/_matrix/client/v3/rooms/$roomSegment/messages?dir=b&limit=100" `
-    -accessToken $session.token -Body $null
+    -accessToken $adminSession.token -Body $null
 $requestBodyObject = [string]$state.requestEvent.content.body | ConvertFrom-Json
 $candidates = @()
 foreach ($event in @($feed.chunk)) {

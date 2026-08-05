@@ -65,6 +65,11 @@ resources, activates the selected provider last, and runs a strict health check.
 Provider activation is deliberately last because applying an AgentTeams resource
 restores `hiclaw-gateway`.
 
+The deploy step also works around a pinned `v1.1.2` update defect that otherwise
+drops the Team's `humanMembers`. It writes the declared member list through the
+embedded Kubernetes API, verifies the persisted response, and stops on any
+mismatch. No manual container patch is required.
+
 Use `deepseek-v4-pro` for the final live repair when quality matters more than
 cost, or use `-Provider qwen -Model qwen3.7-plus` for Qwen. For the live
 rollback path, use StepFun Step Plan:
