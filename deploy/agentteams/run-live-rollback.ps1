@@ -115,20 +115,6 @@ function Send-MatrixText {
     return [string]$response.event_id
 }
 
-function Get-MatrixEvent {
-    param(
-        [Parameter(Mandatory)][string]$RoomId,
-        [Parameter(Mandatory)][string]$EventId,
-        [Parameter(Mandatory)][string]$AuthToken
-    )
-
-    $roomSegment = [uri]::EscapeDataString($RoomId)
-    $eventSegment = [uri]::EscapeDataString($EventId)
-    return Invoke-Matrix -Method Get `
-        -Path "/_matrix/client/v3/rooms/$roomSegment/event/$eventSegment" `
-        -AuthToken $AuthToken -Body $null
-}
-
 function Test-ExactMarker {
     param(
         [Parameter(Mandatory)]$event,
@@ -155,56 +141,58 @@ function Test-ExactMarker {
 
 function Find-StrictMarkers {
     param(
-        [Parameter(Mandatory)][string]$RoomId,
+        [Parameter(Mandatory)][string[]]$RoomIds,
         [Parameter(Mandatory)][object[]]$Requirements,
         [Parameter(Mandatory)][string]$AuthToken,
         [Parameter(Mandatory)][long]$StartedAtMilliseconds
     )
 
     $found = @{}
-    $roomSegment = [uri]::EscapeDataString($RoomId)
-    $from = ""
-    for ($page = 0; $page -lt 20; $page++) {
-        $path = "/_matrix/client/v3/rooms/$roomSegment/messages?dir=b&limit=100"
-        if (-not [string]::IsNullOrWhiteSpace($from)) {
-            $path += "&from=$([uri]::EscapeDataString($from))"
-        }
-        $feed = Invoke-Matrix -Method Get -Path $path `
-            -AuthToken $AuthToken -Body $null
-        $reachedStart = $false
-        foreach ($event in @($feed.chunk)) {
-            if (
-                $null -ne $event.origin_server_ts -and
-                $event.origin_server_ts -lt $StartedAtMilliseconds
-            ) {
-                $reachedStart = $true
+    foreach ($roomId in $RoomIds) {
+        $roomSegment = [uri]::EscapeDataString($roomId)
+        $from = ""
+        for ($page = 0; $page -lt 20; $page++) {
+            $path = "/_matrix/client/v3/rooms/$roomSegment/messages?dir=b&limit=100"
+            if (-not [string]::IsNullOrWhiteSpace($from)) {
+                $path += "&from=$([uri]::EscapeDataString($from))"
             }
-            foreach ($requirement in $Requirements) {
+            $feed = Invoke-Matrix -Method Get -Path $path `
+                -AuthToken $AuthToken -Body $null
+            $reachedStart = $false
+            foreach ($event in @($feed.chunk)) {
                 if (
-                    -not $found.ContainsKey($requirement.phase) -and
-                    (Test-ExactMarker -event $event `
-                        -ExpectedSender $requirement.sender `
-                        -Marker $requirement.marker `
-                        -StartedAtMilliseconds $StartedAtMilliseconds)
+                    $null -ne $event.origin_server_ts -and
+                    $event.origin_server_ts -lt $StartedAtMilliseconds
                 ) {
-                    $found[$requirement.phase] = [ordered]@{
-                        phase = $requirement.phase
-                        agentName = $requirement.agentName
-                        matrixUserId = $event.sender
-                        roomId = $RoomId
-                        eventId = $event.event_id
-                        originServerTimestamp = $event.origin_server_ts
-                        bindingSha256 = $requirement.bindingSha256
+                    $reachedStart = $true
+                }
+                foreach ($requirement in $Requirements) {
+                    if (
+                        -not $found.ContainsKey($requirement.phase) -and
+                        (Test-ExactMarker -event $event `
+                            -ExpectedSender $requirement.sender `
+                            -Marker $requirement.marker `
+                            -StartedAtMilliseconds $StartedAtMilliseconds)
+                    ) {
+                        $found[$requirement.phase] = [ordered]@{
+                            phase = $requirement.phase
+                            agentName = $requirement.agentName
+                            matrixUserId = $event.sender
+                            roomId = $roomId
+                            eventId = $event.event_id
+                            originServerTimestamp = $event.origin_server_ts
+                            bindingSha256 = $requirement.bindingSha256
+                        }
                     }
                 }
             }
-        }
-        if ($found.Count -eq $Requirements.Count -or $reachedStart) {
-            break
-        }
-        $from = [string]$feed.end
-        if ([string]::IsNullOrWhiteSpace($from)) {
-            break
+            if ($reachedStart) {
+                break
+            }
+            $from = [string]$feed.end
+            if ([string]::IsNullOrWhiteSpace($from)) {
+                break
+            }
         }
     }
     return $found
@@ -212,7 +200,7 @@ function Find-StrictMarkers {
 
 function Wait-StrictMarkers {
     param(
-        [Parameter(Mandatory)][string]$RoomId,
+        [Parameter(Mandatory)][string[]]$RoomIds,
         [Parameter(Mandatory)][object[]]$Requirements,
         [Parameter(Mandatory)][string]$AuthToken,
         [Parameter(Mandatory)][long]$StartedAtMilliseconds,
@@ -221,7 +209,7 @@ function Wait-StrictMarkers {
 
     $markers = @{}
     while ([DateTimeOffset]::UtcNow -lt $Deadline) {
-        $markers = Find-StrictMarkers -RoomId $RoomId `
+        $markers = Find-StrictMarkers -RoomIds $RoomIds `
             -Requirements $Requirements -AuthToken $AuthToken `
             -StartedAtMilliseconds $StartedAtMilliseconds
         if ($markers.Count -eq $Requirements.Count) {
@@ -312,9 +300,6 @@ if (
 }
 $matrixDomain = $manager.matrixUserID.Split(":", 2)[1]
 $adminMatrixUserId = "@$adminUser`:$matrixDomain"
-if ($adminMatrixUserId -ne $manager.matrixUserID) {
-    throw "Matrix admin identity does not match the AgentTeams Manager."
-}
 $login = Invoke-Matrix -Method Post -Path "/_matrix/client/v3/login" -Body @{
     type = "m.login.password"
     identifier = @{ type = "m.id.user"; user = $adminMatrixUserId }
@@ -324,6 +309,16 @@ $authToken = [string]$login.access_token
 if ([string]::IsNullOrWhiteSpace($authToken)) {
     throw "Matrix login did not return an access credential."
 }
+$joinedRooms = Invoke-Matrix -Method Get `
+    -Path "/_matrix/client/v3/joined_rooms" -AuthToken $authToken -Body $null
+$joinedRoomIds = @($joinedRooms.joined_rooms)
+if (
+    $joinedRoomIds -notcontains $manager.roomID -or
+    $joinedRoomIds -notcontains $team.teamRoomID
+) {
+    throw "Matrix admin cannot observe the Manager and Team rooms."
+}
+$roomIds = @($manager.roomID, $team.teamRoomID)
 
 $startedAt = [DateTimeOffset]::UtcNow
 $deadline = $startedAt.AddSeconds($TimeoutSeconds)
@@ -332,61 +327,38 @@ $rollbackMarker = "[$TaskId] ROLLBACK_REQUESTED $bindingSha256"
 $executedMarker = "[$TaskId] ROLLBACK_EXECUTED $bindingSha256"
 $verifiedMarker = "[$TaskId] ROLLBACK_VERIFIED $bindingSha256"
 $prompt = @"
-$($investigator.matrixUserID) [$TaskId] Coordinate a real AgentTeams rollback trace for the supplied L1 candidate. The independent AgentLoom host will execute the candidate and rollback after collecting your role-owned events.
+$($manager.matrixUserID) [$TaskId] Run a strict AgentTeams rollback workflow through team $TeamName. Delegate coordination to $($investigator.matrixUserID). The independent AgentLoom host will execute the candidate and rollback after collecting the role-owned events.
 
 Candidate SHA-256: $failedPatchSha256
 Candidate diff:
 $failedPatch
 
 Required interaction:
-1. Ask $($verifier.matrixUserID) to review the candidate against exact-boundary pagination behavior. The Verifier must post the exact standalone line $failureMarker from its own identity when it rejects the candidate.
-2. Stop and wait for the Manager's exact standalone $rollbackMarker event.
-3. After that Manager event, directly mention $($implementer.matrixUserID). The Implementer acknowledges restoring the approved snapshot by posting the exact standalone line $executedMarker from its own identity.
-4. Only after the Implementer event, directly mention $($verifier.matrixUserID) again. The Verifier posts the exact standalone line $verifiedMarker from its own identity.
+1. Investigator asks $($verifier.matrixUserID) to review the candidate against exact-boundary pagination behavior. The Verifier posts the exact standalone line $failureMarker from its own identity when it rejects the candidate, then Investigator reports that failure to Manager.
+2. Only after receiving the failure report, Manager posts the exact standalone line $rollbackMarker from its own identity and directs Investigator to continue.
+3. Investigator directly mentions $($implementer.matrixUserID). The Implementer acknowledges restoring the approved snapshot by posting the exact standalone line $executedMarker from its own identity.
+4. Only after the Implementer event, Investigator directly mentions $($verifier.matrixUserID) again. The Verifier posts the exact standalone line $verifiedMarker from its own identity.
 
-Do not claim Human approval: this is an isolated L1 snapshot restore. Do not create another task ID. Do not include any credential in messages.
+Never fabricate another identity's marker. Do not claim Human approval: this is an isolated L1 snapshot restore. Do not create another task ID. Do not include any credential in messages.
 "@.Trim()
-$null = Send-MatrixText -RoomId $team.teamRoomID -Text $prompt `
-    -MentionUserId $investigator.matrixUserID -AuthToken $authToken
+$null = Send-MatrixText -RoomId $manager.roomID -Text $prompt `
+    -MentionUserId $manager.matrixUserID -AuthToken $authToken
 
-$failureRequirements = @(
+$requirements = @(
     [ordered]@{
         phase = "VERIFICATION_FAILED"
         agentName = "agentloom-verifier"
         sender = $verifier.matrixUserID
         marker = $failureMarker
         bindingSha256 = $bindingSha256
-    }
-)
-$failureEvents = Wait-StrictMarkers -RoomId $team.teamRoomID `
-    -Requirements $failureRequirements -AuthToken $authToken `
-    -StartedAtMilliseconds $startedAt.ToUnixTimeMilliseconds() -Deadline $deadline
-$failureEvent = $failureEvents.VERIFICATION_FAILED
-
-$managerEventId = Send-MatrixText -RoomId $team.teamRoomID `
-    -Text "$rollbackMarker`nRestore the approved snapshot and retain the failed candidate evidence." `
-    -MentionUserId $investigator.matrixUserID -AuthToken $authToken
-$managerEvent = Get-MatrixEvent -RoomId $team.teamRoomID `
-    -EventId $managerEventId -AuthToken $authToken
-if (
-    -not (Test-ExactMarker -event $managerEvent `
-        -ExpectedSender $manager.matrixUserID -Marker $rollbackMarker `
-        -StartedAtMilliseconds $failureEvent.originServerTimestamp) -or
-    $managerEvent.origin_server_ts -le $failureEvent.originServerTimestamp
-) {
-    throw "Manager rollback request event is not ordered after the failure."
-}
-$managerEvidence = [ordered]@{
-    phase = "ROLLBACK_REQUESTED"
-    agentName = "agentloom-manager"
-    matrixUserId = $managerEvent.sender
-    roomId = $team.teamRoomID
-    eventId = $managerEvent.event_id
-    originServerTimestamp = $managerEvent.origin_server_ts
-    bindingSha256 = $bindingSha256
-}
-
-$finalRequirements = @(
+    },
+    [ordered]@{
+        phase = "ROLLBACK_REQUESTED"
+        agentName = "agentloom-manager"
+        sender = $manager.matrixUserID
+        marker = $rollbackMarker
+        bindingSha256 = $bindingSha256
+    },
     [ordered]@{
         phase = "ROLLBACK_EXECUTED"
         agentName = "agentloom-implementer"
@@ -402,23 +374,25 @@ $finalRequirements = @(
         bindingSha256 = $bindingSha256
     }
 )
-$finalEvents = Wait-StrictMarkers -RoomId $team.teamRoomID `
-    -Requirements $finalRequirements -AuthToken $authToken `
-    -StartedAtMilliseconds $managerEvent.origin_server_ts -Deadline $deadline
+$events = Wait-StrictMarkers -RoomIds $roomIds `
+    -Requirements $requirements -AuthToken $authToken `
+    -StartedAtMilliseconds $startedAt.ToUnixTimeMilliseconds() -Deadline $deadline
 if (
-    $finalEvents.ROLLBACK_EXECUTED.originServerTimestamp -le
-        $managerEvent.origin_server_ts -or
-    $finalEvents.ROLLBACK_VERIFIED.originServerTimestamp -le
-        $finalEvents.ROLLBACK_EXECUTED.originServerTimestamp
+    $events.ROLLBACK_REQUESTED.originServerTimestamp -le
+        $events.VERIFICATION_FAILED.originServerTimestamp -or
+    $events.ROLLBACK_EXECUTED.originServerTimestamp -le
+        $events.ROLLBACK_REQUESTED.originServerTimestamp -or
+    $events.ROLLBACK_VERIFIED.originServerTimestamp -le
+        $events.ROLLBACK_EXECUTED.originServerTimestamp
 ) {
     throw "Rollback role events are not strictly chronological."
 }
 
 $roleEvents = @(
-    $failureEvent,
-    $managerEvidence,
-    $finalEvents.ROLLBACK_EXECUTED,
-    $finalEvents.ROLLBACK_VERIFIED
+    $events.VERIFICATION_FAILED,
+    $events.ROLLBACK_REQUESTED,
+    $events.ROLLBACK_EXECUTED,
+    $events.ROLLBACK_VERIFIED
 )
 $submission = [ordered]@{
     schemaVersion = "agentloom.live-rollback-submission/v1alpha1"
