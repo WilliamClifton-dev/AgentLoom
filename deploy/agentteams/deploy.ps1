@@ -80,6 +80,7 @@ curl --fail --silent --show-error --insecure \
   --data-binary "@$patch_path" \
   "https://127.0.0.1:6443/apis/hiclaw.io/v1beta1/namespaces/default/teams/$team_name"
 '@
+    $patchScript = $patchScript.Replace("`r`n", "`n")
 
     try {
         [void](Invoke-Docker -Arguments @(
