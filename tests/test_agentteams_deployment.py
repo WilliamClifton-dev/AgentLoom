@@ -97,6 +97,7 @@ def test_deployment_patches_v112_team_human_members_and_verifies_result() -> Non
     assert '"Authorization: Bearer $token"' in script
     assert '"/data/hiclaw-controller/pki/token.csv"' in script
     assert 'spec = [ordered]@{ humanMembers = @($HumanMembers) }' in script
+    assert '$patchScript = $patchScript.Replace("`r`n", "`n")' in script
     assert 'Set-TeamHumanMembersCompatibilityPatch `' in script
     assert '-HumanMembers @($resource.spec.humanMembers)' in script
     assert 'Team humanMembers compatibility patch was not persisted' in script
