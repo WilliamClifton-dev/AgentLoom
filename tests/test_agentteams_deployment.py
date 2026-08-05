@@ -216,6 +216,12 @@ def test_live_rollback_runner_is_paid_guarded_and_collects_role_owned_events() -
     assert "$bindingSha256" in script
     assert "RESTORE_APPROVED_SNAPSHOT" in script
     assert "originServerTimestamp" in script
+    assert "$manager.roomID" in script
+    assert "joined_rooms" in script
+    assert "[string[]]$RoomIds" in script
+    assert "$roomIds = @($manager.roomID, $team.teamRoomID)" in script
+    assert "catch {\n                break\n            }" not in script
+    assert "$adminMatrixUserId -ne $manager.matrixUserID" not in script
     assert "initialPassword" not in script
     assert "Write-Output $authToken" not in script
 

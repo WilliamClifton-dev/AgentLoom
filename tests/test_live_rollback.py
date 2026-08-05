@@ -85,7 +85,11 @@ def _submission(path: Path) -> Path:
                 "phase": phase,
                 "agentName": agent_name,
                 "matrixUserId": matrix_user_id,
-                "roomId": "!agentloom:example.test",
+                "roomId": (
+                    "!manager:example.test"
+                    if agent_name == "agentloom-manager"
+                    else "!agentloom:example.test"
+                ),
                 "eventId": event_id,
                 "originServerTimestamp": 1_700_000_000_000 + index,
                 "bindingSha256": binding_sha256,

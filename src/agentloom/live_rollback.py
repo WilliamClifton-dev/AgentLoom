@@ -521,8 +521,16 @@ def _validate_role_event_chain(
         raise ValueError("role events do not match the required rollback flow")
     if len({event.event_id for event in events}) != 4:
         raise ValueError("role events must use distinct Matrix event IDs")
-    if len({event.room_id for event in events}) != 1:
-        raise ValueError("role events must belong to one Team Room")
+    business_rooms = {
+        event.room_id
+        for event in events
+        if event.agent_name != "agentloom-manager"
+    }
+    all_rooms = {event.room_id for event in events}
+    if len(business_rooms) != 1 or len(all_rooms) > 2:
+        raise ValueError(
+            "role events must use one Team Room and at most one Manager Room"
+        )
     timestamps = [event.origin_server_timestamp for event in events]
     if timestamps != sorted(timestamps) or len(set(timestamps)) != 4:
         raise ValueError("role events must be strictly chronological")
