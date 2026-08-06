@@ -11,6 +11,10 @@
    `PASSED`。
 4. 按 `Ctrl+C` 退出。
 
+正式展示已验证的 AgentTeams 证据时，双击 `START_COMPETITION_REPLAY.cmd`。这个
+入口需要 Docker Desktop 正在运行，并且本机已经有完成的回滚 Evidence；它不会
+重新调用模型或消耗额度。
+
 ## 两分钟演示顺序
 
 ### 第一屏：项目解决什么问题
