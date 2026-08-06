@@ -22,15 +22,22 @@
 指着标题和左侧案例，说：
 
 > AgentLoom 是基于 AgentTeams 的软件缺陷治理系统。输入 Issue 后，由
-> Investigator 调查根因、Implementer 生成受控补丁、Verifier 独立验证，
-> Manager 管理整个状态流转。
+> Manager 把任务交给 Team Leader（Investigator）。Team Leader 先复现和拆解，
+> 再在 Team Room 里 `@implementer` 生成受控补丁、`@verifier` 独立验证，
+> 最后把带证据的结果交回 Manager。
 
 ### 第二屏：四个角色
 
 指着右侧 `AGENT STATUS`，从上到下说：
 
 > 这里不是一个模型直接给答案，而是 Manager、Investigator、Implementer、
-> Verifier 分层协作。每个角色都有独立状态和证据输出。
+> Verifier 分层协作。人把任务给 Manager，Manager 交给 Team Leader，
+> Team Leader 通过 `@worker` 协作。每个角色都有独立状态、权限和证据输出。
+
+### 为什么不用一个大模型
+
+> 这个案例的算法改动很小，但它同时要求复现原失败、限制修改范围、隐藏测试隔离、
+> 独立验收、L2 审批和失败回滚。一个模型可以写补丁，不能天然替代这些互斥身份和证据责任。
 
 ### 第三屏：事件与证据
 

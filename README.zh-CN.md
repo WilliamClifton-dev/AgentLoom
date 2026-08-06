@@ -16,7 +16,7 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - 协同运行时：AgentTeams/HiClaw `v1.1.2`
 - 已验证修复模型：DashScope `qwen3.7-plus`
 - 已验证回滚模型：StepFun `step-3.7-flash`
-- 消息基线：DeepSeek Manager + 三个 Worker 的消息协同
+- 消息基线：DeepSeek Manager -> Team Leader -> 两个 Worker 的委派协同
 - 实现语言：Python 3.12
 - 初始存储：SQLite
 - 安全默认值：失败关闭（fail closed）
@@ -26,10 +26,10 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 ```mermaid
 flowchart LR
     Human["Human / Element"] --> Manager["AgentTeams Manager"]
-    Manager --> Investigator["Investigator"]
-    Investigator --> Implementer["Implementer"]
-    Investigator --> Verifier["Verifier"]
-    Investigator --> Broker["AgentLoom Policy Broker"]
+    Manager --> Leader["Team Leader / Investigator"]
+    Leader -->|"@worker"| Implementer["Implementer"]
+    Leader -->|"@worker"| Verifier["Verifier"]
+    Leader --> Broker["AgentLoom Policy Broker"]
     Implementer --> Broker
     Verifier --> Broker
     Broker --> Detect["三层检测"]
@@ -38,6 +38,8 @@ flowchart LR
 ```
 
 Worker 不接收模型供应商的原始凭据。工具调用必须携带签名的、短时有效的 `SkillExecutionGrant`；L2/L3 操作必须经过明确的人工审批。
+
+演示任务不是“让一个模型改一行代码”：人把带失败测试、日志、修改白名单和回滚要求的生产风格 Issue 交给 Manager，Manager 再交给 Team Leader。Team Leader 在 AgentTeams Team Room 中通过 `@worker` 委派 Implementer 和 Verifier，分别负责受限修复与独立验收；审批、回滚和 Evidence 也由不同身份负责。
 
 完整设计见 [AgentLoom 架构设计](docs/architecture/agentloom-architecture.md)。
 

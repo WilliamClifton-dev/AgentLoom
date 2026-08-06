@@ -25,7 +25,7 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 - Runtime: AgentTeams/HiClaw `v1.1.2`
 - Live repair model: `qwen3.7-plus` unattended repair independently verified
 - Live rollback model: `step-3.7-flash` through StepFun Step Plan
-- Message baseline: `deepseek-v4-flash` Manager + three-Worker messaging only
+- Message baseline: `deepseek-v4-flash` Manager -> Team Leader -> two Worker delegation
 - Language: Python 3.12
 - Initial storage: SQLite
 - Safety default: fail closed
@@ -35,10 +35,10 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 ```mermaid
 flowchart LR
     Human["Human / Element"] --> Manager["AgentTeams Manager"]
-    Manager --> Investigator["Investigator"]
-    Investigator --> Implementer["Implementer"]
-    Investigator --> Verifier["Verifier"]
-    Investigator --> Broker["AgentLoom Policy Broker"]
+    Manager --> Leader["Team Leader / Investigator"]
+    Leader -->|"@worker"| Implementer["Implementer"]
+    Leader -->|"@worker"| Verifier["Verifier"]
+    Leader --> Broker["AgentLoom Policy Broker"]
     Implementer --> Broker
     Verifier --> Broker
     Broker --> Detect["Three-layer Detection"]
@@ -48,6 +48,12 @@ flowchart LR
 
 Workers do not receive raw provider credentials. Tool calls require a signed,
 short-lived `SkillExecutionGrant`; L2/L3 operations require explicit approval.
+
+The demo is not "one model edits one line": a human gives a production-style
+issue with failing tests, a change allowlist, and rollback requirements to the
+Manager; the Manager hands it to the Team Leader, who decomposes the task and
+`@worker`-delegates to the Implementer and Verifier in the AgentTeams Team Room.
+Repair, independent acceptance, approval, and rollback remain separate duties.
 
 Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.md).
 

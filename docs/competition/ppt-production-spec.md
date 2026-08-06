@@ -6,7 +6,7 @@
 下，生成 AgentLoom 初赛 PPTX 和 PDF。最终材料必须让评委清楚看到：
 
 1. AgentTeams v1.1.2 是真实协同运行时。
-2. Investigator、Implementer、Verifier 通过结构化交接完成软件修复闭环。
+2. 人把任务交给 Manager，Manager 委派 Team Leader；Team Leader 通过 `@worker` 让 Investigator、Implementer、Verifier 以结构化交接完成软件修复闭环。
 3. AgentLoom 原创价值是 Skill Registry、Policy Broker、三层检测、Evidence、
    Human 审批和回滚治理。
 4. Qwen 修复、StepFun 四角色回滚、真人 L2 审批和 175 项测试均有证据。
@@ -91,8 +91,8 @@
 | 区域 | 标题 | 可见文案 | 底部短标签 |
 | --- | --- | --- | --- |
 | 1 | 核心痛点 | 来源不清、权限不可控、效果不可证、失败不可回退 | `4 项痛点` |
-| 2 | 整体方案 | AgentTeams 三 Agent + Skill Registry + Policy Broker MCP + 三层检测 | `治理控制面` |
-| 3 | 主流程 | Issue -> 调查 -> 受控修复 -> 独立验证 -> 审批/回滚 -> Evidence | `6 步闭环` |
+| 2 | 整体方案 | AgentTeams Manager -> Team Leader -> `@worker` 三角色 + Skill Registry + Policy Broker MCP + 三层检测 | `治理控制面` |
+| 3 | 主流程 | Issue -> TeamLeader 拆解 -> 调查 -> 受控修复 -> 独立验证 -> 审批/回滚 -> Evidence | `7 步闭环` |
 | 4 | 已验证成果 | Qwen 修复、StepFun 回滚、真人 L2 审批、隐藏测试、TUI | `175 项测试` |
 | 5 | 差异化定位 | 不是通用 Coding Agent，而是可迁移的 Skill 治理控制面 | `可复用` |
 
@@ -111,7 +111,8 @@
 ### 第 5 页：场景、痛点与目标用户
 
 - 标题：`场景、痛点与目标用户`
-- 场景句：`研发团队希望利用开源 Skill 自动处理软件缺陷，但来源、权限、评测和失败处置缺少统一控制。`
+- 场景句：`研发团队把一条带失败测试、日志、修改白名单和回滚要求的生产风格 Issue 交给 Team Leader，由 AgentTeams 协作完成可验证修复。`
+- 必须补一句：`难点不是改一行代码，而是在复现、权限、独立验收、审批和失败回滚同时成立时交付可信结论。`
 - 左侧四个痛点：
   1. 来源与许可证不可追溯，版本可能漂移。
   2. 工具、路径、网络和外部写权限过大。
@@ -160,6 +161,8 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 ### 第 9 页：Agent 角色与完整协作流
 
 - 标题：`Agent 角色与完整协作流`
+- 顶部先画人和 TeamLeader：`Human -> AgentTeams Manager -> Team Leader (agentloom-investigator)`。
+- Team Leader 旁边用两条明确的 `@` 委派箭头：`@agentloom-implementer`、`@agentloom-verifier`。
 - 三个角色：
 
 | Agent | 职责 | 主要输入 | 主要输出 | 禁止事项 |
@@ -168,10 +171,11 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 | Implementer | 在白名单内生成最小补丁 | 根因报告、约束、验收条件 | PatchArtifact、补丁哈希 | 扩大权限、跳过审批、验证自己的成功 |
 | Verifier | 清洁快照中独立验证与风险审查 | 冻结补丁、验收条件 | VerificationResult、RiskReport | 修改补丁、降低标准 |
 
-- 主状态：`Received -> Investigating -> Implementing -> Verifying -> Completed`
+- 主状态：`Received -> TeamLeader 拆解 -> Investigating -> Implementing -> Verifying -> Completed`
 - L2 分支：`Implementing -> Awaiting Approval -> Approved / Rejected`
 - 失败分支：`Verifying -> Rolling Back -> Retry / Failed`
-- 底部强调：`Manager 是 AgentTeams 编排资源，不计入三个业务 Agent。`
+- 底部强调：`Manager 负责接收/汇总；Team Leader 负责拆解/@worker；三个 Worker 负责不同职能。Manager 不计入三个业务 Agent。`
+- 旁注：`单模型可以写候选补丁，但不能天然提供身份隔离、独立验证、审批和回滚证据。`
 - 证据：可在角落使用 E03 的小型真实截图，不要用截图替代流程图。
 
 ### 第 10 页：章节页 - Skill 工程
