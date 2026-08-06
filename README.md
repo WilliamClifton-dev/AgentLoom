@@ -1,5 +1,7 @@
 # AgentLoom
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Governed, evidence-first SkillOps for multi-Agent software repair on
 [AgentTeams](https://github.com/agentscope-ai/AgentTeams).
 
