@@ -325,3 +325,12 @@ async def test_tui_runs_failure_rollback_retry_demo_from_button(tmp_path: Path) 
         assert "verification WORKFLOW_PASSED" in status
         assert app.query_one("#task-events", DataTable).row_count == 10
         assert app.query_one("#agent-status", DataTable).get_row_at(2)[1] == "RETRIED"
+
+
+@pytest.mark.asyncio
+async def test_tui_stacks_controls_on_narrow_terminal(tmp_path: Path) -> None:
+    service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
+    app = AgentLoomApp(service)
+
+    async with app.run_test(size=(90, 50)):
+        assert app.query_one("#main").has_class("narrow")

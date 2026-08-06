@@ -253,24 +253,138 @@ class AgentLoomApp(App[None]):
     """Compact dashboard for local demos and verified live evidence."""
 
     CSS = """
-    Screen { background: #101716; color: #e6efeb; }
-    #titlebar { height: 3; padding: 1 2; background: #173b36; color: #ffffff; }
+    /* AgentLoom visual tokens: deliberately flat, high-contrast operations palette. */
+    $canvas: #0c1214;
+    $surface: #121c1f;
+    $surface-raised: #18272a;
+    $border: #2b4549;
+    $border-strong: #3c6865;
+    $ink: #e7f1ee;
+    $muted: #91a6a4;
+    $primary: #62d7b9;
+    $warning: #e7b66d;
+    $danger: #ef8585;
+
+    Screen {
+        background: $canvas;
+        color: $ink;
+    }
+    #titlebar {
+        height: 3;
+        padding: 1 2;
+        background: $surface-raised;
+        color: $ink;
+        text-style: bold;
+        border-bottom: solid $border-strong;
+    }
     #main { height: 1fr; }
-    #sidebar { width: 34; padding: 1; border-right: solid #46645d; }
-    #workspace { width: 1fr; padding: 1; }
-    #case-details, #run-status, #artifact-details { padding: 1; border: solid #46645d; }
-    #case-details { height: 10; }
-    #run-status { height: 3; margin-top: 1; }
-    #artifact-details { height: 8; margin-top: 1; }
-    #agent-status { height: 10; margin-top: 1; }
-    #task-events { height: 1fr; margin-top: 1; }
-    #approval-queue { height: 8; margin-top: 1; }
-    #approval-details { height: 12; margin-top: 1; padding: 1; border: solid #46645d; }
-    #approval-actions { height: 3; margin-top: 1; }
-    #approval-reason { width: 1fr; }
-    Button { width: 1fr; margin-top: 1; }
-    Select { width: 1fr; }
-    .section-label { color: #91cdbf; margin-top: 1; }
+    #sidebar {
+        width: 34;
+        padding: 1 2;
+        background: $surface;
+        border-right: solid $border;
+    }
+    #workspace {
+        width: 1fr;
+        padding: 1 2;
+        scrollbar-color: $border-strong;
+        scrollbar-background: $canvas;
+    }
+    #case-details, #run-status, #artifact-details, #approval-details {
+        padding: 1;
+        background: $surface;
+        border: solid $border;
+    }
+    #case-details {
+        height: 10;
+        color: $ink;
+    }
+    #run-status {
+        height: 4;
+        margin-top: 1;
+        background: $surface-raised;
+        color: $primary;
+        text-style: bold;
+        content-align: left middle;
+    }
+    #artifact-details {
+        height: 8;
+        margin-top: 1;
+        color: $muted;
+    }
+    #agent-status {
+        height: 10;
+        margin-top: 1;
+        background: $surface;
+        border: solid $border;
+    }
+    #task-events {
+        height: 1fr;
+        min-height: 8;
+        margin-top: 1;
+        background: $surface;
+        border: solid $border;
+    }
+    #approval-queue {
+        height: 8;
+        margin-top: 1;
+        background: $surface;
+        border: solid $border;
+    }
+    #approval-details {
+        height: 12;
+        margin-top: 1;
+        color: $muted;
+    }
+    #approval-actions {
+        height: 3;
+        margin-top: 1;
+    }
+    #approval-reason {
+        width: 1fr;
+        border: solid $border;
+    }
+    #sidebar Button {
+        width: 1fr;
+        height: 3;
+        margin-top: 1;
+        border: none;
+    }
+    #approval-actions Button {
+        width: auto;
+        min-width: 12;
+        margin-left: 1;
+    }
+    Button.-success { background: #1e6555; color: $ink; }
+    Button.-warning { background: #76552b; color: $ink; }
+    Button.-error { background: #743b42; color: $ink; }
+    Select {
+        width: 1fr;
+        background: $surface-raised;
+        border: solid $border;
+    }
+    .section-label {
+        color: $primary;
+        text-style: bold;
+        margin-top: 1;
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    /* Applied by on_resize; Textual has no browser-style @media blocks. */
+    #main.narrow { layout: vertical; }
+    #main.narrow #sidebar {
+        width: 1fr;
+        height: 16;
+        border-right: none;
+        border-bottom: solid $border;
+    }
+    #main.narrow #workspace { width: 1fr; padding: 1; }
+    #main.narrow #case-details { height: auto; min-height: 8; }
+    #main.narrow #agent-status { height: 9; }
+    #main.narrow #approval-queue { height: 7; }
+    #main.narrow #approval-details { height: auto; min-height: 9; }
+    #main.narrow #approval-actions { height: 6; layout: grid; grid-size: 2; }
+    #main.narrow #approval-reason { column-span: 2; }
     """
 
     def __init__(
@@ -553,6 +667,16 @@ class AgentLoomApp(App[None]):
                 f"Path: {self._display_path(summary.artifacts_dir)}"
             )
         )
+
+    def on_resize(self, event: object) -> None:
+        """Switch to a stacked layout when the terminal cannot scan two columns."""
+        size = getattr(event, "size", None)
+        width = getattr(size, "width", 0)
+        main = self.query_one("#main", Horizontal)
+        if width < 100:
+            main.add_class("narrow")
+        else:
+            main.remove_class("narrow")
 
     def _display_path(self, path: Path) -> str:
         return "<redacted>" if self._public_output else str(path)
