@@ -14,6 +14,7 @@ from pydantic import ConfigDict, Field, ValidationError, model_validator
 
 from agentloom.contracts import (
     ContractModel,
+    CoordinationTrace,
     RepairArtifactBundle,
     VerificationChecks,
 )
@@ -78,6 +79,7 @@ class LiveRepairSubmission(ContractModel):
     )
     provider: ProviderName
     model: ModelName
+    coordination_trace: CoordinationTrace = Field(alias="coordinationTrace")
     role_events: list[AgentRoleEvent] = Field(alias="roleEvents")
     repair_patch: str = Field(
         alias="repairPatch",
@@ -99,6 +101,27 @@ class LiveRepairSubmission(ContractModel):
             )
         if len({event.event_id for event in self.role_events}) != 3:
             raise ValueError("roleEvents must use three distinct Matrix event IDs")
+        if self.coordination_trace.task_id != self.task_id:
+            raise ValueError("coordinationTrace must match submission taskId")
+        all_event_ids = {
+            event.event_id for event in self.coordination_trace.events
+        } | {event.event_id for event in self.role_events}
+        if len(all_event_ids) != 6:
+            raise ValueError("coordination and role events must use distinct event IDs")
+        ordered_timestamps = [
+            self.coordination_trace.events[0].origin_server_timestamp,
+            self.role_events[0].origin_server_timestamp,
+            self.coordination_trace.events[1].origin_server_timestamp,
+            self.role_events[1].origin_server_timestamp,
+            self.coordination_trace.events[2].origin_server_timestamp,
+            self.role_events[2].origin_server_timestamp,
+        ]
+        if ordered_timestamps != sorted(ordered_timestamps) or len(
+            set(ordered_timestamps)
+        ) != len(ordered_timestamps):
+            raise ValueError(
+                "coordination and role events must follow the repair handoff order"
+            )
         if "\x00" in self.repair_patch:
             raise ValueError("repairPatch must not contain NUL bytes")
 
@@ -397,6 +420,9 @@ def _write_evidence(
             event.model_dump(mode="json", by_alias=True)
             for event in submission.role_events
         ],
+        "coordinationTrace": submission.coordination_trace.model_dump(
+            mode="json", by_alias=True
+        ),
         "independentVerification": {
             "originalFailureReproduced": True,
             "targetTestsPassed": True,

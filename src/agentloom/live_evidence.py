@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import Field, ValidationError, model_validator
 
-from agentloom.contracts import ContractModel
+from agentloom.contracts import ContractModel, CoordinationTrace
 from agentloom.live_repair import AgentName, ModelName, ProviderName
 
 _MAX_EVIDENCE_BYTES = 1_048_576
@@ -83,6 +83,10 @@ class StrictRunCriteria(ContractModel):
     completion_event_must_follow_artifacts: Literal[True] = Field(
         alias="completionEventMustFollowArtifacts"
     )
+    coordination_events_must_match_mentions: Literal[True] | None = Field(
+        default=None,
+        alias="coordinationEventsMustMatchMentions",
+    )
 
 
 class EvidenceRoleEvent(ContractModel):
@@ -141,6 +145,10 @@ class LiveRunEvidence(ContractModel):
     submission_sha256: str = Field(
         alias="submissionSha256", pattern=r"^[a-f0-9]{64}$"
     )
+    coordination_trace: CoordinationTrace | None = Field(
+        default=None,
+        alias="coordinationTrace",
+    )
 
     @model_validator(mode="after")
     def roles_are_complete_and_ordered(self) -> LiveRunEvidence:
@@ -148,6 +156,12 @@ class LiveRunEvidence(ContractModel):
             raise ValueError("run evidence must contain all business Agent roles")
         if len({event.event_id for event in self.role_events}) != 3:
             raise ValueError("run evidence must contain distinct Matrix events")
+        if self.coordination_trace is not None:
+            if self.criteria.coordination_events_must_match_mentions is not True:
+                raise ValueError("coordination trace requires strict mention verification")
+            if self.coordination_trace.task_id != self.task_id:
+                raise ValueError("coordination trace must match run taskId")
+            _validate_handoff_order(self.coordination_trace, self.role_events)
         return self
 
 
@@ -186,6 +200,10 @@ class VerifiedLiveEvidence(ContractModel):
     role_events: list[EvidenceRoleEvent] = Field(
         alias="roleEvents", min_length=3, max_length=3
     )
+    coordination_trace: CoordinationTrace | None = Field(
+        default=None,
+        alias="coordinationTrace",
+    )
     independent_verification: IndependentVerification = Field(
         alias="independentVerification"
     )
@@ -196,6 +214,10 @@ class VerifiedLiveEvidence(ContractModel):
             raise ValueError("verified evidence must contain all business Agent roles")
         if len({event.event_id for event in self.role_events}) != 3:
             raise ValueError("verified evidence must contain distinct Matrix events")
+        if self.coordination_trace is not None:
+            if self.coordination_trace.task_id != self.task_id:
+                raise ValueError("coordination trace must match verified taskId")
+            _validate_handoff_order(self.coordination_trace, self.role_events)
         return self
 
 
@@ -210,6 +232,7 @@ class LiveEvidenceSummary:
     role_events: tuple[EvidenceRoleEvent, ...]
     hidden_tests_passed: bool
     artifacts_dir: Path
+    coordination_verified: bool = False
 
 
 class LiveEvidenceService:
@@ -264,6 +287,18 @@ class LiveEvidenceService:
         )
         if run_events != verified_events:
             raise LiveEvidenceError("run and verification role events do not match")
+        run_coordination = (
+            run.coordination_trace.model_dump(mode="json", by_alias=True)
+            if run.coordination_trace is not None
+            else None
+        )
+        verified_coordination = (
+            verified.coordination_trace.model_dump(mode="json", by_alias=True)
+            if verified.coordination_trace is not None
+            else None
+        )
+        if run_coordination != verified_coordination:
+            raise LiveEvidenceError("run and verification coordination traces do not match")
 
         return LiveEvidenceSummary(
             task_id=verified.task_id,
@@ -274,8 +309,25 @@ class LiveEvidenceService:
             manager_status="HEALTHY",
             role_events=tuple(verified.role_events),
             hidden_tests_passed=verified.independent_verification.hidden_tests_passed,
+            coordination_verified=run.coordination_trace is not None,
             artifacts_dir=verified_path.resolve().parent,
         )
+
+
+def _validate_handoff_order(
+    coordination: CoordinationTrace,
+    roles: list[RunRoleEvent] | list[EvidenceRoleEvent],
+) -> None:
+    timestamps = [
+        coordination.events[0].origin_server_timestamp,
+        roles[0].origin_server_timestamp,
+        coordination.events[1].origin_server_timestamp,
+        roles[1].origin_server_timestamp,
+        coordination.events[2].origin_server_timestamp,
+        roles[2].origin_server_timestamp,
+    ]
+    if timestamps != sorted(timestamps) or len(set(timestamps)) != len(timestamps):
+        raise ValueError("coordination and role events must follow the handoff order")
 
 
 def _load_model[ModelT: ContractModel](

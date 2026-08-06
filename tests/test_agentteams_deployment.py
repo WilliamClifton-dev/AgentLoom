@@ -223,6 +223,15 @@ def test_live_repair_runner_binds_fresh_role_events_and_task_artifacts() -> None
     assert "foreach ($immutableInput in $initialInputObjects)" in script
     assert "foreach ($input in $initialInputObjects)" not in script
     assert "completionEventMustFollowArtifacts" in script
+    assert "coordinationEventsMustMatchMentions" in script
+    assert "MANAGER_DELEGATED" in script
+    assert "IMPLEMENTER_ASSIGNED" in script
+    assert "VERIFIER_ASSIGNED" in script
+    assert "mentionedUserId" in script
+    assert '"m.mentions"' in script
+    assert "$event.content.\"m.mentions\".user_ids -contains $ExpectedMentionUserId" in script
+    assert "Send-MatrixText -RoomId $manager.roomID" in script
+    assert "coordinationTrace" in script
     assert "allowedFinalKeys" in script
     assert "$MaxArtifactBytes = 131072" in script
     assert "$object.size -gt $MaxArtifactBytes" in script

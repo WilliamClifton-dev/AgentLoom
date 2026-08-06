@@ -55,6 +55,13 @@ def test_live_repair_accepts_role_traced_patch_after_independent_verification(
         "agentloom-implementer",
         "agentloom-verifier",
     ]
+    assert [
+        event["phase"] for event in evidence["coordinationTrace"]["events"]
+    ] == [
+        "MANAGER_DELEGATED",
+        "IMPLEMENTER_ASSIGNED",
+        "VERIFIER_ASSIGNED",
+    ]
     assert "password" not in json.dumps(evidence).lower()
     assert "apiKey" not in json.dumps(evidence)
 
@@ -99,6 +106,20 @@ def test_live_repair_rejects_missing_business_agent_trace(tmp_path: Path) -> Non
         LiveRepairVerifier(CASE).run(submission, tmp_path / "live-run")
 
 
+def test_live_repair_rejects_coordination_with_wrong_mentioned_agent(
+    tmp_path: Path,
+) -> None:
+    submission = _submission(tmp_path)
+    payload = json.loads(submission.read_text(encoding="utf-8"))
+    assignment = payload["coordinationTrace"]["events"][1]
+    assignment["mentionedAgent"] = "agentloom-verifier"
+    assignment["mentionedUserId"] = "@agentloom-verifier:example.test"
+    submission.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(LiveRepairError, match="coordination phase does not match"):
+        LiveRepairVerifier(CASE).run(submission, tmp_path / "live-run")
+
+
 def test_live_repair_rejects_patch_that_only_passes_visible_tests(
     tmp_path: Path,
 ) -> None:
@@ -131,23 +152,59 @@ def _submission(tmp_path: Path) -> Path:
             "matrixUserId": "@agentloom-investigator:example.test",
             "roomId": "!repair-room:example.test",
             "eventId": "$investigator-event",
-            "originServerTimestamp": 1_700_000_000_001,
+            "originServerTimestamp": 1_700_000_000_002,
         },
         {
             "agentName": "agentloom-implementer",
             "matrixUserId": "@agentloom-implementer:example.test",
             "roomId": "!repair-room:example.test",
             "eventId": "$implementer-event",
-            "originServerTimestamp": 1_700_000_000_002,
+            "originServerTimestamp": 1_700_000_000_004,
         },
         {
             "agentName": "agentloom-verifier",
             "matrixUserId": "@agentloom-verifier:example.test",
             "roomId": "!repair-room:example.test",
             "eventId": "$verifier-event",
-            "originServerTimestamp": 1_700_000_000_003,
+            "originServerTimestamp": 1_700_000_000_006,
         },
     ]
+    coordination_trace = {
+        "schemaVersion": "agentloom.coordination-trace/v1alpha1",
+        "taskId": task_id,
+        "events": [
+            {
+                "phase": "MANAGER_DELEGATED",
+                "agentName": "agentloom-manager",
+                "matrixUserId": "@admin:example.test",
+                "mentionedAgent": "agentloom-investigator",
+                "mentionedUserId": "@agentloom-investigator:example.test",
+                "roomId": "!manager-room:example.test",
+                "eventId": "$manager-delegated",
+                "originServerTimestamp": 1_700_000_000_001,
+            },
+            {
+                "phase": "IMPLEMENTER_ASSIGNED",
+                "agentName": "agentloom-investigator",
+                "matrixUserId": "@agentloom-investigator:example.test",
+                "mentionedAgent": "agentloom-implementer",
+                "mentionedUserId": "@agentloom-implementer:example.test",
+                "roomId": "!repair-room:example.test",
+                "eventId": "$implementer-assigned",
+                "originServerTimestamp": 1_700_000_000_003,
+            },
+            {
+                "phase": "VERIFIER_ASSIGNED",
+                "agentName": "agentloom-investigator",
+                "matrixUserId": "@agentloom-investigator:example.test",
+                "mentionedAgent": "agentloom-verifier",
+                "mentionedUserId": "@agentloom-verifier:example.test",
+                "roomId": "!repair-room:example.test",
+                "eventId": "$verifier-assigned",
+                "originServerTimestamp": 1_700_000_000_005,
+            },
+        ],
+    }
     bundle["rootCause"]["evidenceRefs"] = [traces[0]["eventId"]]
     bundle["patch"]["evidenceRefs"] = [traces[1]["eventId"]]
     bundle["verification"]["evidence_refs"] = [traces[2]["eventId"]]
@@ -160,6 +217,7 @@ def _submission(tmp_path: Path) -> Path:
                 "taskId": task_id,
                 "provider": "dashscope",
                 "model": "qwen3.7-plus",
+                "coordinationTrace": coordination_trace,
                 "roleEvents": traces,
                 "repairPatch": patch,
                 "bundle": bundle,
