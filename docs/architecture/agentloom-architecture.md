@@ -45,7 +45,7 @@
 
 AgentLoom 是面向 AgentTeams 的第三方 Skill 治理与可验证执行控制面。它将分散在 GitHub、Agent Skill 仓库和企业内部的能力转化为可发现、可审查、可评测、可发布、可选择、可授权、可执行和可回滚的工程资产。AgentLoom 不是通用编码 Agent、代码审查 CLI 或渗透测试平台；软件缺陷修复是验证平台契约的参考应用，不是产品边界。
 
-系统强制使用 [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) 作为多 Agent 协同运行平台。人通过 Element/Matrix 将任务交给 Manager，Manager 再把任务交给 Team Leader Worker `agentloom-investigator`；Team Leader 在 Team Room 中通过 `@worker` 协作 `agentloom-implementer` 和 `agentloom-verifier`。AgentTeams Manager 是编排基础设施，不计为第四个业务 Agent；三个独立 Worker 分别承担 Investigator、Implementer 和 Verifier 职责，通过 Matrix Team Room、共享任务状态和 MinIO 产物协作。Agent 不直接裸调外部工具，而是通过 Skill 和 Higress 托管的 MCP/适配器形成稳定、可授权、可审计的调用链。所有关键结论必须引用运行证据；高风险动作必须经过 Matrix/Element 中可见的人工审批。
+系统强制使用 [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) 作为多 Agent 协同运行平台。人通过 Element/Matrix 将任务交给 Manager；Manager 建立阶段计划并把调查任务交给 Investigator，随后由 Investigator 以结构化根因报告触发 Implementer 修复，再把冻结补丁交给 Verifier 独立验证。三个既有 Worker 分别承担 Investigator、Implementer 和 Verifier 职责，通过 Matrix Team Room、共享任务状态和 MinIO 产物协作。`agentloom-investigator` 在 AgentTeams Team 资源中占用框架要求的 `spec.leader` 槽位，但不新增 TeamLeader Agent Identity。AgentTeams Manager 是编排基础设施，不计为第四个业务 Agent。Agent 不直接裸调外部工具，而是通过 Skill 和 Higress 托管的 MCP/适配器形成稳定、可授权、可审计的调用链。所有关键结论必须引用运行证据；高风险动作必须经过 Matrix/Element 中可见的人工审批。
 
 初赛只实现一条可信闭环：
 
@@ -241,20 +241,21 @@ AgentTeams 协同运行时
 ```text
 Human 提交 Issue / 约束
         |
-AgentTeams Manager 接收任务、创建 TaskPlan、选择 Team
+AgentTeams Manager 接收任务、建立阶段计划、选择 Team
         |
-Team Leader: agentloom-investigator
-        |  复现故障、拆解步骤、收集证据
-        |  @agentloom-implementer 生成受限补丁
-        |  @agentloom-verifier     独立重放与安全审查
-        v
-Manager 汇总 Team Leader 报告 -> Policy Gate -> Human 审批（L2）
+Investigator：复现故障、定位根因、输出 RootCauseReport
+        |
+Implementer：消费根因报告并生成受限 PatchArtifact
+        |
+Verifier：消费冻结补丁并独立重放、测试与安全审查
+        |
+Manager 汇总结构化产物 -> Policy Gate -> Human 审批（L2）
         |
         +--> PASSED：完成并生成 Evidence
         +--> FAILED/UNSAFE：回滚、补证或终止
 ```
 
-其中两个可以独立执行的子检查可并行：Verifier 的基线复现与 Investigator 的证据整理、补丁冻结后的测试验证与范围/风险复核。补丁生成仍依赖根因报告，不能为了“看起来并行”而伪造没有依赖关系的流程。`agentloom-investigator` 同时是一个业务 Worker 和 Team Leader；它不写代码、不批准结果，只负责拆解和委派。Manager 是 AgentTeams 编排资源，不计入三个业务 Agent。
+其中两个可以独立执行的子检查可并行：Verifier 的基线复现与 Investigator 的证据整理、补丁冻结后的测试验证与范围/风险复核。补丁生成仍依赖根因报告，不能为了“看起来并行”而伪造没有依赖关系的流程。`agentloom-investigator` 在资源拓扑中兼任 leader，只负责调查和技术交接，不因此增加业务角色；Manager 是 AgentTeams 编排资源，不计入三个业务 Agent。
 
 ### 5.3 可复现 Demo Case 契约
 
@@ -1564,16 +1565,16 @@ agentloom/
 - **替代方案**：将 OpenCodeReview 包装为 Verifier Skill；采用 Strix 安全 Skill/沙箱；采用 Orca worktree 或会话控制面。
 - **代价**：不能直接获得其成熟的文件筛选、攻击验证或桌面工作台能力；换取单一 AgentTeams 控制面、清晰原创边界、更小交付范围和更低比赛合规风险。
 
-### ADR-014：以 AgentTeams Team Leader + `@worker` 作为主协作叙事
+### ADR-014：以现有 Manager + 三 Agent 协作为主叙事
 
 - **状态**：Accepted
 - **决策日期**：2026-08-06
-- **背景**：如果只展示 `Investigator -> Implementer -> Verifier`，评审者容易把系统理解为一个模型调用三个串行函数，无法看出 AgentTeams 的必要性。导师要求明确“人把任务给 TeamLeader，leader 拆解任务，`@worker` 协作解决问题”。
-- **决定**：人把生产风格软件修复 Issue 交给 AgentTeams Manager；Manager 将任务交给 `agentloom-investigator` 这个 Team Leader Worker。Team Leader 在 Team Room 中明确 `@agentloom-implementer` 完成受限补丁，`@agentloom-verifier` 完成独立重放、测试和风险审查，再向 Manager 汇总带 Evidence 的结果。Team Leader 不是新增第四个业务 Agent，而是 Investigator Worker 在 AgentTeams Team 中承担的领导职责。
+- **背景**：如果只展示 `Investigator -> Implementer -> Verifier`，评审者容易把系统理解为一个模型调用三个串行函数，无法看出 AgentTeams 的必要性。导师给出的“TeamLeader 拆解并 `@worker`”是通用协作范式，不要求每个参赛方案新增同名 Agent。
+- **决定**：沿用 AgentLoom 已有职责：人把生产风格软件修复 Issue 交给 AgentTeams Manager；Manager 负责接收、建立阶段计划、选择 Team、状态汇总和 Human 入口，Investigator、Implementer、Verifier 依次交付根因、补丁和独立验证。`agentloom-investigator` 仅占用 AgentTeams Team 资源要求的 `spec.leader` 槽位，不新增第四个业务 Agent，也不改变 Agent Identity 清单。
 - **为什么任务足够复杂**：缺陷算法本身可以是一行，但任务同时要求原失败复现、白名单修改、隐藏测试隔离、独立验收、L2 审批、失败回滚和可审计证据；这些责任和权限不能由单一大模型的自由对话天然保证。
 - **并行边界**：基线复现和证据整理、补丁冻结后的测试与范围审查可以并行；补丁生成必须等待根因报告，最终完成必须等待 Verifier 和策略闸门。不得为了展示并行而打乱真实依赖。
-- **替代方案**：单模型直接生成补丁，或 Manager 直接串行调用三个 Worker。
-- **代价**：增加一次 Team Leader 委派和 Matrix 事件；换取清晰的任务拆解、角色隔离、AgentTeams 原生协作证据和可复核失败处置。
+- **替代方案**：单模型直接生成补丁，或另增专职 TeamLeader 业务 Agent。
+- **代价**：保留框架要求的 leader 资源映射并需要解释 Manager/leader 边界；换取稳定的三 Agent 申报口径，避免为了套用通用话术增加无业务价值的角色。
 
 ## 23. 主要风险与缓解
 

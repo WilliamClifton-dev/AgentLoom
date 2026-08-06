@@ -22,17 +22,16 @@
 指着标题和左侧案例，说：
 
 > AgentLoom 是基于 AgentTeams 的软件缺陷治理系统。输入 Issue 后，由
-> Manager 把任务交给 Team Leader（Investigator）。Team Leader 先复现和拆解，
-> 再在 Team Room 里 `@implementer` 生成受控补丁、`@verifier` 独立验证，
-> 最后把带证据的结果交回 Manager。
+> Manager 把任务拆成调查、受限修复和独立验证。Investigator 先复现根因，
+> 再把结构化结果交给 Implementer 和 Verifier，最后由 Manager 汇总带证据的结论。
 
-### 第二屏：四个角色
+### 第二屏：Manager 编排资源与三个 Agent
 
 指着右侧 `AGENT STATUS`，从上到下说：
 
 > 这里不是一个模型直接给答案，而是 Manager、Investigator、Implementer、
-> Verifier 分层协作。人把任务给 Manager，Manager 交给 Team Leader，
-> Team Leader 通过 `@worker` 协作。每个角色都有独立状态、权限和证据输出。
+> Verifier 分层协作。Manager 负责任务拆解，三个业务 Agent 各自生成有明确归属的
+> 交接物。Investigator 在 AgentTeams 资源中兼任团队协调，但不是新增的第四个 Agent。
 
 ### 为什么不用一个大模型
 

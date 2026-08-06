@@ -16,7 +16,7 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - 协同运行时：AgentTeams/HiClaw `v1.1.2`
 - 已验证修复模型：DashScope `qwen3.7-plus`
 - 已验证回滚模型：StepFun `step-3.7-flash`
-- 消息基线：DeepSeek Manager -> Team Leader -> 两个 Worker 的委派协同
+- 消息基线：DeepSeek Manager + 三个 Worker 的角色归属事件
 - 实现语言：Python 3.12
 - 初始存储：SQLite
 - 安全默认值：失败关闭（fail closed）
@@ -26,10 +26,10 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 ```mermaid
 flowchart LR
     Human["Human / Element"] --> Manager["AgentTeams Manager"]
-    Manager --> Leader["Team Leader / Investigator"]
-    Leader -->|"@worker"| Implementer["Implementer"]
-    Leader -->|"@worker"| Verifier["Verifier"]
-    Leader --> Broker["AgentLoom Policy Broker"]
+    Manager --> Investigator["Investigator"]
+    Investigator -->|"角色交接"| Implementer["Implementer"]
+    Investigator -->|"角色交接"| Verifier["Verifier"]
+    Investigator --> Broker["AgentLoom Policy Broker"]
     Implementer --> Broker
     Verifier --> Broker
     Broker --> Detect["三层检测"]
@@ -39,7 +39,7 @@ flowchart LR
 
 Worker 不接收模型供应商的原始凭据。工具调用必须携带签名的、短时有效的 `SkillExecutionGrant`；L2/L3 操作必须经过明确的人工审批。
 
-演示任务不是“让一个模型改一行代码”：人把带失败测试、日志、修改白名单和回滚要求的生产风格 Issue 交给 Manager，Manager 再交给 Team Leader。Team Leader 在 AgentTeams Team Room 中通过 `@worker` 委派 Implementer 和 Verifier，分别负责受限修复与独立验收；审批、回滚和 Evidence 也由不同身份负责。
+演示任务不是“让一个模型改一行代码”：人把带失败测试、日志、修改白名单和回滚要求的生产风格 Issue 交给 Manager。Manager 拆成调查、受限修复和独立验证，三个既有 Agent 在 AgentTeams Team Room 中通过角色交接协作；审批、回滚和 Evidence 也由不同身份负责，不新增第四个业务 Agent。
 
 完整设计见 [AgentLoom 架构设计](docs/architecture/agentloom-architecture.md)。
 
@@ -65,8 +65,8 @@ Worker 不接收模型供应商的原始凭据。工具调用必须携带签名�
 - 用于一次性 Grant 验证的内部 API 和 stdio MCP 边界
 - SQLite 持久化和可逆 Alembic 迁移
 - 包含调查、实施、独立验证、审批、失败和回滚状态的确定性修复工作流
-- 锁定 AgentTeams `v1.1.2` 的 Manager、Team Leader、两个 Worker 和 Human 资源
-- 四个 Agent 身份都产生角色归属明确的 Matrix E2E 事件
+- 锁定 AgentTeams `v1.1.2` 的 Manager 编排资源、三个业务 Agent 身份和 Human 资源
+- Matrix E2E 包含一个 Manager 协调事件和三个业务 Agent 角色归属事件
 - AgentTeams 全局任务到 Team 任务的哈希校验父子任务命名空间桥接
 - 基于 Manifest 的离线修复产物 E2E，包含两个独立缺陷、隐藏测试、补丁范围限制和证据
 - 对 AgentTeams 角色事件、补丁哈希/路径绑定、可见测试、隐藏测试和静态检查进行失败关闭验证

@@ -3,18 +3,21 @@
 This directory pins the competition runtime and declares the AgentLoom team by
 using AgentTeams/HiClaw's stable `hiclaw.io/v1beta1` resources.
 
-Topology:
+Topology (AgentTeams requires one Team member to occupy `spec.leader`; this is
+a resource mapping, not an additional AgentLoom Agent Identity):
 
 - `default`: Manager and task coordinator
-- `agentloom-investigator`: Team leader and read-only investigator
+- `agentloom-investigator`: read-only investigator, mapped to `spec.leader`
 - `agentloom-implementer`: constrained patch author
 - `agentloom-verifier`: independent reviewer
 - `agentloom-developer`: Level 2 Human with access to `agentloom-repair`
 
-The Team leader is also a Worker identity. This follows AgentTeams' delegation
-boundary: Manager talks to the Team leader, while the leader coordinates members
-inside the Team Room. `hiclaw get workers --team agentloom-repair` therefore
-returns three distinct Worker identities.
+AgentLoom declares only three business Agent identities: Investigator,
+Implementer, and Verifier. AgentTeams routes Manager-to-Team messages through
+the member mapped to `spec.leader`, so `agentloom-investigator` occupies that
+framework slot while retaining its Investigator duties. No separate TeamLeader
+Agent is created. `hiclaw get workers --team agentloom-repair` therefore returns
+the same three business identities.
 
 ## Configure
 
@@ -302,13 +305,13 @@ phase independently. Fresh paid execution remains opt-in through
 `run-live-repair.ps1` is the strict collector for the current pagination Case.
 For an empty task prefix it automatically stages only `spec.md`, `base/lib/`, and
 `base/tests/` from the frozen pagination Case. A non-empty prefix must already
-match the exact four-input allowlist. It sends the task directly to the
-Investigator in the Team Room, requires each role to publish only its owned files,
-requires fresh role-owned exact-line events from all three business Agents,
-rejects `expected/`, hidden-test, workspace, and cache objects, checks immutable
-input fingerprints and event-after-artifact ordering, rejects any result object
-over 128 KiB before download, and binds the actual Matrix event IDs into a live
-repair submission:
+match the exact four-input allowlist. It sends the task to the Manager, verifies
+the Manager-to-Investigator handoff and the existing Agent-to-Agent assignments,
+requires each business Agent to publish only its owned files and fresh exact-line
+events, rejects `expected/`, hidden-test, workspace, and cache objects, checks
+immutable input fingerprints and event-after-artifact ordering, rejects any
+result object over 128 KiB before download, and binds the actual Matrix event IDs
+into a live repair submission:
 
 ```powershell
 .\deploy\agentteams\run-live-repair.ps1 `
