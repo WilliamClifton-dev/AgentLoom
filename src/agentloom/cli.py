@@ -77,6 +77,10 @@ def tui(
         bool,
         typer.Option(help="Redact local filesystem paths for public demos."),
     ] = False,
+    auto_run: Annotated[
+        bool,
+        typer.Option(help="Run the first local case immediately after launch."),
+    ] = False,
 ) -> None:
     """Launch the Textual panel for local or verified live evidence."""
     try:
@@ -122,6 +126,7 @@ def tui(
             live_summary=live_summary,
             rollback_summary=rollback_summary,
             public_output=public_output,
+            auto_run=auto_run,
         ).run()
     except (DemoRunError, LiveEvidenceError, OSError, SQLAlchemyError) as exc:
         typer.echo(f"agentloom tui failed: {exc}", err=True)

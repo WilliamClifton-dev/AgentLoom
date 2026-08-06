@@ -29,6 +29,7 @@ def test_tui_command_exposes_local_case_and_output_options() -> None:
     assert "--verified-evidence" in output
     assert "--rollback-evidence" in output
     assert "--public-output" in output
+    assert "--auto-run" in output
 
 
 def test_tui_requires_all_live_evidence_layers(tmp_path: Path) -> None:

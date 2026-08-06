@@ -394,6 +394,7 @@ class AgentLoomApp(App[None]):
         live_summary: LiveEvidenceSummary | None = None,
         rollback_summary: RollbackEvidenceSummary | None = None,
         public_output: bool = False,
+        auto_run: bool = False,
     ) -> None:
         super().__init__()
         self._service = service
@@ -403,6 +404,7 @@ class AgentLoomApp(App[None]):
         self._live_summary = live_summary
         self._rollback_summary = rollback_summary
         self._public_output = public_output
+        self._auto_run = auto_run
         if live_summary is not None and rollback_summary is not None:
             raise DemoRunError("live repair and rollback evidence are mutually exclusive")
         evidence_case_id = (
@@ -510,6 +512,15 @@ class AgentLoomApp(App[None]):
                 RoleStatus("Verifier", "WAITING", "No verification yet."),
             )
         )
+        if self._auto_run:
+            case_id = self._cases[0].case_id
+            self._show_running(case_id)
+            self.run_worker(
+                lambda: self._run_case_in_worker(case_id),
+                thread=True,
+                exclusive=True,
+                name="automatic-demo-run",
+            )
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if isinstance(event.value, str):

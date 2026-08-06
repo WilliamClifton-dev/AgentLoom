@@ -334,3 +334,19 @@ async def test_tui_stacks_controls_on_narrow_terminal(tmp_path: Path) -> None:
 
     async with app.run_test(size=(90, 50)):
         assert app.query_one("#main").has_class("narrow")
+
+
+@pytest.mark.asyncio
+async def test_tui_can_run_first_case_automatically(tmp_path: Path) -> None:
+    service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
+    app = AgentLoomApp(service, auto_run=True)
+
+    async with app.run_test(size=(150, 50)) as pilot:
+        for _ in range(100):
+            await pilot.pause(0.05)
+            status = str(app.query_one("#run-status", Static).render())
+            if "verification PASSED" in status:
+                break
+
+        assert "verification PASSED" in status
+        assert app.query_one("#agent-status", DataTable).get_row_at(3)[1] == "PASSED"
