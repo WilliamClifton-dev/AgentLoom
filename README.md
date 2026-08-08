@@ -56,6 +56,7 @@ independent verification; the three existing Agents exchange role-owned
 artifacts in the AgentTeams Team Room. No extra business Agent is introduced.
 
 Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.md).
+Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Deployment
 
