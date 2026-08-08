@@ -40,9 +40,9 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 ## 2. 500 字以内作品简介
 
-以下正文共 **415 个字符（含空格）、385 个字符（不含空格）**，可直接使用：
+以下正文共 **445 个字符（含空格）、413 个字符（不含空格）**，可直接使用：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理与可验证软件修复平台。它面向团队引入 GitHub 第三方 Skill 时来源不清、权限过大、效果难评测、执行不可追溯等问题，将 Skill 纳入“发现、溯源、扫描、评测、发布、路由、授权、执行、验证、回滚”的生命周期。系统由 Investigator、Implementer、Verifier 三个不同职能 Agent 协同：调查根因、生成最小补丁、在清洁环境中独立验证。Policy Broker 通过 MCP 对工具、路径、参数和时效进行最小权限控制，L2 高风险操作必须由 Human 审批；全过程生成可审计 Evidence。当前已在 AgentTeams v1.1.2 上完成三 Agent 协作、真实模型修复、独立隐藏测试验证、TUI、失败回滚与审批基础链路。项目计划以 Apache-2.0 开源，自研治理层与第三方工作流内容明确分界。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理与可验证软件修复平台。它面向团队引入 GitHub 第三方 Skill 时来源不清、权限过大、效果难评测、执行不可追溯等问题，将 Skill 纳入“发现、溯源、扫描、评测、发布、路由、授权、执行、验证、回滚”的生命周期。人把带失败测试、日志、白名单和回滚要求的 Issue 交给 Manager；Manager 拆成调查、受限修复和独立验证，由 Investigator、Implementer、Verifier 通过结构化产物协作。Policy Broker 通过 MCP 对工具、路径、参数和时效进行最小权限控制，L2 高风险操作必须由 Human 审批；全过程生成可审计 Evidence。当前已在 AgentTeams v1.1.2 上完成三 Agent 协作、真实模型修复、独立隐藏测试验证、TUI、失败回滚与审批基础链路。项目计划以 Apache-2.0 开源，自研治理层与第三方工作流内容明确分界。
 
 ## 3. 一句话定位与价值
 
@@ -77,8 +77,8 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 ### 第 2 页：P0 一页总览
 
 - 痛点：第三方 Skill 来源不清、权限不可控、效果不可证、失败不可回退。
-- 方案：AgentTeams 三 Agent 协作 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
-- 主流程：Issue -> 调查 -> 受控修复 -> 独立验证 -> 审批/回滚 -> Evidence 报告。
+- 方案：AgentTeams Manager + 三业务 Agent 结构化交接 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
+- 主流程：Issue -> Manager 规划 -> Investigator 调查 -> Implementer 受控修复 -> Verifier 独立验证 -> 审批/回滚 -> Evidence 报告。
 - 已验证：AgentTeams v1.1.2、三业务 Agent、真实模型修复、StepFun 真实回滚、隐藏测试与 TUI。
 - 差异化：不是通用 Coding Agent，而是跨场景可复用的 Skill 治理控制面。
 
@@ -99,7 +99,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 ### 第 5 页：场景、痛点与目标用户
 
-- 场景：团队希望利用开源 Skill 自动处理软件缺陷，但不能直接信任或批量安装。
+- 场景：研发团队把一条带失败测试、日志、修改白名单和回滚要求的生产风格 Issue 交给 Manager，由三个不同职能 Agent 协作完成可验证修复。算法缺陷可以很小，但复现、权限、独立验收、审批和失败回滚必须同时成立。
 - 用户：研发负责人、Agent 平台工程师、安全/合规负责人。
 - 展示 4 个痛点和 3 类用户价值。
 - 明确边界：修复 Demo 是参考场景；AgentLoom 的产品本体是 SkillOps 治理。
@@ -135,11 +135,14 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 ### 第 9 页：Agent 角色与完整协作流
 
+- 顶部先画既有链路：`Human -> Manager -> Investigator -> Implementer -> Verifier`。
 - 左侧放三张角色卡：Investigator、Implementer、Verifier。
-- 中间放状态流：Received -> Investigating -> Implementing -> Verifying -> Completed。
+- 中间放状态流：Received -> Manager 规划 -> Investigating -> Implementing -> Verifying -> Completed。
 - 风险分支：Implementing -> Awaiting Approval -> Approved/Rejected。
 - 失败分支：Verifying -> Rolling Back -> Retry/Failed。
 - 强调 Manager 是 AgentTeams 编排资源，不计入三个业务 Agent。
+- 说明 `agentloom-investigator` 在 AgentTeams Team 资源中兼任 leader 以满足框架拓扑，但 Agent Identity 清单仍只有三个业务 Agent，不新增 TeamLeader 角色。
+- 加一句单模型对照：`单模型能生成补丁，但不能天然保证身份隔离、独立验收、L2 审批、失败回滚和 Evidence 链。`
 - 页面下方列出交接物：RootCauseReport、PatchArtifact、VerificationResult/RiskReport。
 
 ### 第 10 页：章节页 - Skill 工程

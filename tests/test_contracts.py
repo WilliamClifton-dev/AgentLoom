@@ -7,6 +7,8 @@ from agentloom.contracts import (
     AgentIdentity,
     ApprovalDecisionRequest,
     ApprovalRecord,
+    CoordinationEvent,
+    CoordinationTrace,
     EvidenceRecord,
     Finding,
     PatchArtifact,
@@ -20,6 +22,86 @@ from agentloom.contracts import (
     VerificationChecks,
     VerificationResult,
 )
+
+
+def make_coordination_trace() -> CoordinationTrace:
+    return CoordinationTrace(
+        task_id="task-01",
+        events=[
+            CoordinationEvent(
+                phase="MANAGER_DELEGATED",
+                agent_name="agentloom-manager",
+                matrix_user_id="@admin:example.test",
+                mentioned_agent="agentloom-investigator",
+                mentioned_user_id="@agentloom-investigator:example.test",
+                room_id="!manager:example.test",
+                event_id="$manager-delegated",
+                origin_server_timestamp=1_700_000_000_001,
+            ),
+            CoordinationEvent(
+                phase="IMPLEMENTER_ASSIGNED",
+                agent_name="agentloom-investigator",
+                matrix_user_id="@agentloom-investigator:example.test",
+                mentioned_agent="agentloom-implementer",
+                mentioned_user_id="@agentloom-implementer:example.test",
+                room_id="!repair:example.test",
+                event_id="$implementer-assigned",
+                origin_server_timestamp=1_700_000_000_003,
+            ),
+            CoordinationEvent(
+                phase="VERIFIER_ASSIGNED",
+                agent_name="agentloom-investigator",
+                matrix_user_id="@agentloom-investigator:example.test",
+                mentioned_agent="agentloom-verifier",
+                mentioned_user_id="@agentloom-verifier:example.test",
+                room_id="!repair:example.test",
+                event_id="$verifier-assigned",
+                origin_server_timestamp=1_700_000_000_005,
+            ),
+        ],
+    )
+
+
+def test_coordination_trace_binds_existing_agents_and_mentions() -> None:
+    trace = make_coordination_trace()
+
+    assert [event.phase for event in trace.events] == [
+        "MANAGER_DELEGATED",
+        "IMPLEMENTER_ASSIGNED",
+        "VERIFIER_ASSIGNED",
+    ]
+    assert trace.events[1].mentioned_agent == "agentloom-implementer"
+
+
+def test_coordination_trace_rejects_wrong_target_and_event_order() -> None:
+    valid = make_coordination_trace()
+
+    with pytest.raises(ValidationError, match="phase does not match"):
+        CoordinationTrace(
+            task_id="task-01",
+            events=[
+                valid.events[0],
+                valid.events[1].model_copy(
+                    update={
+                        "mentioned_agent": "agentloom-verifier",
+                        "mentioned_user_id": "@agentloom-verifier:example.test",
+                    }
+                ),
+                valid.events[2],
+            ],
+        )
+
+    with pytest.raises(ValidationError, match="strictly ordered"):
+        CoordinationTrace(
+            task_id="task-01",
+            events=[
+                valid.events[0],
+                valid.events[1].model_copy(
+                    update={"origin_server_timestamp": 1_700_000_000_006}
+                ),
+                valid.events[2],
+            ],
+        )
 
 
 def test_approval_record_binds_l2_request_to_parameters_and_rollback_plan() -> None:

@@ -210,6 +210,7 @@ async def test_tui_renders_bound_live_agentteams_evidence(tmp_path: Path) -> Non
         role_events=role_events,
         hidden_tests_passed=True,
         artifacts_dir=tmp_path / "verified" / "artifacts",
+        coordination_verified=True,
     )
     app = AgentLoomApp(service, live_summary=live_summary)
 
@@ -227,6 +228,7 @@ async def test_tui_renders_bound_live_agentteams_evidence(tmp_path: Path) -> Non
         artifact_text = str(app.query_one("#artifact-details", Static).render())
         assert "AL-LIVE-TUI-01" in artifact_text
         assert "Hidden tests: PASSED" in artifact_text
+        assert "Coordination: VERIFIED" in artifact_text
 
 
 @pytest.mark.asyncio

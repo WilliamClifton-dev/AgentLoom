@@ -629,6 +629,8 @@ class AgentLoomApp(App[None]):
                 f"Case: {summary.case_id}  |  Provider: {summary.provider}\n"
                 f"Model: {summary.model}\n"
                 f"Hidden tests: {'PASSED' if summary.hidden_tests_passed else 'FAILED'}\n"
+                "Coordination: "
+                f"{'VERIFIED' if summary.coordination_verified else 'LEGACY / NOT RECORDED'}\n"
                 f"Patch SHA-256: {summary.patch_sha256}\n"
                 f"Path: {self._display_path(summary.artifacts_dir)}"
             )

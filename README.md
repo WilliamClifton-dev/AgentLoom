@@ -25,7 +25,7 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 - Runtime: AgentTeams/HiClaw `v1.1.2`
 - Live repair model: `qwen3.7-plus` unattended repair independently verified
 - Live rollback model: `step-3.7-flash` through StepFun Step Plan
-- Message baseline: `deepseek-v4-flash` Manager + three-Worker messaging only
+- Message baseline: `deepseek-v4-flash` Manager + three role-owned Worker events
 - Language: Python 3.12
 - Initial storage: SQLite
 - Safety default: fail closed
@@ -36,8 +36,8 @@ from a GitHub-style issue and failing test to a verified patch and evidence repo
 flowchart LR
     Human["Human / Element"] --> Manager["AgentTeams Manager"]
     Manager --> Investigator["Investigator"]
-    Investigator --> Implementer["Implementer"]
-    Investigator --> Verifier["Verifier"]
+    Investigator -->|"role handoff"| Implementer["Implementer"]
+    Investigator -->|"role handoff"| Verifier["Verifier"]
     Investigator --> Broker["AgentLoom Policy Broker"]
     Implementer --> Broker
     Verifier --> Broker
@@ -48,6 +48,12 @@ flowchart LR
 
 Workers do not receive raw provider credentials. Tool calls require a signed,
 short-lived `SkillExecutionGrant`; L2/L3 operations require explicit approval.
+
+The demo is not "one model edits one line": a human gives a production-style
+issue with failing tests, a change allowlist, and rollback requirements to the
+Manager. The Manager plans the investigation, constrained implementation, and
+independent verification; the three existing Agents exchange role-owned
+artifacts in the AgentTeams Team Room. No extra business Agent is introduced.
 
 Full design: [AgentLoom architecture](docs/architecture/agentloom-architecture.md).
 
@@ -79,8 +85,10 @@ does not currently provide a standalone one-container distribution.
 - Internal API and stdio MCP boundaries for one-time Grant verification
 - SQLite persistence and reversible Alembic migration
 - Deterministic repair workflow with investigation, implementation, independent verification, approval, failure, and rollback states
-- Pinned AgentTeams `v1.1.2` Manager, Team Leader, two Workers, and Human resources
-- Strict Matrix E2E with role-owned markers from all four Agent identities
+- Pinned AgentTeams `v1.1.2` Manager resource, three business Agent identities,
+  and Human resource
+- Strict Matrix E2E with one Manager coordination event and three role-owned
+  business Agent events
 - Hash-verified AgentTeams global-to-team parent-task namespace bridge
 - Manifest-driven offline repair-artifact E2E with two independent failing cases,
   isolated hidden tests, patch-scope enforcement, and evidence

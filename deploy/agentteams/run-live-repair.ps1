@@ -89,6 +89,7 @@ function Test-ExactMarker {
         [Parameter(Mandatory)]$event,
         [Parameter(Mandatory)][string]$ExpectedSender,
         [Parameter(Mandatory)][string]$Marker,
+        [string]$ExpectedMentionUserId = "",
         [Parameter(Mandatory)][long]$StartedAtMilliseconds
     )
 
@@ -106,60 +107,75 @@ function Test-ExactMarker {
     }
     $lines = @(([string]$event.content.body) -split "`r?`n" |
         ForEach-Object { $_.Trim() })
-    return $lines -contains $Marker
+    if (-not ($lines -contains $Marker)) {
+        return $false
+    }
+    if (
+        -not [string]::IsNullOrWhiteSpace($ExpectedMentionUserId) -and
+        -not ($event.content."m.mentions".user_ids -contains $ExpectedMentionUserId)
+    ) {
+        return $false
+    }
+    return $true
 }
 
 function Find-StrictMarkers {
     param(
-        [Parameter(Mandatory)][string]$RoomId,
+        [Parameter(Mandatory)][string[]]$RoomIds,
         [Parameter(Mandatory)][object[]]$Requirements,
         [Parameter(Mandatory)][string]$AuthToken,
         [Parameter(Mandatory)][long]$StartedAtMilliseconds
     )
 
     $found = @{}
-    $roomSegment = [uri]::EscapeDataString($RoomId)
-    $from = ""
-    for ($page = 0; $page -lt 20; $page++) {
-        $path = "/_matrix/client/v3/rooms/$roomSegment/messages?dir=b&limit=100"
-        if (-not [string]::IsNullOrWhiteSpace($from)) {
-            $path += "&from=$([uri]::EscapeDataString($from))"
-        }
-        $feed = Invoke-Matrix -Method Get -Path $path `
-            -AuthToken $AuthToken -Body $null
-        $reachedStart = $false
-        foreach ($event in @($feed.chunk)) {
-            if (
-                $null -ne $event.origin_server_ts -and
-                $event.origin_server_ts -lt $StartedAtMilliseconds
-            ) {
-                $reachedStart = $true
+    foreach ($RoomId in $RoomIds) {
+        $roomSegment = [uri]::EscapeDataString($RoomId)
+        $from = ""
+        for ($page = 0; $page -lt 20; $page++) {
+            $path = "/_matrix/client/v3/rooms/$roomSegment/messages?dir=b&limit=100"
+            if (-not [string]::IsNullOrWhiteSpace($from)) {
+                $path += "&from=$([uri]::EscapeDataString($from))"
             }
-            foreach ($requirement in $Requirements) {
+            $feed = Invoke-Matrix -Method Get -Path $path `
+                -AuthToken $AuthToken -Body $null
+            $reachedStart = $false
+            foreach ($event in @($feed.chunk)) {
                 if (
-                    -not $found.ContainsKey($requirement.key) -and
-                    (Test-ExactMarker -event $event `
-                        -ExpectedSender $requirement.sender `
-                        -Marker $requirement.marker `
-                        -StartedAtMilliseconds $StartedAtMilliseconds)
+                    $null -ne $event.origin_server_ts -and
+                    $event.origin_server_ts -lt $StartedAtMilliseconds
                 ) {
-                    $found[$requirement.key] = [ordered]@{
-                        key = $requirement.key
-                        agentName = $requirement.agentName
-                        sender = $event.sender
-                        eventId = $event.event_id
-                        roomId = $RoomId
-                        originServerTimestamp = $event.origin_server_ts
+                    $reachedStart = $true
+                }
+                foreach ($requirement in $Requirements) {
+                    if (
+                        -not $found.ContainsKey($requirement.key) -and
+                        (Test-ExactMarker -event $event `
+                            -ExpectedSender $requirement.sender `
+                            -Marker $requirement.marker `
+                            -ExpectedMentionUserId $requirement.mentionedUserId `
+                            -StartedAtMilliseconds $StartedAtMilliseconds)
+                    ) {
+                        $found[$requirement.key] = [ordered]@{
+                            key = $requirement.key
+                            phase = $requirement.phase
+                            agentName = $requirement.agentName
+                            sender = $event.sender
+                            mentionedAgent = $requirement.mentionedAgent
+                            mentionedUserId = $requirement.mentionedUserId
+                            eventId = $event.event_id
+                            roomId = $RoomId
+                            originServerTimestamp = $event.origin_server_ts
+                        }
                     }
                 }
             }
-        }
-        if ($found.Count -eq $Requirements.Count -or $reachedStart) {
-            break
-        }
-        $from = [string]$feed.end
-        if ([string]::IsNullOrWhiteSpace($from)) {
-            break
+            if ($found.Count -eq $Requirements.Count -or $reachedStart) {
+                break
+            }
+            $from = [string]$feed.end
+            if ([string]::IsNullOrWhiteSpace($from)) {
+                break
+            }
         }
     }
     return $found
@@ -331,6 +347,36 @@ function Assert-TaskId {
     }
 }
 
+function New-CoordinationTrace {
+    param([Parameter(Mandatory)][hashtable]$Markers)
+
+    $events = @()
+    foreach ($key in @(
+        "manager-delegated",
+        "implementer-assigned",
+        "verifier-assigned"
+    )) {
+        if ($Markers.ContainsKey($key)) {
+            $marker = $Markers[$key]
+            $events += [ordered]@{
+                phase = $marker.phase
+                agentName = $marker.agentName
+                matrixUserId = $marker.sender
+                mentionedAgent = $marker.mentionedAgent
+                mentionedUserId = $marker.mentionedUserId
+                roomId = $marker.roomId
+                eventId = $marker.eventId
+                originServerTimestamp = $marker.originServerTimestamp
+            }
+        }
+    }
+    return [ordered]@{
+        schemaVersion = "agentloom.coordination-trace/v1alpha1"
+        taskId = $TaskId
+        events = $events
+    }
+}
+
 function Save-RunEvidence {
     param(
         [Parameter(Mandatory)][string]$Status,
@@ -379,8 +425,10 @@ function Save-RunEvidence {
             resultObjectsMustBeAllowlisted = $true
             inputObjectsRemainUnchanged = $true
             completionEventMustFollowArtifacts = $true
+            coordinationEventsMustMatchMentions = $true
         }
         inputObjects = $inputEvidence
+        coordinationTrace = New-CoordinationTrace -Markers $Markers
         roleEvents = $eventEvidence
         objects = $objectEvidence
         submissionSha256 = $SubmissionSha256
@@ -412,6 +460,11 @@ if ($null -in @($investigator, $implementer, $verifier)) {
 if ($team.phase -ne "Active" -or -not $team.leaderReady) {
     throw "AgentLoom Team is not ready"
 }
+$roomIds = @(
+    $manager.roomID,
+    $investigator.roomID,
+    $team.teamRoomID
+)
 
 $adminUser = (Invoke-Docker -Arguments @(
     "exec", $ManagerContainer, "printenv", "HICLAW_ADMIN_USER"
@@ -508,34 +561,65 @@ if ($initialInputObjects.Count -ne $expectedInitial.Count) {
 
 $requirements = @(
     [ordered]@{
+        key = "manager-delegated"
+        phase = "MANAGER_DELEGATED"
+        agentName = "agentloom-manager"
+        sender = $manager.matrixUserID
+        marker = "[$TaskId] MANAGER_DELEGATED"
+        mentionedAgent = "agentloom-investigator"
+        mentionedUserId = $investigator.matrixUserID
+    },
+    [ordered]@{
         key = "investigator"
         agentName = "agentloom-investigator"
         sender = $investigator.matrixUserID
         marker = "[$TaskId] ROOT_CAUSE_REPORT"
+        mentionedUserId = ""
+    },
+    [ordered]@{
+        key = "implementer-assigned"
+        phase = "IMPLEMENTER_ASSIGNED"
+        agentName = "agentloom-investigator"
+        sender = $investigator.matrixUserID
+        marker = "[$TaskId] IMPLEMENTER_ASSIGNED"
+        mentionedAgent = "agentloom-implementer"
+        mentionedUserId = $implementer.matrixUserID
     },
     [ordered]@{
         key = "implementer"
         agentName = "agentloom-implementer"
         sender = $implementer.matrixUserID
         marker = "[$TaskId] IMPLEMENTER_ARTIFACT_DONE"
+        mentionedUserId = ""
+    },
+    [ordered]@{
+        key = "verifier-assigned"
+        phase = "VERIFIER_ASSIGNED"
+        agentName = "agentloom-investigator"
+        sender = $investigator.matrixUserID
+        marker = "[$TaskId] VERIFIER_ASSIGNED"
+        mentionedAgent = "agentloom-verifier"
+        mentionedUserId = $verifier.matrixUserID
     },
     [ordered]@{
         key = "verifier"
         agentName = "agentloom-verifier"
         sender = $verifier.matrixUserID
         marker = "[$TaskId] VERIFIER_ARTIFACT_DONE"
+        mentionedUserId = ""
     }
 )
 
 $prompt = @"
-$($investigator.matrixUserID) [$TaskId] Run one real L1 repair using exactly the existing Team namespace path shared/tasks/$TaskId/. Do not create or use another task ID, taskflow subtask, global-shared path, shared/projects path, or any other shared/tasks directory.
+$($manager.matrixUserID) [$TaskId] Coordinate one real L1 repair through AgentTeams team $TeamName. Use exactly the existing Team namespace path shared/tasks/$TaskId/. Do not create or use another task ID, taskflow subtask, global-shared path, shared/projects path, or any other shared/tasks directory.
 
 The namespace contains only spec.md and base/. There is no expected/ directory and no hidden test directory. Never search for or create expected/ or hidden tests. Hidden tests will be injected later by the independent AgentLoom host verifier.
 
 Required collaboration:
-1. Investigator reads only spec.md and base/, reproduces the visible failure without modifying base/, writes shared/tasks/$TaskId/root-cause-report.json, then uses filesync push for exactly that one file. Never push the whole task directory. Only after the push succeeds, post an m.text message containing the exact standalone line [$TaskId] ROOT_CAUSE_REPORT.
-2. Investigator directly mentions agentloom-implementer in this Team Room and does not use filesync again. Implementer first pulls only the current task inputs, copies base/ to workspace/, changes only workspace/lib/pagination.py, runs `PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider -q`, creates a standard UTF-8 unified diff at shared/tasks/$TaskId/repair.patch with headers exactly --- a/lib/pagination.py and +++ b/lib/pagination.py, computes its SHA-256, writes shared/tasks/$TaskId/patch-artifact.json, then uses filesync push for exactly repair.patch and patch-artifact.json. Never push base/, workspace/, or the whole task directory. Only after both pushes succeed, post the exact standalone line [$TaskId] IMPLEMENTER_ARTIFACT_DONE from its own identity.
-3. After the Implementer completion event, Investigator directly mentions agentloom-verifier and does not push or pull any artifact. Verifier independently pulls only base/, repair.patch, and patch-artifact.json, copies base/ to verifier-workspace/, applies repair.patch, runs `PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider -q` and `python -m compileall -q lib tests`, checks that only lib/pagination.py changes, writes shared/tasks/$TaskId/verification-result.json and risk-report.json, then uses filesync push for exactly those two JSON files. Never push a workspace, cache, or whole task directory. Only after both pushes succeed, post the exact standalone line [$TaskId] VERIFIER_ARTIFACT_DONE from its own identity.
+1. Manager delegates only to $($investigator.matrixUserID). The Manager's own m.text event must contain the exact standalone line [$TaskId] MANAGER_DELEGATED and include $($investigator.matrixUserID) in m.mentions.
+2. Investigator reads only spec.md and base/, reproduces the visible failure without modifying base/, writes shared/tasks/$TaskId/root-cause-report.json, then uses filesync push for exactly that one file. Never push the whole task directory. Only after the push succeeds, post an m.text message containing the exact standalone line [$TaskId] ROOT_CAUSE_REPORT.
+3. Investigator sends a new m.text assignment containing the exact standalone line [$TaskId] IMPLEMENTER_ASSIGNED and $($implementer.matrixUserID) in m.mentions. Implementer first pulls only the current task inputs, copies base/ to workspace/, changes only workspace/lib/pagination.py, runs `PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider -q`, creates a standard UTF-8 unified diff at shared/tasks/$TaskId/repair.patch with headers exactly --- a/lib/pagination.py and +++ b/lib/pagination.py, computes its SHA-256, writes shared/tasks/$TaskId/patch-artifact.json, then uses filesync push for exactly repair.patch and patch-artifact.json. Never push base/, workspace/, or the whole task directory. Only after both pushes succeed, post the exact standalone line [$TaskId] IMPLEMENTER_ARTIFACT_DONE from its own identity.
+4. After the Implementer completion event, Investigator sends a new m.text assignment containing the exact standalone line [$TaskId] VERIFIER_ASSIGNED and $($verifier.matrixUserID) in m.mentions. Verifier independently pulls only base/, repair.patch, and patch-artifact.json, copies base/ to verifier-workspace/, applies repair.patch, runs `PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider -q` and `python -m compileall -q lib tests`, checks that only lib/pagination.py changes, writes shared/tasks/$TaskId/verification-result.json and risk-report.json, then uses filesync push for exactly those two JSON files. Never push a workspace, cache, or whole task directory. Only after both pushes succeed, post the exact standalone line [$TaskId] VERIFIER_ARTIFACT_DONE from its own identity.
 
 Use these exact JSON contracts and keep task ID $TaskId everywhere. Do not invent Matrix event IDs; AgentLoom binds actual event IDs during ingestion.
 root-cause-report.json: {"taskId":"$TaskId","summary":"non-empty","confidence":0.0,"evidenceRefs":["shared/tasks/$TaskId/spec.md"],"repairConstraints":["only lib/pagination.py may change"]}
@@ -548,14 +632,14 @@ Do not claim hidden-test success. Stop and report failure if any visible or stat
 
 $startedAtMilliseconds = $startedAt.ToUnixTimeMilliseconds()
 if (-not $Resume) {
-    Send-MatrixText -RoomId $team.teamRoomID -Text $prompt `
-        -MentionUserId $investigator.matrixUserID -AuthToken $authToken
+    Send-MatrixText -RoomId $manager.roomID -Text $prompt `
+        -MentionUserId $manager.matrixUserID -AuthToken $authToken
 }
 
 $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
 $markers = @{}
 while ([DateTimeOffset]::UtcNow -lt $deadline) {
-    $markers = Find-StrictMarkers -RoomId $team.teamRoomID `
+    $markers = Find-StrictMarkers -RoomIds $roomIds `
         -Requirements $requirements -AuthToken $authToken `
         -StartedAtMilliseconds $startedAtMilliseconds
     if ($markers.Count -eq $requirements.Count) {
@@ -727,6 +811,7 @@ $submission = [ordered]@{
     taskId = $TaskId
     provider = "dashscope"
     model = "qwen3.7-plus"
+    coordinationTrace = New-CoordinationTrace -Markers $markers
     roleEvents = @(
         [ordered]@{
             agentName = "agentloom-investigator"
