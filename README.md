@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/agentloom-logo.jpg" alt="AgentLoom - Multi-Agent Governance" width="360">
+</p>
+
 # AgentLoom
 
 [English](README.md) | [简体中文](README.zh-CN.md)

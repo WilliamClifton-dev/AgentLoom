@@ -1,5 +1,7 @@
 # AgentLoom 初赛录屏执行清单
 
+逐镜头口播内容见 [AgentLoom 初赛演示口播稿](demo-narration-script.zh-CN.md)。
+
 ## 目标
 
 用现有可验证证据说明 AgentLoom 不是“把问题丢给模型再搬运答案”，而是在

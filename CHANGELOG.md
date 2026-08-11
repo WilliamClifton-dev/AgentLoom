@@ -6,6 +6,10 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Project branding asset and a timed Chinese competition-demo narration script.
+
 ## [0.1.0-rc.1] - 2026-08-09
 
 ### Added
