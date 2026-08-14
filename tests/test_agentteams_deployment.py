@@ -72,6 +72,296 @@ def test_resources_do_not_embed_secrets() -> None:
     assert not any(term in resource_text for term in forbidden)
 
 
+def test_business_agents_only_receive_the_policy_broker_mcp() -> None:
+    manager = load_resource("manager.json")
+    team = load_resource("team.json")
+    expected = [
+        {
+            "name": "agentloom-policy-broker",
+            "url": (
+                "http://aigw-local.hiclaw.io:8080/mcp-servers/"
+                "mcp-agentloom-policy-broker"
+            ),
+            "transport": "http",
+        }
+    ]
+
+    assert "mcpServers" not in manager["spec"]
+    assert team["spec"]["leader"]["mcpServers"] == expected
+    for worker in team["spec"]["workers"]:
+        assert worker["mcpServers"] == expected
+
+
+def test_policy_broker_gateway_script_is_fail_closed_and_least_privilege() -> None:
+    wrapper = (DEPLOY / "configure-policy-broker-gateway.ps1").read_text(encoding="utf-8")
+    runtime = (DEPLOY / "configure-policy-broker-gateway.sh").read_text(encoding="utf-8")
+
+    assert 'ControllerContainer = "hiclaw-controller"' in wrapper
+    assert '"exec", "-i", $ControllerContainer, "bash", "-s"' in wrapper
+    assert '$runtime = $runtime.Replace("`r`n", "`n")' in wrapper
+    assert "RedirectStandardInput = $true" in wrapper
+    assert ".StandardInput.Write($StandardInput)" in wrapper
+    assert "version-lock.json" in wrapper
+    assert "ConvertFrom-Json" in wrapper
+    assert "initialPassword" not in wrapper
+    assert "Write-Output $signingKey" not in wrapper
+
+    assert 'MCP_SERVER_NAME="mcp-agentloom-policy-broker"' in runtime
+    assert 'MCP_URL="http://host.docker.internal:8765/mcp"' in runtime
+    assert (
+        'GATEWAY_URL="http://aigw-local.hiclaw.io:8080/mcp-servers/'
+        '${MCP_SERVER_NAME}"'
+    ) in runtime
+    assert 'type: "DIRECT_ROUTE"' in runtime
+    assert "directRouteConfig" in runtime
+    assert 'path: "/mcp"' in runtime
+    assert 'transportType: "streamable"' in runtime
+    assert "type: mcp-proxy" not in runtime
+    assert 'type: "key-auth"' in runtime
+    assert "allowedConsumers: []" in runtime
+    assert '"worker-agentloom-investigator"' in runtime
+    assert '"worker-agentloom-implementer"' in runtime
+    assert '"worker-agentloom-verifier"' in runtime
+    assert '"manager"' not in runtime
+    assert "/v1/consumers/${consumer}" in runtime
+    assert "Expected Higress consumer is unavailable" in runtime
+    assert "/v1/mcpServer/consumers" in runtime
+    assert "api_write DELETE" in runtime
+    assert "current_consumer_body" in runtime
+    assert "CONSUMER_MAX_ATTEMPTS=10" in runtime
+    assert "sleep 2" in runtime
+    assert "consumer_allowlist_matches" in runtime
+    assert "== ($expected | sort)" in runtime
+    assert "quiet_rejection" in runtime
+    assert "route_result" in runtime
+    assert "upstreamHost" in runtime
+    assert 'test "${upstream_host}" = "host.docker.internal"' in runtime
+    assert "route resolved to an unexpected upstream host" in runtime
+    assert "HICLAW_ADMIN_PASSWORD" in runtime
+    assert "set -euo pipefail" in runtime
+    assert 'GetEnvironmentVariable("AGENTLOOM_GATEWAY_ASSERTION", "Process")' in wrapper
+    assert "X-AgentLoom-Gateway-Assertion" in runtime
+    assert 'KUBE_API="https://localhost:18443"' in runtime
+    assert 'KUBE_NAMESPACE="higress-system"' in runtime
+    assert '"Content-Type: application/json"' in runtime
+    assert '--request PUT' in runtime
+    assert 'current_ingress="$(curl --insecure' in runtime
+    assert 'persisted_ingress="$(curl --insecure' in runtime
+    assert ".metadata.annotations" in runtime
+    assert "higress.io/enable-header-control" in runtime
+    assert "higress.io/request-header-control-update" in runtime
+    assert "env.ASSERTION_HEADER" in runtime
+    assert "--data-binary @-" in runtime
+    assert '--output /dev/null' in runtime
+    assert '--arg assertionHeader' not in runtime
+    assert 'api_write PUT "/v1/routes/' not in runtime
+    assert "gatewayAssertionConfigured" in runtime
+    assert "gatewayAssertion:" not in runtime
+
+
+def test_policy_broker_start_script_uses_process_environment_without_printing_key() -> None:
+    script = (DEPLOY / "start-policy-broker.ps1").read_text(encoding="utf-8")
+
+    assert '[Parameter(Mandatory)][string]$SandboxImage' in script
+    assert 'ValidatePattern("^(?:sha256:[a-f0-9]{64}|' in script
+    assert 'deploy\\sandbox\\fixtures\\passing-workspace' in script
+    assert '[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64})$")' in script
+    assert "docker image inspect $SandboxImage" in script
+    assert 'AGENTLOOM_SANDBOX_BACKEND = "docker"' in script
+    assert "AGENTLOOM_SANDBOX_IMAGE = $SandboxImage" in script
+    assert 'Remove-Item Env:AGENTLOOM_ALLOW_HOST_TEST_EXECUTION' in script
+    assert "AGENTLOOM_ALLOW_HOST_TEST_EXECUTION =" not in script
+    assert 'GetEnvironmentVariable("AGENTLOOM_POLICY_SIGNING_KEY", "Process")' in script
+    assert "Test-Path -LiteralPath $resolvedWorkspace -PathType Container" in script
+    assert "Test-Path -LiteralPath $venvPython -PathType Leaf" in script
+    assert 'AGENTLOOM_TOOL_WORKSPACE = $resolvedWorkspace' in script
+    assert 'AGENTLOOM_TOOL_EVIDENCE_ROOT = $resolvedEvidenceRoot' in script
+    assert 'AGENTLOOM_DATABASE_URL = "sqlite:///$databaseUrlPath"' in script
+    assert 'AGENTLOOM_MCP_TRANSPORT = "streamable-http"' in script
+    assert 'AGENTLOOM_MCP_HOST = "0.0.0.0"' in script
+    assert "AGENTLOOM_MCP_PORT = [string]$Port" in script
+    assert 'AGENTLOOM_MCP_PUBLIC_HOST = "host.docker.internal"' in script
+    assert 'GetEnvironmentVariable("AGENTLOOM_GATEWAY_ASSERTION", "Process")' in script
+    assert 'AGENTLOOM_GATEWAY_ASSERTION = $gatewayAssertion' in script
+    assert '"-m", "agentloom.policy_mcp"' in script
+    assert "AGENTLOOM_POLICY_SIGNING_KEY =" not in script
+    assert "Write-Output $signingKey" not in script
+    assert "Write-Host $signingKey" not in script
+    assert "Write-Output $gatewayAssertion" not in script
+    assert "Write-Host $gatewayAssertion" not in script
+
+
+def test_sandbox_runner_image_is_pinned_and_hash_locked() -> None:
+    sandbox = DEPLOY.parent / "sandbox"
+    dockerfile = (sandbox / "Dockerfile").read_text(encoding="utf-8")
+    requirements = (sandbox / "requirements.lock").read_text(encoding="utf-8")
+    build = (sandbox / "build-runner.ps1").read_text(encoding="utf-8")
+
+    assert (
+        "FROM python@sha256:"
+        "dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65"
+    ) in dockerfile
+    assert "python -m pip install --no-cache-dir --require-hashes" in dockerfile
+    assert "--only-binary=:all:" in requirements
+    assert "pytest==9.1.1" in requirements
+    for digest in (
+        "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+        "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+        "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+        "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+        "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    ):
+        assert f"--hash=sha256:{digest}" in requirements
+    assert "docker build --pull=false" in build
+    assert "docker image inspect $Tag" in build
+    assert '"^sha256:[a-f0-9]{64}$"' in build
+
+
+def test_sandbox_e2e_runner_uses_production_broker_and_redacts_secrets() -> None:
+    script = (DEPLOY / "run-sandbox-e2e.ps1").read_text(encoding="utf-8")
+
+    assert '[Parameter(Mandatory)][string]$SandboxImage' in script
+    assert 'ValidatePattern("^(?:sha256:[a-f0-9]{64}|' in script
+    assert '"agentloom.sandbox_e2e", "prepare"' in script
+    assert '"agentloom.sandbox_e2e", "verify"' in script
+    assert '"-SandboxImage", $SandboxImage' in script
+    assert 'RandomNumberGenerator]::GetBytes(32)' in script
+    assert '"AGENTLOOM_POLICY_SIGNING_KEY"' in script
+    assert '"AGENTLOOM_GATEWAY_ASSERTION"' in script
+    assert 'SetEnvironmentVariable($name, $null, "Process")' in script
+    assert 'hiclaw-worker-agentloom-implementer' in script
+    assert 'hiclaw-worker-agentloom-verifier' in script
+    assert 'issue_skill_execution_grant' in script
+    assert 'execute_governed_tool' in script
+    assert 'nonce has already been used' in script
+    assert "Write-Output $signingKey" not in script
+    assert "Write-Host $signingKey" not in script
+    assert "Write-Output $gatewayAssertion" not in script
+    assert "Write-Host $gatewayAssertion" not in script
+
+
+def test_sandbox_e2e_runner_isolates_artifacts_by_task_namespace() -> None:
+    script = (DEPLOY / "run-sandbox-e2e.ps1").read_text(encoding="utf-8")
+
+    assert '[ValidatePattern("^task[0-9]+$")]' in script
+    assert '[string]$RunNamespace = "task16"' in script
+    assert '"$RunNamespace-" + [DateTimeOffset]::UtcNow' in script
+    assert '"artifacts\\policy-broker\\$RunNamespace\\$runId"' in script
+
+
+def test_sandbox_model_e2e_runner_binds_minimax_marker_to_tool_evidence() -> None:
+    script = (DEPLOY / "run-sandbox-model-e2e.ps1").read_text(encoding="utf-8")
+
+    assert '[Parameter(Mandatory)][string]$RunRoot' in script
+    assert 'configure-minimax-provider.ps1' in script
+    assert '"MiniMax-M2.5"' in script
+    assert 'hiclaw-worker-agentloom-investigator' in script
+    assert 'hiclaw-worker-agentloom-verifier' in script
+    assert 'issue_skill_execution_grant' in script
+    assert 'execute_governed_tool' in script
+    assert "administrator E2E probe" in script
+    assert "Send-MatrixText -RoomId $verifier.roomID" in script
+    assert "-MentionUserId $verifier.matrixUserID" in script
+    assert "-RoomIds @($verifier.roomID)" in script
+    assert "Delegate exactly one governed sandbox verification" not in script
+    assert "$modelTask.successMarker" in script
+    assert 'event.sender -ne $Verifier.matrixUserID' in script
+    assert 'event.origin_server_ts -lt $StartedAtMilliseconds' in script
+    assert '"agentloom.sandbox_e2e", "verify"' in script
+    assert '"--task", "model"' in script
+    assert "QWEN_API_KEY" not in script
+    assert "DEEPSEEK_API_KEY" not in script
+    assert "STEPFUN_API_KEY" not in script
+    assert "AGENTLOOM_POLICY_SIGNING_KEY" not in script
+    assert "AGENTLOOM_GATEWAY_ASSERTION" not in script
+    assert '"signedGrant"' in script
+    assert "$signedGrant" not in script
+    assert "signedGrant =" not in script
+
+
+def test_sandbox_model_e2e_runner_supports_strict_investigator_delegation() -> None:
+    script = (DEPLOY / "run-sandbox-model-e2e.ps1").read_text(encoding="utf-8")
+
+    assert '[ValidateSet("direct", "delegated")]' in script
+    assert '[string]$DispatchMode = "direct"' in script
+    assert '[string]$RunNamespace = "task16"' in script
+    assert 'if ($DispatchMode -eq "delegated")' in script
+    assert 'Send-MatrixText -RoomId $manager.roomID' in script
+    assert '-MentionUserId $manager.matrixUserID' in script
+    assert 'MANAGER_DELEGATED' in script
+    assert '-ExpectedSender $manager.matrixUserID' in script
+    assert '-ExpectedMentionUserId $investigator.matrixUserID' in script
+    assert '-RoomIds @($investigator.roomID)' in script
+    assert '$managerDelegationEvent.originServerTimestamp' in script
+    assert '@($ManagerContainer, $investigatorContainer, $verifierContainer)' in script
+    assert '$taskEnvelopeEvent = Send-MatrixText -RoomId $investigator.roomID' in script
+    assert '-MentionUserId ""' in script
+    assert 'MANAGER_DELEGATED $($taskEnvelopeEvent.eventId)' in script
+    assert 'Use the shell tool exactly once to run this exact CoPaw dispatch command:' in script
+    assert 'copaw channels send' in script
+    assert '--target-session "$($investigator.roomID)"' in script
+    assert '--target-user "$($investigator.matrixUserID)"' in script
+    assert '$managerDispatchBody = @"' in script
+    assert '$managerDispatchBodyBase64 = [Convert]::ToBase64String(' in script
+    assert "base64 -d" in script
+    assert '$investigatorDispatchBodyBase64 = [Convert]::ToBase64String(' in script
+    assert '$investigatorDispatchCommand = @"' in script
+    assert '--target-session "$($team.teamRoomID)"' in script
+    assert '--target-user "$($verifier.matrixUserID)"' in script
+    assert script.count('copaw channels send') >= 2
+    assert 'Use the shell tool exactly once to run this exact CoPaw dispatch command:' in script
+    assert 'Execute the referenced TASK_ENVELOPE now.' in script
+    assert "The exact Investigator dispatch command is:\n$investigatorDispatchCommand" in script
+    assert 'Do not reply in this Leader Room.' in script
+    assert '-RequiredText $taskEnvelopeEvent.eventId' in script
+    assert '$redactedEvidence["taskEnvelope"]' in script
+    assert 'VERIFIER_DELEGATED' in script
+    assert '-ExpectedSender $investigator.matrixUserID' in script
+    assert '-ExpectedMentionUserId $verifier.matrixUserID' in script
+    assert '-RoomIds @($team.teamRoomID)' in script
+    assert '-StartedAtMilliseconds $delegationEvent.originServerTimestamp' in script
+    assert 'agentloom.agentteams-sandbox-delegation-e2e/v1alpha1' in script
+
+
+def test_delegated_model_e2e_timeout_writes_redacted_stage_evidence() -> None:
+    script = (DEPLOY / "run-sandbox-model-e2e.ps1").read_text(encoding="utf-8")
+
+    assert '"delegation-timeout-evidence.json"' in script
+    assert 'agentloom.agentteams-sandbox-delegation-timeout/v1alpha1' in script
+    assert 'taskEnvelopeStaged = $null -ne $taskEnvelopeEvent' in script
+    assert 'managerDelegationObserved = $null -ne $managerDelegationEvent' in script
+    assert 'investigatorDelegationObserved = $null -ne $delegationEvent' in script
+    assert 'verifierMarkerObserved = $null -ne $markerEvent' in script
+    assert 'managerDelegation = $managerDelegationEvent' in script
+    assert 'delegation = $delegationEvent' in script
+
+
+def test_minimax_provider_script_is_bounded_and_redacts_credentials() -> None:
+    script = (DEPLOY / "configure-minimax-provider.ps1").read_text(encoding="utf-8")
+
+    assert 'ApiKeyEnvironmentVariable = "MINIMAX_API_KEY"' in script
+    assert '$ProviderId = "minimax-cn"' in script
+    assert '$ProviderName = "MiniMax China"' in script
+    assert '[string]$Model = "MiniMax-M2.5"' in script
+    assert '$BaseUrl = "https://api.minimaxi.com/v1"' in script
+    assert "https://api.minimax.io" not in script
+    assert "[string]$ApiKeyEnvironmentVariable" not in script
+    assert "[string]$BaseUrl" not in script
+    assert "Wait-CoPawApiReady" in script
+    assert '$portBindings = & docker port $Container "$containerPort/tcp" 2>&1' in script
+    assert '$dockerExitCode = $LASTEXITCODE' in script
+    assert '$binding = $portBindings | Select-Object -First 1' in script
+    assert "/api/models/custom-providers" in script
+    assert "/api/models/$ProviderId/config" in script
+    assert "/api/models/$ProviderId/models/test" in script
+    assert "hiclaw-manager" in script
+    assert "hiclaw-worker-agentloom-investigator" in script
+    assert "hiclaw-worker-agentloom-implementer" in script
+    assert "hiclaw-worker-agentloom-verifier" in script
+    assert "apiKey" not in script
+    assert "sk-" not in script
+
+
 def test_deployment_script_fails_closed_and_redacts_human_password() -> None:
     script = (DEPLOY / "deploy.ps1").read_text(encoding="utf-8")
 

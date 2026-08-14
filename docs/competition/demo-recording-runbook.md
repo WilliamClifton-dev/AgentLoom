@@ -18,22 +18,21 @@ AgentTeams v1.1.2 上完成多角色运行、缺陷发现、证据核对、人�
 4. 浏览器只保留 `agentloom-repair` Team Room 和上游 PR #1141 页面。
 5. 终端进入 AgentLoom 仓库根目录，使用公开输出模式。
 
-先执行只读检查：
+先执行不调用模型的只读检查：
 
 ```powershell
-.\scripts\competition-rollback-demo.ps1 `
-  -Mode replay `
-  -NoTui `
-  -PublicOutput
+docker ps --format "table {{.Names}}\t{{.Status}}"
+.\.venv\Scripts\python -m pytest
 ```
 
 预期结果：
 
 - AgentTeams `v1.1.2` 健康状态为 `PASS`。
 - Manager、Team、3 个 Worker 和 Human 均可用。
-- 回滚摘要状态为 `PASS`，`roleEventCount` 为 `4`。
-- provider/model 为 `stepfun` / `step-3.7-flash`。
-- `artifactsDirectory` 显示 `<redacted>`，不出现本机绝对路径。
+- 本地门禁为 `283 passed / 3 skipped`。
+- Task 17 脱敏摘要中的 provider/model 为 `minimax-cn` / `MiniMax-M2.5`。
+- Task 17 数据库结果为且仅为一个 `SUCCEEDED` ToolCall。
+- 不打开 Matrix 正文、Worker 原始日志、凭据、Signed Grant 或本机绝对路径。
 
 ## 建议镜头顺序
 
@@ -48,33 +47,27 @@ AgentTeams v1.1.2 上完成多角色运行、缺陷发现、证据核对、人�
 
 ### 2. AgentTeams 多角色交互
 
-在 Element 的 `agentloom-repair` Team Room 展示四个按时间递增的回滚事件：
+在 Element 中按时间顺序展示 Task 17 的真实委派标记：
 
-1. Verifier：`VERIFICATION_FAILED`
-2. Manager：`ROLLBACK_REQUESTED`
-3. Implementer：`ROLLBACK_EXECUTED`
-4. Verifier：`ROLLBACK_VERIFIED`
+1. Administrator：未提及 Worker 的任务信封。
+2. Manager：Investigator 所有 Leader Room 中的精确绑定标记。
+3. Investigator：Team Room 中提及 Verifier 的明确委派。
+4. Verifier：同一 Team Room 中稍后出现的 PASS 标记。
 
 长消息不必塞进同一个画面。使用两个连续镜头：先展示发送者和事件开头，再向下
 滚动展示绑定哈希或完成标记；不要为了单张截图牺牲可读性。
 
-### 3. 公开安全回放
+### 3. 脱敏治理证据
 
-执行：
-
-```powershell
-.\scripts\competition-rollback-demo.ps1 -Mode replay -PublicOutput
-```
-
-先展示终端中的健康检查和 `PASS` 摘要，再进入 TUI 展示：
+展示预先核验的 Task 17 脱敏摘要和 TUI 状态：
 
 - Manager 健康状态。
-- 四个角色事件及顺序。
-- StepFun 模型标识。
-- 失败补丁、失败快照、批准快照的 SHA-256。
-- `Path: <redacted>`。
+- Manager、Investigator、Verifier 的委派阶段与事件元数据。
+- MiniMax Provider/模型标识。
+- Higress、Policy Broker、Docker 沙箱和唯一成功 ToolCall。
+- 镜像、工作区和 Evidence 的 SHA-256。
 
-这是免费回放，只重新校验证据，不请求模型生成新答案。
+这是既有真实运行的脱敏证据展示，不请求模型生成新答案。
 
 ### 4. 真人 L2 审批
 
@@ -83,7 +76,7 @@ AgentTeams v1.1.2 上完成多角色运行、缺陷发现、证据核对、人�
 1. Manager 发出的 `github-pr-v1` L2 请求，包含参数摘要和回滚计划绑定。
 2. `agentloom-developer` 独立身份发出的明确批准，以及最终 `APPROVED` 结果。
 
-不需要重新创建审批。使用已验证运行
+不需要重新创建审批。该部分使用 2026-08-05 已验证的历史运行
 `competition-l2-stepfun-20260805-09`，并以
 [脱敏摘要](l2-approval-and-upstream-contribution-evidence.md)说明采集器验证了
 发送者、时间顺序、route、参数摘要和回滚计划哈希。
@@ -93,15 +86,16 @@ AgentTeams v1.1.2 上完成多角色运行、缺陷发现、证据核对、人�
 展示 GitHub Actions 和
 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)：
 
-- AgentLoom 本地质量门禁为 175 项 pytest、Ruff、strict mypy。
+- AgentLoom 本地质量门禁为 283 项 pytest 通过、3 项显式启用的 Docker live tests 默认跳过、Ruff 和 strict mypy 通过。
 - PR 修复 AgentTeams 更新 Team 时未持久化 `humanMembers` 的缺陷。
 - PR 状态只说“已提交、等待维护者审核”，不要说已经合并。
 
 ### 6. 收束
 
 回到主流程总结：Issue -> 调查 -> 受控修复 -> 独立验证 -> 审批/回滚 ->
-Evidence。明确当前边界：尚未把 AgentLoom 自动修复结果写入真实业务仓库，五个
-上游 Skill 仍处于 `QUARANTINED`，最终录屏与提交包仍在制作。
+Evidence。明确当前边界：尚未把 AgentLoom 自动修复结果写入真实业务仓库；
+`code-review-and-quality` 已有匹配 Eval 并为 `PUBLISHED`，其余四个上游 Skill
+仍为 `QUARANTINED`；提交包已生成，最终录屏、上传和页面提交仍待 Human 完成。
 
 ## 禁止出现在画面中的信息
 
@@ -114,6 +108,6 @@ Evidence。明确当前边界：尚未把 AgentLoom 自动修复结果写入真�
 
 - 从头播放一次，确认文字可读、没有通知弹窗和凭据闪现。
 - 暂停检查所有终端画面，不应出现盘符加个人目录。
-- 核对 `PASS`、`APPROVED`、四个角色发送者和 PR `Open` 状态均可见。
+- 核对委派链路、唯一成功 ToolCall、`APPROVED` 和 PR `Open` 状态均可见。
 - 视频上传后使用无痕窗口验证公开链接，无需登录即可播放。
 - 提交页面不要填写 `localhost`、本机文件路径或仅自己可访问的云盘链接。

@@ -1,5 +1,6 @@
 """SQLite-backed metadata storage for the initial single-node deployment."""
 
+import hashlib
 from datetime import UTC, datetime
 from math import ceil
 from typing import Any, cast
@@ -19,9 +20,12 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from agentloom.contracts import (
+    TASK_EVENT_SCHEMA_VERSION,
+    TASK_EVENT_TYPE,
     ApprovalCreate,
     ApprovalDecisionRequest,
     ApprovalRecord,
@@ -34,6 +38,7 @@ from agentloom.contracts import (
     TaskRecord,
     TaskStatus,
     TaskTransition,
+    ToolCallEventRecord,
 )
 
 VALID_TASK_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
@@ -73,6 +78,10 @@ class InvalidStateTransition(Exception):
         super().__init__(f"cannot transition from {current_status} to {requested_status}")
 
 
+class TaskEventIntegrityError(Exception):
+    """Raised when a persisted TaskEvent payload no longer matches its digest."""
+
+
 class ApprovalVersionConflict(Exception):
     """Raised when an approval decision does not match the current version."""
 
@@ -109,7 +118,46 @@ class TaskEventRow(Base):
     to_status: Mapped[str] = mapped_column(String(32))
     plan_version: Mapped[int] = mapped_column(Integer)
     reason: Mapped[str] = mapped_column(Text)
+    schema_version: Mapped[str] = mapped_column(
+        String(64), default=TASK_EVENT_SCHEMA_VERSION
+    )
+    event_type: Mapped[str] = mapped_column(String(64), default=TASK_EVENT_TYPE)
+    actor: Mapped[str] = mapped_column(String(128), default="agentloom-workflow")
+    causation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(64))
+    payload_digest: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ToolCallRow(Base):
+    __tablename__ = "tool_calls"
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.task_id"), index=True)
+    step_id: Mapped[str] = mapped_column(String(64))
+    schema_version: Mapped[str] = mapped_column(String(64))
+    event_type: Mapped[str] = mapped_column(String(64))
+    actor: Mapped[str] = mapped_column(String(128))
+    provider_id: Mapped[str] = mapped_column(String(128))
+    grant_id: Mapped[str] = mapped_column(String(64))
+    tool_name: Mapped[str] = mapped_column(String(128))
+    action: Mapped[str] = mapped_column(String(200))
+    parameter_digest: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16))
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON)
+    output_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    causation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(64))
+    payload_digest: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ConsumedGrantNonceRow(Base):
+    __tablename__ = "consumed_grant_nonces"
+
+    nonce_digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    consumed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ApprovalRow(Base):
@@ -210,15 +258,40 @@ class Database:
                 session.expire_all()
                 current = session.get(TaskRow, task_id)
                 raise VersionConflict(current.plan_version if current else 0)
+            previous_event = session.scalars(
+                select(TaskEventRow)
+                .where(TaskEventRow.task_id == task_id)
+                .order_by(TaskEventRow.plan_version.desc())
+                .limit(1)
+            ).first()
+            event_id = f"event-{uuid4().hex}"
+            created_at = datetime.now(UTC)
+            event = TaskEventRecord.from_transition(
+                event_id=event_id,
+                task_id=task_id,
+                from_status=current_status,
+                to_status=transition.status,
+                plan_version=transition.expected_plan_version + 1,
+                reason=transition.reason,
+                actor="agentloom-workflow",
+                causation_id=previous_event.event_id if previous_event else None,
+                created_at=created_at,
+            )
             session.add(
                 TaskEventRow(
-                    event_id=f"event-{uuid4().hex}",
+                    event_id=event.event_id,
                     task_id=task_id,
-                    from_status=current_status,
-                    to_status=transition.status,
-                    plan_version=transition.expected_plan_version + 1,
-                    reason=transition.reason,
-                    created_at=datetime.now(UTC),
+                    from_status=event.from_status,
+                    to_status=event.to_status,
+                    plan_version=event.plan_version,
+                    reason=event.reason,
+                    schema_version=event.schema_version,
+                    event_type=event.event_type,
+                    actor=event.actor,
+                    causation_id=event.causation_id,
+                    correlation_id=event.correlation_id,
+                    payload_digest=event.payload_digest,
+                    created_at=event.created_at,
                 )
             )
             session.expire_all()
@@ -235,6 +308,63 @@ class Database:
                 .order_by(TaskEventRow.plan_version)
             ).all()
         return [self._to_event_record(row) for row in rows]
+
+    def record_tool_call(self, event: ToolCallEventRecord) -> ToolCallEventRecord:
+        if not event.has_valid_payload_digest():
+            raise TaskEventIntegrityError("tool call payload digest is invalid")
+        with self._sessions.begin() as session:
+            session.add(
+                ToolCallRow(
+                    event_id=event.event_id,
+                    task_id=event.task_id,
+                    step_id=event.step_id,
+                    schema_version=event.schema_version,
+                    event_type=event.event_type,
+                    actor=event.actor,
+                    provider_id=event.provider_id,
+                    grant_id=event.grant_id,
+                    tool_name=event.tool_name,
+                    action=event.action,
+                    parameter_digest=event.parameter_digest,
+                    status=event.status,
+                    evidence_refs=event.evidence_refs,
+                    output_digest=event.output_digest,
+                    error_code=event.error_code,
+                    causation_id=event.causation_id,
+                    correlation_id=event.correlation_id,
+                    payload_digest=event.payload_digest,
+                    created_at=event.created_at,
+                )
+            )
+        return event
+
+    def list_tool_calls(self, task_id: str) -> list[ToolCallEventRecord]:
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(ToolCallRow)
+                .where(ToolCallRow.task_id == task_id)
+                .order_by(ToolCallRow.created_at, ToolCallRow.event_id)
+            ).all()
+        events = [self._to_tool_call_event(row) for row in rows]
+        for event in events:
+            if not event.has_valid_payload_digest():
+                raise TaskEventIntegrityError("tool call payload digest is invalid")
+        return events
+
+    def consume_grant_nonce(self, nonce_digest: str, consumed_at: datetime) -> bool:
+        """Atomically persist a nonce digest and reject duplicate consumption."""
+
+        try:
+            with self._sessions.begin() as session:
+                session.add(
+                    ConsumedGrantNonceRow(
+                        nonce_digest=nonce_digest,
+                        consumed_at=consumed_at,
+                    )
+                )
+        except IntegrityError:
+            return False
+        return True
 
     def create_approval(self, request: ApprovalCreate) -> ApprovalRecord:
         now = datetime.now(UTC)
@@ -342,13 +472,51 @@ class Database:
         created_at = row.created_at
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
-        return TaskEventRecord(
+        event = TaskEventRecord(
+            schema_version=row.schema_version,
+            event_type=row.event_type,
             event_id=row.event_id,
             task_id=row.task_id,
             from_status=cast(TaskStatus, row.from_status),
             to_status=cast(TaskStatus, row.to_status),
             plan_version=row.plan_version,
             reason=row.reason,
+            actor=row.actor,
+            causation_id=row.causation_id,
+            correlation_id=row.correlation_id,
+            payload_digest=row.payload_digest,
+            created_at=created_at,
+        )
+        if not event.has_valid_payload_digest():
+            raise TaskEventIntegrityError(
+                f"task event payload digest is invalid: {event.event_id}"
+            )
+        return event
+
+    @staticmethod
+    def _to_tool_call_event(row: ToolCallRow) -> ToolCallEventRecord:
+        created_at = row.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        return ToolCallEventRecord(
+            event_id=row.event_id,
+            task_id=row.task_id,
+            step_id=row.step_id,
+            schema_version=row.schema_version,
+            event_type=row.event_type,
+            actor=row.actor,
+            provider_id=row.provider_id,
+            grant_id=row.grant_id,
+            tool_name=row.tool_name,
+            action=row.action,
+            parameter_digest=row.parameter_digest,
+            status=row.status,
+            evidence_refs=row.evidence_refs,
+            output_digest=row.output_digest,
+            error_code=row.error_code,
+            causation_id=row.causation_id,
+            correlation_id=row.correlation_id,
+            payload_digest=row.payload_digest,
             created_at=created_at,
         )
 
@@ -372,6 +540,17 @@ class Database:
             decision_reason=row.decision_reason,
             decided_at=_as_utc(row.decided_at) if row.decided_at else None,
         )
+
+
+class DatabaseNonceStore:
+    """Replay guard shared by every Broker using the same database."""
+
+    def __init__(self, database: Database) -> None:
+        self._database = database
+
+    def consume(self, nonce: str) -> bool:
+        nonce_digest = hashlib.sha256(nonce.encode("utf-8")).hexdigest()
+        return self._database.consume_grant_nonce(nonce_digest, datetime.now(UTC))
 
 
 def _as_utc(value: datetime) -> datetime:

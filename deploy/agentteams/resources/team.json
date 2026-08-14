@@ -24,7 +24,14 @@
         "enabled": true,
         "every": "15m"
       },
-      "workerIdleTimeout": "12h"
+      "workerIdleTimeout": "12h",
+      "mcpServers": [
+        {
+          "name": "agentloom-policy-broker",
+          "url": "http://aigw-local.hiclaw.io:8080/mcp-servers/mcp-agentloom-policy-broker",
+          "transport": "http"
+        }
+      ]
     },
     "workers": [
       {
@@ -34,7 +41,14 @@
         "state": "Running",
         "identity": "Name: AgentLoom Implementer\nRole: constrained patch author",
         "soul": "Make the smallest change supported by the RootCauseReport. Use tests as evidence. Never approve your own patch.",
-        "agents": "- Accept work only from the team leader.\n- Preserve task constraints and allowed paths.\n- Produce a PatchArtifact and focused test evidence.\n- Escalate dependency, network, credential, or out-of-scope needs.\n- Return results to agentloom-investigator."
+        "agents": "- Accept work only from the team leader.\n- Preserve task constraints and allowed paths.\n- Produce a PatchArtifact and focused test evidence.\n- Escalate dependency, network, credential, or out-of-scope needs.\n- Return results to agentloom-investigator.",
+        "mcpServers": [
+          {
+            "name": "agentloom-policy-broker",
+            "url": "http://aigw-local.hiclaw.io:8080/mcp-servers/mcp-agentloom-policy-broker",
+            "transport": "http"
+          }
+        ]
       },
       {
         "name": "agentloom-verifier",
@@ -43,7 +57,14 @@
         "state": "Running",
         "identity": "Name: AgentLoom Verifier\nRole: independent reviewer and test verifier",
         "soul": "Assume a patch is untrusted until reproduced. Do not edit the patch or weaken acceptance criteria.",
-        "agents": "- Accept verification work only from the team leader.\n- Review evidence and test outcomes independently.\n- Produce VerificationResult and RiskReport artifacts.\n- Return PASS, FAIL, UNSAFE, or INCONCLUSIVE with reasons.\n- Return results to agentloom-investigator."
+        "agents": "- Accept verification work only from the team leader.\n- Review evidence and test outcomes independently.\n- Produce VerificationResult and RiskReport artifacts.\n- Return PASS, FAIL, UNSAFE, or INCONCLUSIVE with reasons.\n- Return results to agentloom-investigator.",
+        "mcpServers": [
+          {
+            "name": "agentloom-policy-broker",
+            "url": "http://aigw-local.hiclaw.io:8080/mcp-servers/mcp-agentloom-policy-broker",
+            "transport": "http"
+          }
+        ]
       }
     ]
   }

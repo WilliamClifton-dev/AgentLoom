@@ -13,17 +13,16 @@
 2. 使用 `agentloom-developer` 提前登录 Element，不录用户名和密码输入过程。
 3. 关闭微信、邮件、密码管理器和系统通知，隐藏书签栏及个人头像。
 4. 终端进入 AgentLoom 仓库根目录，窗口建议至少 140 列、45 行。
-5. 执行以下免费预检：
+5. 执行以下本地预检，不调用模型：
 
 ```powershell
-.\scripts\competition-rollback-demo.ps1 `
-  -Mode replay `
-  -NoTui `
-  -PublicOutput
+docker ps --format "table {{.Names}}\t{{.Status}}"
+.\.venv\Scripts\python -m pytest
 ```
 
-确认出现 AgentTeams `v1.1.2`、健康状态 `PASS`、3 个 Worker、Human、
-`roleEventCount: 4`、`step-3.7-flash` 和 `<redacted>` 后再开始录制。
+确认 AgentTeams `v1.1.2` Controller、Manager 和三个 Worker 健康，并确认
+`283 passed / 3 skipped`。正式录制只展示已经脱敏的 Task 17 Evidence 摘要，
+不打开 Matrix 正文、Worker 原始日志、凭据或 Signed Grant。
 
 ## 1. 开场与真实场景（00:00-00:35）
 
@@ -52,35 +51,30 @@ Implementer、Verifier、Policy Broker 和 Evidence。
 
 ## 3. AgentTeams 原生协作证据（01:15-02:05）
 
-**画面**：Element 的 `agentloom-repair` Team Room。按时间顺序展示四条消息，
-先让发送者和事件名称可见，再缓慢滚动到哈希或结果字段。
+**画面**：先展示 Investigator 所有的 Leader Room 中 Manager 标记，再切到 Team
+Room 中 Investigator 对 Verifier 的明确委派和稍后的 Verifier PASS 标记。只展示
+预先确认可公开的事件元数据或脱敏摘要，不展示 Matrix 正文导出。
 
 **口播**：
 
-> 这里是 AgentTeams 实际使用的 Matrix Team Room，不是我在外围伪造的聊天记录。
-> 这次回滚运行中，Verifier 首先报告 `VERIFICATION_FAILED`；Manager 根据失败证据
-> 发出 `ROLLBACK_REQUESTED`；Implementer 执行 `ROLLBACK_EXECUTED`；最后由
-> Verifier 独立确认 `ROLLBACK_VERIFIED`。四条事件由不同运行时身份发送，并按
-> task、快照和产物哈希绑定，因此不能用一个模型事后补写一段总结来替代。
+> 这里展示的是 AgentTeams v1.1.2 的真实跨房间委派。Administrator 先提交未提及
+> 任何 Worker 的任务信封；Manager 在 Investigator 所有的 Leader Room 建立精确
+> 绑定标记；Investigator 再在 Team Room 明确提及并委派 Verifier；Verifier 之后
+> 给出 PASS。事件 ID、房间、发送者和时间顺序被 Evidence 绑定，不能用一个模型
+> 事后补写一段总结替代真实角色链路。
 
-## 4. 脱敏证据回放与 TUI（02:05-03:15）
+## 4. 脱敏治理证据与 TUI（02:05-03:15）
 
-**画面**：切换到放大的 PowerShell，执行：
-
-```powershell
-.\scripts\competition-rollback-demo.ps1 -Mode replay -PublicOutput
-```
-
-终端输出时停留在健康检查和 JSON 摘要；TUI 打开后展示状态、角色事件、模型、
-哈希和 `<redacted>` 路径。
+**画面**：切换到放大的 PowerShell，展示 Task 17 脱敏 Evidence 摘要的状态、
+Provider、模型、Docker 镜像和哈希；随后在 TUI 中展示任务状态与 Evidence 引用。
 
 **口播**：
 
-> 现在运行的是免费、安全的 Evidence 回放，不会重新请求模型，也不会消耗额度。
-> 系统首先检查 Docker、AgentTeams `v1.1.2`、Manager、Team、三个 Worker、Human
-> 和 Matrix 房间是否健康。随后 AgentLoom 对历史运行证据重新进行绑定校验。
-> 可以看到状态为 `PASS`，模型是 StepFun 的 `step-3.7-flash`，角色事件数为 4，
-> 本机产物路径已显示为 `<redacted>`。
+> 现在展示的是已固化、已脱敏的 Task 17 Evidence，不会重新请求模型，也不会
+> 消耗额度。当前 Provider 是 `minimax-cn`，模型是 `MiniMax-M2.5`。Verifier 的
+> 请求经过 Higress 身份校验、Policy Broker 的短时 Grant 和不可变 Docker 沙箱，
+> 数据库最终只记录一个 `SUCCEEDED` ToolCall；错误消费者、参数篡改和 Grant 重放
+> 都被拒绝。镜像、工作区和 Evidence 都以 SHA-256 固定。
 >
 > 这个 TUI 是 AgentLoom 自主实现的治理控制面，AgentTeams 负责角色协同；TUI
 > 负责把协同产生的健康状态、事件顺序、失败补丁、批准快照和最终 verdict 投影成
@@ -111,7 +105,8 @@ Implementer、Verifier、Policy Broker 和 Evidence。
 > Human 身份，字段变化就必须重新审批。这里展示的是独立 Human 身份完成的真实
 > 批准证据。
 >
-> 工程侧，项目通过 175 项 pytest、Ruff、strict mypy 和依赖审计。我还定位并修复
+> 工程侧，项目通过 283 项 pytest，默认门禁跳过 3 项需显式启用的 Docker live
+> tests；Ruff、strict mypy 和依赖审计也通过。我还定位并修复
 > 了 AgentTeams 更新 Team 时没有持久化 `humanMembers` 的缺陷，已提交上游
 > PR #1141，目前仍在等待维护者审核。
 
@@ -124,22 +119,24 @@ Implementer、Verifier、Policy Broker 和 Evidence。
 > 最终，AgentLoom 形成从 Issue、任务拆解、根因调查、受控修复、独立验证，到
 > 人工审批、失败回滚和 Evidence 沉淀的完整闭环。它把“模型能不能写补丁”升级为
 > “团队能不能证明谁在什么权限下，用哪一版 Skill 做了什么，以及结果是否可信”。
-> 当前版本尚未默认向真实业务仓库写入 PR，五个上游 Skill 也仍处于隔离评测状态；
-> 这些边界都已在公开仓库中明确说明。谢谢。
+> 当前版本尚未默认向真实业务仓库写入 PR。五个上游 Skill 中，
+> `code-review-and-quality` 已有匹配 Eval 并为 `PUBLISHED`，其余四个仍为
+> `QUARANTINED`。这些边界都已在公开仓库中明确说明。谢谢。
 
 ## 录制结束
 
 1. TUI 按 `Ctrl+C`，出现确认提示后按 `Ctrl+Q` 退出。
 2. 从头播放视频，暂停检查每个终端镜头是否出现个人绝对路径或凭据。
-3. 确认画面能看清 `PASS`、`APPROVED`、四个角色事件和 PR 的 `Open` 状态。
+3. 确认画面能看清 Manager、Investigator、Verifier 的委派标记、唯一成功 ToolCall、`APPROVED` 和 PR 的 `Open` 状态。
 4. 上传后用无痕窗口打开公开视频链接，确认无需登录即可播放。
 
 ## 不能说错
 
-- 免费 replay 是重新校验既有真实 Evidence，不是现场重新调用模型。
+- Task 17 Evidence 是既有真实运行的脱敏摘要，不是现场重新调用模型。
 - TUI 属于 AgentLoom；AgentTeams 提供 Manager、Worker、Team、Human 和 Matrix
   协同运行时。
 - 上游 PR #1141 是已提交、等待审核，不能说已经合并。
+- 当前 Task 17 只使用 MiniMax；Qwen、DeepSeek 和 StepFun 均未调用。StepFun 只可作为历史回滚/L2 证据说明。
 - 当前没有默认向真实业务仓库自动提交 PR。
-- 五个上游 Skill 仍是 `QUARANTINED`，不能说已经发布。
+- 五个上游 Skill 中仅 `code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`；其余四个仍是 `QUARANTINED`，不能说已经全部发布。
 - 项目是初赛 MVP，不能宣称已经生产就绪。

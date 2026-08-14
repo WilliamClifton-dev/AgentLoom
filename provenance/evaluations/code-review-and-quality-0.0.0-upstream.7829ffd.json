@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "agentloom.skill-evaluation/v1alpha1",
+  "skillName": "code-review-and-quality",
+  "skillVersion": "0.0.0+upstream.7829ffd",
+  "sourceContentHash": "sha256:608c0fb8e974547cc24b8207812b09aceb76f05071bfdc1e10396f3c6118b0b6",
+  "evaluatedAt": "2026-08-14T12:00:00Z",
+  "scope": "Verifier-only L1 test-runner:process.exec:test",
+  "checks": [
+    {
+      "evidenceRef": "test:tests/test_policy_tool_e2e.py::test_environment_composition_issues_executes_and_rejects_replay",
+      "result": "PASSED",
+      "claim": "Server-derived Grant executes one bounded pytest call and replay records no second ToolCall."
+    },
+    {
+      "evidenceRef": "test:tests/test_grant_issuer.py::test_trusted_issuer_derives_verifier_and_server_owned_grant_fields",
+      "result": "PASSED",
+      "claim": "Trusted consumer identity and all security-sensitive Grant fields are derived server-side."
+    }
+  ],
+  "limitations": [
+    "This promotion covers only the normalized Verifier pytest permission; it does not certify arbitrary upstream instructions or tools.",
+    "A team-original Skill remains a separate competition acceptance item."
+  ],
+  "verdict": "PUBLISHED"
+}

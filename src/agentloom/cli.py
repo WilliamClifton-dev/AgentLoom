@@ -22,6 +22,8 @@ from agentloom.live_rollback import (
     LiveRollbackVerifier,
     RollbackEvidenceService,
 )
+from agentloom.migration_rehearsal import MigrationRehearsal, MigrationRehearsalError
+from agentloom.route_rehearsal import RouteRehearsalError, ToolRouteRollbackRehearsal
 from agentloom.storage import Database
 from agentloom.tui import (
     AgentLoomApp,
@@ -36,11 +38,63 @@ _ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_CASES_ROOT = _ROOT / "demo" / "cases"
 _DEFAULT_RUNS_ROOT = _ROOT / "artifacts" / "tui"
 _DEFAULT_APPROVAL_DATABASE = _DEFAULT_RUNS_ROOT / "control.db"
+_DEFAULT_MIGRATION_REHEARSAL_ROOT = _ROOT / "artifacts" / "migrations" / "rehearsal"
+_DEFAULT_ROUTE_REHEARSAL_ROOT = _ROOT / "artifacts" / "routes" / "rehearsal"
 
 
 @app.callback()
 def main() -> None:
     """AgentLoom operator commands."""
+
+
+@app.command("rehearse-migration")
+def rehearse_migration(
+    output_root: Annotated[
+        Path,
+        typer.Option(help="Empty directory for synthetic migration evidence."),
+    ] = _DEFAULT_MIGRATION_REHEARSAL_ROOT,
+) -> None:
+    """Rehearse SQLite upgrade, downgrade, and replay preservation."""
+    try:
+        result = MigrationRehearsal(_ROOT / "alembic.ini").run(output_root)
+    except (MigrationRehearsalError, OSError) as exc:
+        typer.echo(f"agentloom migration rehearsal failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "evidenceFile": "migration-rehearsal.json",
+                "revisionCycle": result.revision_cycle,
+                "status": result.status,
+            },
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("rehearse-route-rollback")
+def rehearse_route_rollback(
+    output_root: Annotated[
+        Path,
+        typer.Option(help="Empty directory for Tool route rollback evidence."),
+    ] = _DEFAULT_ROUTE_REHEARSAL_ROOT,
+) -> None:
+    """Rehearse local-to-Docker Tool routing and configuration rollback."""
+    try:
+        result = ToolRouteRollbackRehearsal().run(output_root)
+    except (RouteRehearsalError, OSError) as exc:
+        typer.echo(f"agentloom route rehearsal failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "evidenceFile": "route-rollback-rehearsal.json",
+                "providerSequence": result.provider_sequence,
+                "status": result.status,
+            },
+            sort_keys=True,
+        )
+    )
 
 
 @app.command()

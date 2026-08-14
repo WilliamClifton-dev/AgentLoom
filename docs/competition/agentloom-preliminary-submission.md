@@ -6,7 +6,7 @@
 >
 > 项目：AgentLoom：多智能体 Skill 治理与可验证修复平台
 >
-> 材料状态：初赛内容底稿；StepFun 真实回滚与真人 L2 审批证据已固化，PPT、PDF、录屏和最终提交包尚待生成
+> 材料状态：P0 PDF、官方模板 PPTX、19 页 PDF 和提交 ZIP 已生成并完成本地验收；最终真人录屏、公开上传和比赛页面提交仍为 Human checkpoint
 >
 > 依据：赛事参赛手册、官方 19 页 PPT 模板、当前仓库及本地可验证证据
 
@@ -32,7 +32,7 @@ AgentLoom-初赛提交包.zip
 ├── 04-Agent-Identity清单.pdf
 ├── 05-核心Skill清单.pdf
 ├── 06-开源与第三方依赖说明.pdf
-├── 07-StepFun回滚证据.pdf
+├── 07-L2审批与回滚证据.pdf
 └── README.txt
 ```
 
@@ -40,9 +40,9 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 ## 2. 500 字以内作品简介
 
-以下正文共 **445 个字符（含空格）、413 个字符（不含空格）**，可直接使用：
+以下正文共 **497 个字符（Python `len()`）**，可直接使用：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理与可验证软件修复平台。它面向团队引入 GitHub 第三方 Skill 时来源不清、权限过大、效果难评测、执行不可追溯等问题，将 Skill 纳入“发现、溯源、扫描、评测、发布、路由、授权、执行、验证、回滚”的生命周期。人把带失败测试、日志、白名单和回滚要求的 Issue 交给 Manager；Manager 拆成调查、受限修复和独立验证，由 Investigator、Implementer、Verifier 通过结构化产物协作。Policy Broker 通过 MCP 对工具、路径、参数和时效进行最小权限控制，L2 高风险操作必须由 Human 审批；全过程生成可审计 Evidence。当前已在 AgentTeams v1.1.2 上完成三 Agent 协作、真实模型修复、独立隐藏测试验证、TUI、失败回滚与审批基础链路。项目计划以 Apache-2.0 开源，自研治理层与第三方工作流内容明确分界。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散的问题。Human 将带失败测试和白名单的 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，全程生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成委派，MiniMax 驱动唯一受治理 ToolCall；质量门禁为 283 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创治理控制面，依赖保留许可证、固定版本与哈希；5 个上游 Skill 中 1 个已评测发布、4 个仍隔离，录屏和最终提交尚未完成。
 
 ## 3. 一句话定位与价值
 
@@ -79,7 +79,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 - 痛点：第三方 Skill 来源不清、权限不可控、效果不可证、失败不可回退。
 - 方案：AgentTeams Manager + 三业务 Agent 结构化交接 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
 - 主流程：Issue -> Manager 规划 -> Investigator 调查 -> Implementer 受控修复 -> Verifier 独立验证 -> 审批/回滚 -> Evidence 报告。
-- 已验证：AgentTeams v1.1.2、三业务 Agent、真实模型修复、StepFun 真实回滚、隐藏测试与 TUI。
+- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 单模型链路、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与全量质量门禁。
 - 差异化：不是通用 Coding Agent，而是跨场景可复用的 Skill 治理控制面。
 
 ### 第 3 页：目录
@@ -126,7 +126,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 - AgentTeams 管理 Manager、Worker、Team、Human、Matrix 和共享产物。
 - AgentLoom 管理 Skill 准入、风险、路由、授权、任务状态和证据。
-- Qwen/DeepSeek/StepFun 等模型通过兼容接口配置注入，不写死在业务契约中。
+- 模型通过管理员定义的 OpenAI-compatible Provider Profile 注入，不写死在业务契约中；维护者付费证据当前只使用 MiniMax。
 - Python 3.12、FastAPI、Pydantic、SQLAlchemy、MCP、Typer/Textual/Rich。
 
 ### 第 8 页：章节页 - 多 Agent 协同
@@ -155,7 +155,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 - 生命周期：发现 -> 隔离 -> 溯源/哈希 -> L1 静态扫描 -> L2 沙箱评测 -> L3 场景回归 -> 审批发布 -> 监控 -> 回滚。
 - 绑定关系：Debugging -> Investigator；TDD -> Implementer；Review/Security -> Verifier；Skill Selection -> Manager。
 - 明确 `addyosmani/agent-skills` 是工作流内容源，不是 Agent 编排、授权或验证运行时。
-- 标注真实状态：五个上游 Skill 已锁定来源、commit 和哈希，当前仍为 `QUARANTINED`，待 Eval 后发布。
+- 标注真实状态：五个上游 Skill 已锁定来源、commit 和哈希；`code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`，其余四个仍为 `QUARANTINED`。
 
 ### 第 12 页：章节页 - 工程、验证与安全
 
@@ -163,11 +163,11 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 ### 第 13 页：运行证据、可观测、安全与云选择
 
-- 真实证据：AgentTeams v1.1.2；Qwen 无人值守修复；StepFun 四角色回滚；隐藏测试通过；补丁与回滚计划哈希。
+- 真实证据：AgentTeams v1.1.2；Administrator -> Manager -> Investigator -> Verifier 真实委派；MiniMax；Higress / Policy Broker；Docker 独立验证；唯一成功 ToolCall；不可变证据哈希。
 - 工程检查：全量 pytest、Ruff、strict mypy、pip-audit 全通过。
 - 安全：L0-L3、短时参数绑定 Grant、路径/工具白名单、Human 审批、密钥脱敏。
 - 可观测：Task/Step/Agent/Skill/Grant/ToolCall/Artifact/Verdict 全链路 ID。
-- 当前缺口：最终录屏和提交材料待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
+- 当前缺口：最终真人录屏、公开上传和比赛页面提交待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
 
 ### 第 14 页：章节页 - 开放与开源
 
@@ -189,8 +189,8 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 三列展示：
 
-- 已完成：AgentTeams 部署、三 Agent、真实修复与 StepFun 回滚 E2E、真人 L2 审批、隐藏测试、TUI、检测/授权/回滚基础。
-- 提交前：演示录屏、PPT/PDF、公开仓库检查、提交包一致性审计。
+- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、真人 L2 审批、283 passed / 3 skipped、TUI、检测/授权/回滚、PPT/PDF 与提交包一致性审计。
+- 提交前：演示录屏、公开视频访问检查、公开仓库和比赛页面最终确认。
 - 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
 主要风险：模型波动、AgentTeams 版本变化、第三方 Skill 漂移、Demo 环境复杂、范围过大。每项风险都配固定版本、回放证据、降级方案和非目标约束。
@@ -230,7 +230,7 @@ Manager 是 AgentTeams 编排资源，负责计划、委派、状态聚合和 Hu
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `debugging-and-error-recovery` | 上游；缺陷定位 | Issue、快照、日志 -> `RootCauseReport`、`EvidenceRef` | 输入完整且失败可复现 | Repository Search、Test Reader | 证据不足返回 `INSUFFICIENT_EVIDENCE`；工具失败重试一次后阻塞 | L0，只读，禁网、禁写 | Investigator；可复用于事故调查 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
 | `test-driven-development` | 上游；受限修复 | 根因、验收标准、白名单 -> `PatchArtifact`、测试证据 | 根因达到证据阈值 | Patch Adapter、Test Runner | 测试失败先回滚；超过预算交回 Manager | L1 隔离写；新增依赖/联网/外部写升级 L2 | Implementer；可复用于 Python 修复 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
-| `code-review-and-quality` | 上游；独立审查 | 冻结补丁、验收条件 -> `ReviewFindings`、verdict | 补丁已冻结并进入清洁环境 | Repository Search、Test Reader | 缺证据返回 `UNCERTAIN`；不得修改补丁 | L0，只读，与 Implementer 会话隔离 | Verifier；可复用于合并前审查 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
+| `code-review-and-quality` | 上游；独立审查 | 冻结补丁、验收条件 -> `ReviewFindings`、verdict | 补丁已冻结并进入清洁环境 | Repository Search、Test Reader | 缺证据返回 `UNCERTAIN`；不得修改补丁 | L0，只读，与 Implementer 会话隔离 | Verifier；可复用于合并前审查 | 来源、commit、MIT、哈希和 Manifest 已锁定；匹配 Eval 已记录，当前为 `PUBLISHED` |
 | `security-and-hardening` | 上游；安全闸门 | Diff、依赖、ToolCall、权限 -> `RiskReport` | 代码/依赖变化或风险触发 | Static Check、Policy Engine | 扫描异常不放行，返回 `UNSAFE/UNCERTAIN` | 只读；规则不可由被审 Agent 修改 | Verifier；也用于 Skill 准入 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
 | `using-agent-skills` | 上游；候选 Skill 选择 | 任务、角色、权限、风险 -> `SkillCandidateSet` | 任务已计划且角色已确定 | Skill Registry | 无匹配则 `NO_COMPATIBLE_SKILL`；不自动扩大权限 | L0，只读 Registry；选择不等于授权 | Manager；可跨业务场景复用 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
 | `skill-supply-chain-audit` | 团队原创；第三方 Skill 准入 | Git URL、路径、commit、Manifest -> `ProvenanceReport`、`RiskReport`、发布建议 | 导入、升级或重新发布第三方 Skill | Git Reader、许可证/哈希、Scanner、Eval Runner | 来源失效、许可不明、哈希变化或评测失败均保持隔离 | 默认不可信；禁真实密钥；发布和高风险例外需 Human | Manager + Verifier；可迁移到客服、运维等 SkillOps 场景 | 设计和底层目录/策略能力已有；独立可执行 Skill 与完整 Eval 尚待完成 |
@@ -311,7 +311,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 | `addyosmani/agent-skills` | 上游 Skill 内容源 | MIT；锁定 commit `7829ffd...` 和五个内容哈希 | 当前只保存来源元数据和 Manifest，未 vendoring；不得宣称上游工作流为原创 |
 | DeepSec、VulnClaw、mcp-scan、Promptfoo、SWE-bench、ToolHive、OpenLIT 等 | 设计/方法参考 | 各自许可证或数据条款 | 只披露借鉴点；未复制的项目不写成运行时依赖 |
 | Python 依赖 | 直接依赖 | 以各包许可证为准 | FastAPI、Pydantic、SQLAlchemy、MCP、OpenTelemetry、Typer、Textual、Rich、httpx 等由 `pyproject.toml` 和 `uv.lock` 锁定 |
-| Qwen/DeepSeek/StepFun API | 可替换模型服务 | 商业服务条款 | 只通过配置注入；记录实际模型、Token 和费用；不上传密钥和不必要数据 |
+| 管理员自备 OpenAI-compatible Chat Provider | 可替换模型服务 | 各 Provider 商业服务条款 | 通过经过校验的 Provider Profile 配置注入；维护者当前付费证据只使用 MiniMax；不上传密钥和不必要数据 |
 
 仓库已有 `LICENSE`、`THIRD_PARTY.md`、`provenance/sources.yaml`、`pyproject.toml` 和 `uv.lock` 作为披露与复现依据。
 
@@ -321,30 +321,28 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 
 - AgentTeams v1.1.2 固定版本部署；Manager、Team、3 个业务 Worker 和 Human 资源可运行。
 - AgentTeams 严格角色消息 E2E；角色事件按真实 Matrix 身份归属。
-- Qwen 无人值守真实修复 E2E：从空任务前缀开始，由三个业务 Agent 分别生成角色产物。
-- StepFun 真实回滚 E2E：四个角色事件、回滚计划哈希和独立主机验证均通过；见 [StepFun 回滚证据包](stepfun-live-rollback-evidence.md)。
-- 独立本地隐藏测试验证通过；补丁、输入和提交均有 SHA-256 绑定。
+- MiniMax 真实委派 E2E：Administrator 任务信封经 Manager、Investigator 到 Verifier，随后通过 Higress、Policy Broker 和不可变 Docker 沙箱产生且仅产生一个成功 ToolCall。
+- StepFun 四角色回滚保留为 2026-08-05 的历史固化证据，不作为当前 Task 17 运行；见 [StepFun 回滚证据包](stepfun-live-rollback-evidence.md)。
+- Docker 独立测试验证通过；任务信封、运行证据、镜像和工作区均有 SHA-256 绑定。
 - Python 控制面基础：契约、任务状态、检测、Policy Broker MCP、审批账本、存储、API、CLI。
 - TUI：任务时间线、证据、失败/回滚/重试 Demo、审批队列和决策操作。
 - L2 Human 审批的 Prepare/Collect 和严格事件校验脚本已实现。
 - 真人 L2 审批 E2E：Manager 发起精确绑定的 `github-pr-v1` 请求，`agentloom-developer` 以独立 Matrix 身份批准，采集结果为 `APPROVED`；见 [L2 审批与上游贡献证据](l2-approval-and-upstream-contribution-evidence.md)。
 - 发现并修复 AgentTeams v1.1.2 更新 Team 时未持久化 `humanMembers` 的上游缺陷，回归测试已通过，修复已提交 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)，当前等待维护者审核。
-- 2026-08-05 本次复核：全量 pytest、Ruff、strict mypy 和 pip-audit 均通过；StepFun 回滚 E2E 通过。
+- 2026-08-14 本次复核：283 项 pytest 通过，3 项显式启用的 Docker live tests 在默认门禁中跳过；Ruff、strict mypy、pip-audit、语法、迁移、diff 和敏感信息门禁通过。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
 
 1. 制作最终演示录屏并上传，获得可公开访问的 Demo 链接。
-2. 按本纲要完成官方模板 PPT，导出 PDF，并检查字体、架构图和所有截图可读。
-3. 从仓库与附件中清除 Key、个人路径、密码、临时文件和未脱敏 Trace。
-4. 确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
-5. PPT 与附件完成后，创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
-6. 确认 GitHub 仓库对评委可访问，并制作最终 ZIP。
+2. 确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
+3. 创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
+4. 确认 GitHub 仓库与公开视频对评委可访问，然后完成比赛页面上传和提交确认。
 
 ### 10.3 不应写成已完成
 
 - AgentTeams 上游 PR #1141 已真实创建但尚未合并；AgentLoom 尚未把自动修复结果写入真实业务仓库的 Issue/PR。
-- 五个 `addyosmani/agent-skills` 当前为 `QUARANTINED`，尚未完成 Eval 和正式 `PUBLISHED`。
+- `addyosmani/agent-skills` 五个样本中，`code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`；其余四个仍为 `QUARANTINED`，不能写成全部发布。
 - 团队原创 `skill-supply-chain-audit` 尚未以独立可执行 Skill 完成全量 Eval。
 - 比赛录屏尚未完成。
 - 第二业务场景、真实云 Skill、RAG、模型训练和生产级多租户均不是初赛已交付能力。
@@ -354,7 +352,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - [ ] 作品名称与 PPT、PDF、仓库 README 完全一致。
 - [x] 赛题选择“赛题三：软件研发全流程协同”。
 - [x] 作品简介不超过 500 字且未夸大当前进展。
-- [ ] PPT 使用官方 19 页模板，不删除必需章节。
+- [x] PPT 使用官方 19 页模板，不删除必需章节。
 - [x] 三个 Agent 的角色、输入、输出、边界和 Trace 均完整。
 - [x] 核心 Skill 清单包含来源、契约、依赖、失败、安全、复用和状态。
 - [x] AgentTeams 在架构、运行证据和协作流程中均为实际必选运行时。

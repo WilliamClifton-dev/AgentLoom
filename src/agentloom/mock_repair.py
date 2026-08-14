@@ -8,25 +8,29 @@ import json
 import shutil
 import subprocess
 import sys
-import threading
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
-from typing import BinaryIO
 
+from agentloom.bounded_exec import BoundedExecutionError, run_bounded_python_command
 from agentloom.contracts import (
+    DetectionResult,
     EvidenceRecord,
+    ExperienceRecord,
     Finding,
     PatchArtifact,
     RepairArtifactBundle,
     RiskReport,
     RootCauseReport,
     TaskCreate,
+    TaskDetectionRecord,
+    TaskEvidenceBundle,
     TaskRecord,
     VerificationChecks,
     VerificationResult,
 )
-from agentloom.demo_case import DemoCase, load_demo_case, resolve_command
+from agentloom.demo_case import DemoCase, load_demo_case
 from agentloom.storage import Database
 from agentloom.workflow import RepairWorkflow
 
@@ -41,6 +45,7 @@ class MockRepairError(RuntimeError):
 class MockRepairResult:
     task: TaskRecord
     bundle: RepairArtifactBundle
+    task_evidence: TaskEvidenceBundle
     artifacts_dir: Path
 
 
@@ -104,12 +109,32 @@ class MockRepairRunner:
         unauthorized_changes = sorted(
             set(changed_paths) - set(case.manifest.allowed_changed_paths)
         )
-        workflow.record_implementation(task.task_id, requires_approval=False)
         if unauthorized_changes:
+            workflow.record_implementation(task.task_id, requires_approval=False)
             workflow.record_verification(task.task_id, outcome="FAILED")
             raise MockRepairError(
                 "unauthorized file changes: " + ", ".join(unauthorized_changes)
             )
+
+        implementer_tests = _run_case_command(
+            workspace=workspace,
+            working_relative=working_relative,
+            command=case.test_command,
+            timeout_seconds=case.manifest.timeout_seconds,
+            output_limit_bytes=case.manifest.output_limit_bytes,
+        )
+        if implementer_tests.returncode != 0:
+            workflow.record_implementation(task.task_id, requires_approval=False)
+            workflow.record_verification(task.task_id, outcome="FAILED")
+            raise MockRepairError("implementer tests failed")
+        implementer_results_path = artifacts / "implementer-test-results.txt"
+        implementer_results_path.write_text(
+            "IMPLEMENTER ALLOWLISTED TESTS: PASSED\n"
+            f"{implementer_tests.stdout}{implementer_tests.stderr}\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        workflow.record_implementation(task.task_id, requires_approval=False)
 
         shutil.copytree(workspace, verifier_workspace)
         verifier_hidden = verifier_workspace / working_relative / _HIDDEN_WORKSPACE
@@ -152,31 +177,46 @@ class MockRepairRunner:
             newline="\n",
         )
 
-        test_evidence_id = f"ev-{task.task_id}-tests"
-        patch_evidence_id = f"ev-{task.task_id}-patch"
+        created_at = datetime.now(UTC)
+        patch_evidence_id = f"ev-{task.task_id}-l1-static"
+        dynamic_evidence_id = f"ev-{task.task_id}-l2-dynamic"
+        test_evidence_id = f"ev-{task.task_id}-l3-verification"
         evidence = (
+            EvidenceRecord(
+                evidence_id=patch_evidence_id,
+                task_id=task.task_id,
+                step_id="implement-static",
+                kind="STATIC_PATCH_SCAN",
+                producer="agentloom-implementer",
+                uri=f"artifact://{task.task_id}/repair.patch",
+                sha256=patch_hash,
+                summary="Patch content and changed paths passed static checks.",
+                created_at=created_at,
+            ),
+            EvidenceRecord(
+                evidence_id=dynamic_evidence_id,
+                task_id=task.task_id,
+                step_id="implement-dynamic",
+                kind="DYNAMIC_TEST_RUN",
+                producer="agentloom-implementer",
+                uri=f"artifact://{task.task_id}/implementer-test-results.txt",
+                sha256=_file_hash(implementer_results_path),
+                summary="Allowlisted tests passed in the Implementer workspace.",
+                created_at=created_at,
+            ),
             EvidenceRecord(
                 evidence_id=test_evidence_id,
                 task_id=task.task_id,
                 step_id="verify-01",
-                kind="TEST_OUTPUT",
+                kind="INDEPENDENT_VERIFICATION",
                 producer="agentloom-verifier",
                 uri=f"artifact://{task.task_id}/test-results.txt",
                 sha256=_file_hash(test_results_path),
                 summary=(
-                    "Original failure reproduced; patched, hidden, and static "
-                    "checks passed."
+                    "Original failure reproduced; clean-workspace patched, hidden, "
+                    "and static checks passed."
                 ),
-            ),
-            EvidenceRecord(
-                evidence_id=patch_evidence_id,
-                task_id=task.task_id,
-                step_id="implement-01",
-                kind="PATCH",
-                producer="agentloom-implementer",
-                uri=f"artifact://{task.task_id}/repair.patch",
-                sha256=patch_hash,
-                summary="Only manifest-allowlisted files changed.",
+                created_at=created_at,
             ),
         )
 
@@ -234,10 +274,81 @@ class MockRepairRunner:
             verification=verification,
             risk=risk,
         )
+        detections = [
+            TaskDetectionRecord(
+                detection_id=f"detection-{task.task_id}-static",
+                task_id=task.task_id,
+                step_id="implement-static",
+                producer_agent="agentloom-implementer",
+                subject_digest=patch_hash,
+                result=DetectionResult(
+                    stage="STATIC",
+                    verdict="PASSED",
+                    findings=risk.findings,
+                    evidence_refs=[patch_evidence_id],
+                    detector_versions={"patch-scope": "0.1.0"},
+                ),
+                created_at=created_at,
+            ),
+            TaskDetectionRecord(
+                detection_id=f"detection-{task.task_id}-dynamic",
+                task_id=task.task_id,
+                step_id="implement-dynamic",
+                producer_agent="agentloom-implementer",
+                subject_digest=patch_hash,
+                result=DetectionResult(
+                    stage="DYNAMIC",
+                    verdict="PASSED",
+                    findings=[],
+                    evidence_refs=[dynamic_evidence_id],
+                    detector_versions={"bounded-pytest": "0.1.0"},
+                ),
+                created_at=created_at,
+            ),
+            TaskDetectionRecord(
+                detection_id=f"detection-{task.task_id}-verification",
+                task_id=task.task_id,
+                step_id="verify-01",
+                producer_agent="agentloom-verifier",
+                subject_digest=patch_hash,
+                result=DetectionResult(
+                    stage="VERIFICATION",
+                    verdict=verification.verdict,
+                    findings=risk.findings,
+                    evidence_refs=[test_evidence_id],
+                    detector_versions={"independent-verifier": "0.1.0"},
+                ),
+                created_at=created_at,
+            ),
+        ]
+        experience = ExperienceRecord(
+            experience_id=f"experience-{task.task_id}",
+            task_id=task.task_id,
+            outcome="SUCCEEDED",
+            verdict=verification.verdict,
+            skill_versions={},
+            lessons=[
+                "Keep static, dynamic, and independent verification evidence separate."
+            ],
+            evidence_refs=[
+                patch_evidence_id,
+                dynamic_evidence_id,
+                test_evidence_id,
+            ],
+            created_at=created_at,
+        )
+        task_evidence = TaskEvidenceBundle(
+            task_id=task.task_id,
+            detections=detections,
+            evidence=list(evidence),
+            experience=experience,
+        )
         _write_model(artifacts / "root-cause-report.json", root_cause)
         _write_model(artifacts / "patch-artifact.json", patch_artifact)
         _write_model(artifacts / "verification-result.json", verification)
         _write_model(artifacts / "risk-report.json", risk)
+        _write_model(artifacts / "experience-record.json", experience)
+        _write_model(artifacts / "task-evidence-bundle.json", task_evidence)
         (artifacts / "evidence.json").write_text(
             json.dumps(
                 [item.model_dump(mode="json", by_alias=True) for item in evidence],
@@ -249,7 +360,7 @@ class MockRepairRunner:
             newline="\n",
         )
         (artifacts / "result.md").write_text(
-            _result_markdown(task.task_id, bundle),
+            _result_markdown(task.task_id, bundle, experience),
             encoding="utf-8",
             newline="\n",
         )
@@ -259,6 +370,7 @@ class MockRepairRunner:
         return MockRepairResult(
             task=final_task,
             bundle=bundle,
+            task_evidence=task_evidence,
             artifacts_dir=artifacts,
         )
 
@@ -312,60 +424,15 @@ def _run_case_command(
     timeout_seconds: int,
     output_limit_bytes: int,
 ) -> subprocess.CompletedProcess[str]:
-    resolved = resolve_command(command)
-    process = subprocess.Popen(
-        resolved,
-        cwd=workspace / working_relative,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if process.stdout is None or process.stderr is None:
-        process.kill()
-        raise MockRepairError("failed to capture command output")
-    stdout = bytearray()
-    stderr = bytearray()
-    lock = threading.Lock()
-    exceeded = threading.Event()
-
-    def drain(stream: BinaryIO, sink: bytearray) -> None:
-        while chunk := stream.read(8192):
-            with lock:
-                remaining = max(0, output_limit_bytes - len(stdout) - len(stderr))
-                sink.extend(chunk[:remaining])
-                if len(chunk) > remaining:
-                    exceeded.set()
-            if exceeded.is_set():
-                process.kill()
-                return
-
-    readers = (
-        threading.Thread(target=drain, args=(process.stdout, stdout), daemon=True),
-        threading.Thread(target=drain, args=(process.stderr, stderr), daemon=True),
-    )
-    for reader in readers:
-        reader.start()
     try:
-        returncode = process.wait(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired as exc:
-        process.kill()
-        process.wait()
-        for reader in readers:
-            reader.join()
-        raise MockRepairError(
-            f"command timed out after {timeout_seconds} seconds"
-        ) from exc
-    for reader in readers:
-        reader.join()
-    if exceeded.is_set():
-        raise MockRepairError(
-            f"command output exceeded {output_limit_bytes} bytes"
+        return run_bounded_python_command(
+            working_directory=workspace / working_relative,
+            command=command,
+            timeout_seconds=timeout_seconds,
+            output_limit_bytes=output_limit_bytes,
         )
-    return subprocess.CompletedProcess(
-        args=resolved,
-        returncode=returncode,
-        stdout=stdout.decode("utf-8", errors="replace"),
-        stderr=stderr.decode("utf-8", errors="replace"),
-    )
+    except BoundedExecutionError as exc:
+        raise MockRepairError(str(exc)) from exc
 
 
 def _target_command(test_command: tuple[str, ...], target: str) -> tuple[str, ...]:
@@ -427,13 +494,20 @@ def _test_results(
     )
 
 
-def _result_markdown(task_id: str, bundle: RepairArtifactBundle) -> str:
+def _result_markdown(
+    task_id: str,
+    bundle: RepairArtifactBundle,
+    experience: ExperienceRecord,
+) -> str:
+    evidence_lines = "\n".join(f"- `{ref}`" for ref in experience.evidence_refs)
     return (
         f"# Repair result: {task_id}\n\n"
         "STATUS: SUCCESS\n\n"
         f"Root cause: {bundle.root_cause.summary}\n\n"
         f"Patch SHA-256: `{bundle.patch.sha256}`\n\n"
-        "Verification: PASSED\n"
+        "Verification: PASSED\n\n"
+        "Evidence:\n"
+        f"{evidence_lines}\n"
     )
 
 

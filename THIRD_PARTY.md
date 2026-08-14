@@ -8,7 +8,7 @@ not contribute copied source code to the current repository.
 | Project | Relationship | License | Pinned version / status |
 | --- | --- | --- | --- |
 | [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) | Mandatory runtime | Apache-2.0 | `v1.1.2`, commit `a99457830fafb99c991bdb666aa8a1eef2f83b12` |
-| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Quarantined Skill source metadata; upstream content not vendored | MIT | Commit `7829ffd90d973b6325f5f12f1b1226dcace74443`; five selected paths hashed, not evaluated or published |
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Pinned Skill source metadata; upstream content not vendored | MIT | Commit `7829ffd90d973b6325f5f12f1b1226dcace74443`; five selected paths hashed; `code-review-and-quality` evaluated and `PUBLISHED`, four remain `QUARANTINED` |
 
 Python packages used by AgentLoom are declared in `pyproject.toml` and resolved
 in `uv.lock`. Each package remains subject to its upstream license.

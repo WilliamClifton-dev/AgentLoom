@@ -12,11 +12,16 @@ def test_bootstrap_exposes_bounded_lite_and_full_profiles() -> None:
     script = read_script("bootstrap.ps1")
 
     assert '[ValidateSet("lite", "full")]' in script
-    assert '[ValidateSet("none", "qwen", "deepseek", "stepfun")]' in script
+    assert (
+        '[ValidateSet("none", "qwen", "deepseek", "stepfun", "minimax", "custom")]'
+        in script
+    )
     assert (
         '[ValidateSet("qwen3.7-plus", "deepseek-v4-flash", '
-        '"deepseek-v4-pro", "step-3.7-flash")]'
+        '"deepseek-v4-pro", "step-3.7-flash", "MiniMax-M2.5")]'
     ) in script
+    assert '[string]$ProviderProfilePath = ""' in script
+    assert "[switch]$RunProviderConnectionTest" in script
     assert "$PSScriptRoot" in script
     assert "sys.version_info[:2]" in script
     assert '"3.12"' in script
@@ -43,11 +48,33 @@ def test_full_bootstrap_fails_closed_and_preserves_provider_order() -> None:
     assert "configure-provider.ps1" in script
     assert "configure-deepseek-provider.ps1" in script
     assert "configure-stepfun-provider.ps1" in script
+    assert "configure-minimax-provider.ps1" in script
+    assert "configure-openai-compatible-provider.ps1" in script
     assert script.index('"deploy.ps1"') < script.index('"configure-provider.ps1"')
     assert script.index('"deploy.ps1"') < script.index('"configure-deepseek-provider.ps1"')
     assert script.index('"deploy.ps1"') < script.index('"configure-stepfun-provider.ps1"')
-    assert "apiKey" not in script
+    assert script.index('"deploy.ps1"') < script.index('"configure-minimax-provider.ps1"')
+    assert script.index('"deploy.ps1"') < script.rindex(
+        '"configure-openai-compatible-provider.ps1"'
+    )
+    assert "$ApiKey" not in script
+    assert "api_key =" not in script
     assert "sk-" not in script
+
+
+def test_custom_bootstrap_validates_profile_before_external_access() -> None:
+    script = read_script("bootstrap.ps1")
+
+    validation = '"configure-openai-compatible-provider.ps1") @validationArguments'
+    docker_access = 'Get-Command "docker"'
+    assert validation in script
+    assert script.index(validation) < script.index(docker_access)
+    assert '"-ValidateOnly"' in script
+    assert "$Model = $customProviderProfile.modelId" in script
+    assert "$CustomProviderProfile.apiKeyEnvironmentVariable" in script
+    assert "$SkipProviderConnectionTest -and $RunProviderConnectionTest" in script
+    assert 'if ($Provider -eq "custom" -and $RunProviderConnectionTest)' in script
+    assert '"-RunConnectionTest"' in script
 
 
 def test_health_check_verifies_runtime_resources_and_writes_redacted_evidence() -> None:

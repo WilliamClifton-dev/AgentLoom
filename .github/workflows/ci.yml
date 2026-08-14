@@ -46,3 +46,11 @@ jobs:
             }
           }
           if ($failed) { exit 1 }
+      - name: Build source and wheel distributions
+        run: python -m build
+      - name: Smoke test installed wheel
+        run: |
+          python -m venv .tmp/release-venv
+          .tmp/release-venv/bin/python -m pip install --disable-pip-version-check dist/*.whl
+          .tmp/release-venv/bin/python -c "import importlib.metadata as m; import agentloom; assert m.version('agentloom') == agentloom.__version__"
+          .tmp/release-venv/bin/agentloom --help

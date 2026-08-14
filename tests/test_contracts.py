@@ -9,7 +9,9 @@ from agentloom.contracts import (
     ApprovalRecord,
     CoordinationEvent,
     CoordinationTrace,
+    DetectionResult,
     EvidenceRecord,
+    ExperienceRecord,
     Finding,
     PatchArtifact,
     RepairArtifactBundle,
@@ -19,6 +21,8 @@ from agentloom.contracts import (
     SkillExecutionGrant,
     SkillManifest,
     SkillSource,
+    TaskDetectionRecord,
+    TaskEvidenceBundle,
     VerificationChecks,
     VerificationResult,
 )
@@ -300,6 +304,7 @@ def test_grant_expiry_must_follow_issue_time() -> None:
             tool_name="test-runner",
             action="process.exec:test",
             parameter_digest="b" * 64,
+            authorized_paths=["tests/test_parser.py"],
             risk_level="L1",
             nonce="nonce-01",
             issued_at=issued_at,
@@ -388,3 +393,274 @@ def test_repair_artifact_bundle_rejects_unverified_patch_hash() -> None:
             ),
             risk=bundle.risk,
         )
+
+
+def make_task_evidence_bundle() -> TaskEvidenceBundle:
+    created_at = datetime(2026, 8, 15, tzinfo=UTC)
+    evidence = [
+        EvidenceRecord(
+            evidence_id="ev-static",
+            task_id="task-01",
+            step_id="implement-static",
+            kind="STATIC_PATCH_SCAN",
+            producer="agentloom-implementer",
+            uri="artifact://task-01/l1-static.json",
+            sha256="1" * 64,
+            summary="Patch content and changed paths passed static checks.",
+            created_at=created_at,
+        ),
+        EvidenceRecord(
+            evidence_id="ev-dynamic",
+            task_id="task-01",
+            step_id="implement-dynamic",
+            kind="DYNAMIC_TEST_RUN",
+            producer="agentloom-implementer",
+            uri="artifact://task-01/l2-dynamic.txt",
+            sha256="2" * 64,
+            summary="Allowlisted tests passed in the Implementer workspace.",
+            created_at=created_at,
+        ),
+        EvidenceRecord(
+            evidence_id="ev-verification",
+            task_id="task-01",
+            step_id="verify-01",
+            kind="INDEPENDENT_VERIFICATION",
+            producer="agentloom-verifier",
+            uri="artifact://task-01/l3-verification.txt",
+            sha256="3" * 64,
+            summary="Clean-workspace verification and hidden tests passed.",
+            created_at=created_at,
+        ),
+    ]
+    detections = [
+        TaskDetectionRecord(
+            detection_id="detection-static",
+            task_id="task-01",
+            step_id="implement-static",
+            producer_agent="agentloom-implementer",
+            subject_digest="a" * 64,
+            result=DetectionResult(
+                stage="STATIC",
+                verdict="PASSED",
+                findings=[],
+                evidence_refs=["ev-static"],
+                detector_versions={"patch-scope": "1.0.0"},
+            ),
+            created_at=created_at,
+        ),
+        TaskDetectionRecord(
+            detection_id="detection-dynamic",
+            task_id="task-01",
+            step_id="implement-dynamic",
+            producer_agent="agentloom-implementer",
+            subject_digest="a" * 64,
+            result=DetectionResult(
+                stage="DYNAMIC",
+                verdict="PASSED",
+                findings=[],
+                evidence_refs=["ev-dynamic"],
+                detector_versions={"bounded-pytest": "1.0.0"},
+            ),
+            created_at=created_at,
+        ),
+        TaskDetectionRecord(
+            detection_id="detection-verification",
+            task_id="task-01",
+            step_id="verify-01",
+            producer_agent="agentloom-verifier",
+            subject_digest="a" * 64,
+            result=DetectionResult(
+                stage="VERIFICATION",
+                verdict="PASSED",
+                findings=[],
+                evidence_refs=["ev-verification"],
+                detector_versions={"independent-verifier": "1.0.0"},
+            ),
+            created_at=created_at,
+        ),
+    ]
+    experience = ExperienceRecord(
+        experience_id="experience-01",
+        task_id="task-01",
+        outcome="SUCCEEDED",
+        verdict="PASSED",
+        skill_versions={},
+        lessons=["Keep static, dynamic, and independent verification separate."],
+        evidence_refs=["ev-static", "ev-dynamic", "ev-verification"],
+        created_at=created_at,
+    )
+    return TaskEvidenceBundle(
+        task_id="task-01",
+        detections=detections,
+        evidence=evidence,
+        experience=experience,
+    )
+
+
+def test_task_evidence_bundle_binds_three_layers_roles_and_final_evidence() -> None:
+    bundle = make_task_evidence_bundle()
+
+    assert [record.result.stage for record in bundle.detections] == [
+        "STATIC",
+        "DYNAMIC",
+        "VERIFICATION",
+    ]
+    assert bundle.experience.evidence_refs == [
+        "ev-static",
+        "ev-dynamic",
+        "ev-verification",
+    ]
+
+
+def test_task_evidence_bundle_rejects_cross_task_and_missing_evidence() -> None:
+    bundle = make_task_evidence_bundle()
+
+    with pytest.raises(ValidationError, match="same taskId"):
+        TaskEvidenceBundle(
+            task_id=bundle.task_id,
+            detections=[
+                bundle.detections[0].model_copy(update={"task_id": "task-other"}),
+                *bundle.detections[1:],
+            ],
+            evidence=bundle.evidence,
+            experience=bundle.experience,
+        )
+    with pytest.raises(ValidationError, match="unresolved Evidence"):
+        TaskEvidenceBundle(
+            task_id=bundle.task_id,
+            detections=bundle.detections,
+            evidence=[
+                *bundle.evidence[:-1],
+                bundle.evidence[-1].model_copy(
+                    update={"evidence_id": "ev-unrelated"}
+                ),
+            ],
+            experience=bundle.experience,
+        )
+
+
+def test_task_detection_record_enforces_implementer_verifier_separation() -> None:
+    record = make_task_evidence_bundle().detections[2]
+
+    with pytest.raises(ValidationError, match="VERIFICATION.*agentloom-verifier"):
+        TaskDetectionRecord(
+            **record.model_dump(exclude={"producer_agent"}),
+            producer_agent="agentloom-implementer",
+        )
+
+
+def test_task_evidence_bundle_rejects_incomplete_final_evidence() -> None:
+    bundle = make_task_evidence_bundle()
+    incomplete = bundle.experience.model_copy(
+        update={"evidence_refs": ["ev-verification"]}
+    )
+
+    with pytest.raises(ValidationError, match="every stage Evidence"):
+        TaskEvidenceBundle(
+            task_id=bundle.task_id,
+            detections=bundle.detections,
+            evidence=bundle.evidence,
+            experience=incomplete,
+        )
+
+
+def test_task_evidence_bundle_rejects_evidence_reused_across_layers() -> None:
+    bundle = make_task_evidence_bundle()
+    reused_dynamic = bundle.detections[1].model_copy(
+        update={
+            "result": bundle.detections[1].result.model_copy(
+                update={"evidence_refs": ["ev-static"]}
+            )
+        }
+    )
+
+    with pytest.raises(ValidationError, match="distinct Evidence"):
+        TaskEvidenceBundle(
+            task_id=bundle.task_id,
+            detections=[bundle.detections[0], reused_dynamic, bundle.detections[2]],
+            evidence=bundle.evidence,
+            experience=bundle.experience,
+        )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "verdict", "failure_mode"),
+    [
+        ("SUCCEEDED", "FAILED", "tests failed"),
+        ("FAILED", "PASSED", "unexpected success"),
+        ("UNCERTAIN", "UNCERTAIN", None),
+    ],
+)
+def test_experience_record_rejects_inconsistent_terminal_outcomes(
+    outcome: str,
+    verdict: str,
+    failure_mode: str | None,
+) -> None:
+    with pytest.raises(ValidationError, match="outcome"):
+        ExperienceRecord(
+            experience_id="experience-invalid",
+            task_id="task-01",
+            outcome=outcome,
+            verdict=verdict,
+            skill_versions={},
+            failure_mode=failure_mode,
+            lessons=["Retain the terminal evidence."],
+            evidence_refs=["ev-terminal"],
+            created_at=datetime(2026, 8, 15, tzinfo=UTC),
+        )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "verdict", "failure_mode"),
+    [
+        ("FAILED", "FAILED", "target tests failed"),
+        ("FAILED", "UNSAFE", "scope violation"),
+        ("UNCERTAIN", "UNCERTAIN", "detector unavailable"),
+    ],
+)
+def test_experience_record_supports_failed_and_uncertain_outcomes(
+    outcome: str,
+    verdict: str,
+    failure_mode: str,
+) -> None:
+    record = ExperienceRecord(
+        experience_id=f"experience-{outcome.lower()}-{verdict.lower()}",
+        task_id="task-01",
+        outcome=outcome,
+        verdict=verdict,
+        skill_versions={},
+        failure_mode=failure_mode,
+        lessons=["Retain the terminal evidence."],
+        evidence_refs=["ev-terminal"],
+        created_at=datetime(2026, 8, 15, tzinfo=UTC),
+    )
+
+    assert record.failure_mode == failure_mode
+def test_grant_issuance_request_rejects_server_owned_fields() -> None:
+    from agentloom.contracts import GrantIssuanceRequest
+
+    valid = {
+        "taskId": "task-01",
+        "stepId": "verify-01",
+        "skillName": "code-review-and-quality",
+        "skillVersion": "1.0.0",
+        "toolName": "test-runner",
+        "action": "process.exec:test",
+        "parameterDigest": "a" * 64,
+        "requestedPaths": ["tests/test_parser.py"],
+    }
+
+    request = GrantIssuanceRequest.model_validate(valid)
+    assert request.task_id == "task-01"
+
+    for server_owned in (
+        "agentName",
+        "grantId",
+        "nonce",
+        "issuedAt",
+        "expiresAt",
+        "skillContentHash",
+        "riskLevel",
+    ):
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            GrantIssuanceRequest.model_validate({**valid, server_owned: "forged"})

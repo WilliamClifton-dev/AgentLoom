@@ -65,8 +65,8 @@
       "invocation_conditions": ["patch-frozen-in-clean-verifier-workspace"],
       "dependencies": ["repository-search", "test-reader"],
       "failure_modes": ["INSUFFICIENT_EVIDENCE", "UNCERTAIN", "TIMEOUT"],
-      "permissions": ["repo.read", "tests.read"],
-      "security_boundary": "L0 clean read-only snapshot; patch mutation denied",
+      "permissions": ["repo.read", "tests.read", "tests.execute"],
+      "security_boundary": "L1 clean verifier workspace; patch mutation and non-pytest execution denied",
       "reuse_value": "Reusable as a pre-merge independent review gate",
       "source": {
         "repository": "https://github.com/addyosmani/agent-skills",
@@ -76,11 +76,23 @@
         "contentHash": "sha256:608c0fb8e974547cc24b8207812b09aceb76f05071bfdc1e10396f3c6118b0b6"
       },
       "compatibleAgents": ["agentloom-verifier"],
-      "allowedTools": ["repository-search:repo.read", "test-reader:tests.read"],
+      "allowedTools": [
+        "repository-search:repo.read",
+        "test-reader:tests.read",
+        "test-runner:process.exec:test"
+      ],
       "allowedPaths": ["src/**", "tests/**"],
-      "riskLevel": "L0",
-      "evaluation": null,
-      "lifecycleState": "QUARANTINED"
+      "riskLevel": "L1",
+      "evaluation": {
+        "upstreamEvidenceRefs": [
+          "source:sha256:608c0fb8e974547cc24b8207812b09aceb76f05071bfdc1e10396f3c6118b0b6"
+        ],
+        "agentloomBenchEvidenceRefs": [
+          "test:tests/test_policy_tool_e2e.py::test_environment_composition_issues_executes_and_rejects_replay",
+          "test:tests/test_grant_issuer.py::test_trusted_issuer_derives_verifier_and_server_owned_grant_fields"
+        ]
+      },
+      "lifecycleState": "PUBLISHED"
     },
     {
       "name": "security-and-hardening",

@@ -1,16 +1,24 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 
+from agentloom.capabilities import CallableToolProvider, CatalogSkillProvider
 from agentloom.contracts import (
     AgentIdentity,
     ApprovalRecord,
     SignedSkillExecutionGrant,
+    SkillCatalog,
     SkillEvaluation,
     SkillExecutionGrant,
     SkillManifest,
+    SkillResolutionRequest,
     SkillSource,
+    ToolCallEventRecord,
+    ToolExecutionRequest,
+    ToolExecutionResult,
+    tool_parameter_digest,
 )
 from agentloom.policy import InMemoryNonceStore, PolicyDenied, SkillGrantAuthorizer
 
@@ -30,6 +38,7 @@ def make_grant(**overrides: object) -> SkillExecutionGrant:
         "tool_name": "test-runner",
         "action": "process.exec:test",
         "parameter_digest": "b" * 64,
+        "authorized_paths": ["src/parser.py"],
         "risk_level": "L1",
         "nonce": "nonce-0001",
         "issued_at": issued_at,
@@ -105,6 +114,70 @@ def issue_grant(
         task_allowed_paths=["src/parser.py"],
         approval=approval,
     )
+
+
+def test_issue_from_provider_resolves_then_applies_existing_policy_checks() -> None:
+    authorizer = make_authorizer()
+    manifest = published_manifest()
+    provider = CatalogSkillProvider(SkillCatalog(skills=[manifest]))
+
+    signed = asyncio.run(
+        authorizer.issue_from_provider(
+            make_grant(),
+            provider=provider,
+            request=SkillResolutionRequest(
+                name=manifest.name,
+                version=manifest.version,
+            ),
+            agent=implementer_identity(),
+            requested_paths=["src/parser.py"],
+            task_allowed_paths=["src/parser.py"],
+        )
+    )
+
+    assert manifest.source is not None
+    assert signed.grant.skill_content_hash == manifest.source.content_hash
+
+
+def test_issue_from_provider_maps_unknown_skill_to_policy_denied() -> None:
+    authorizer = make_authorizer()
+    provider = CatalogSkillProvider(SkillCatalog(skills=[published_manifest()]))
+
+    with pytest.raises(PolicyDenied, match="Skill could not be resolved"):
+        asyncio.run(
+            authorizer.issue_from_provider(
+                make_grant(skill_version="9.9.9"),
+                provider=provider,
+                request=SkillResolutionRequest(
+                    name="test-driven-development",
+                    version="9.9.9",
+                ),
+                agent=implementer_identity(),
+                requested_paths=["src/parser.py"],
+                task_allowed_paths=["src/parser.py"],
+            )
+        )
+
+
+def test_issue_from_provider_does_not_bypass_content_hash_check() -> None:
+    authorizer = make_authorizer()
+    manifest = published_manifest()
+    provider = CatalogSkillProvider(SkillCatalog(skills=[manifest]))
+
+    with pytest.raises(PolicyDenied, match="published Skill content"):
+        asyncio.run(
+            authorizer.issue_from_provider(
+                make_grant(skill_content_hash=f"sha256:{'c' * 64}"),
+                provider=provider,
+                request=SkillResolutionRequest(
+                    name=manifest.name,
+                    version=manifest.version,
+                ),
+                agent=implementer_identity(),
+                requested_paths=["src/parser.py"],
+                task_allowed_paths=["src/parser.py"],
+            )
+        )
 
 
 def test_valid_grant_is_accepted_once() -> None:
@@ -293,7 +366,7 @@ def test_issue_rejects_role_tool_and_path_escalation() -> None:
 
     with pytest.raises(PolicyDenied, match="Requested path is not allowed"):
         authorizer.issue(
-            make_grant(),
+            make_grant(authorized_paths=["pyproject.toml"]),
             manifest=manifest,
             agent=implementer_identity(),
             requested_paths=["pyproject.toml"],
@@ -344,6 +417,105 @@ def test_policy_broker_mcp_verifies_grant_once() -> None:
             await server.call_tool(POLICY_VERIFY_TOOL, request)
 
     asyncio.run(verify_once_then_reject_replay())
+
+
+def test_policy_broker_mcp_executes_tool_provider_after_grant_verification() -> None:
+    pytest.importorskip("mcp")
+    from agentloom.policy_mcp import TOOL_EXECUTE_TOOL, create_policy_broker_mcp
+
+    authorizer = make_authorizer()
+    signed = issue_grant(
+        authorizer,
+        make_grant(parameter_digest=tool_parameter_digest({})),
+    )
+    observed: list[str] = []
+    recorded: list[ToolCallEventRecord] = []
+
+    async def execute(request: ToolExecutionRequest) -> ToolExecutionResult:
+        observed.append(request.tool_name)
+        return ToolExecutionResult(status="SUCCEEDED", evidence_refs=["ev-tool"])
+
+    server = create_policy_broker_mcp(
+        authorizer,
+        tool_provider=CallableToolProvider("local-tool", execute),
+        tool_call_recorder=recorded.append,
+    )
+
+    async def execute_once() -> None:
+        raw_result = await server.call_tool(
+            TOOL_EXECUTE_TOOL,
+            {
+                "request": {
+                    "signedGrant": signed.model_dump(mode="json", by_alias=True),
+                    "toolRequest": {
+                        "taskId": signed.grant.task_id,
+                        "stepId": signed.grant.step_id,
+                        "agentName": signed.grant.agent_name,
+                        "skillName": signed.grant.skill_name,
+                        "skillVersion": signed.grant.skill_version,
+                        "toolName": signed.grant.tool_name,
+                        "action": signed.grant.action,
+                        "parameterDigest": signed.grant.parameter_digest,
+                    },
+                }
+            },
+        )
+        _, structured = cast(tuple[object, dict[str, object]], raw_result)
+        assert structured == {
+            "status": "SUCCEEDED",
+            "evidenceRefs": ["ev-tool"],
+            "outputDigest": None,
+            "errorCode": None,
+        }
+
+    asyncio.run(execute_once())
+    assert observed == ["test-runner"]
+    assert len(recorded) == 1
+    assert recorded[0].grant_id == "grant-01"
+
+
+def test_policy_broker_mcp_rejects_tool_request_grant_mismatch() -> None:
+    pytest.importorskip("mcp")
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from agentloom.policy_mcp import TOOL_EXECUTE_TOOL, create_policy_broker_mcp
+
+    authorizer = make_authorizer()
+    signed = issue_grant(
+        authorizer,
+        make_grant(parameter_digest=tool_parameter_digest({})),
+    )
+    server = create_policy_broker_mcp(
+        authorizer,
+        tool_provider=CallableToolProvider("local-tool", _successful_tool_result),
+    )
+
+    async def reject_mismatch() -> None:
+        with pytest.raises(ToolError, match="toolRequest.*does not match"):
+            await server.call_tool(
+                TOOL_EXECUTE_TOOL,
+                {
+                    "request": {
+                        "signedGrant": signed.model_dump(mode="json", by_alias=True),
+                        "toolRequest": {
+                            "taskId": signed.grant.task_id,
+                            "stepId": signed.grant.step_id,
+                            "agentName": signed.grant.agent_name,
+                            "skillName": signed.grant.skill_name,
+                            "skillVersion": signed.grant.skill_version,
+                            "toolName": "other-tool",
+                            "action": signed.grant.action,
+                            "parameterDigest": signed.grant.parameter_digest,
+                        },
+                    }
+                },
+            )
+
+    asyncio.run(reject_mismatch())
+
+
+async def _successful_tool_result(_: ToolExecutionRequest) -> ToolExecutionResult:
+    return ToolExecutionResult(status="SUCCEEDED", evidence_refs=["ev-tool"])
 
 
 def test_policy_broker_mcp_rejects_unknown_request_fields() -> None:

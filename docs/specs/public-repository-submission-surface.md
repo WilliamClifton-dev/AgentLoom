@@ -1,0 +1,53 @@
+# Public repository submission surface specification
+
+## Purpose
+
+Make `README.md` and `README.zh-CN.md` a truthful, concise entry point for
+competition reviewers and downstream deployers after Tasks 17 and 18.
+
+## Current facts
+
+- Runtime: AgentTeams v1.1.2.
+- Current live path: Administrator -> Manager -> Investigator -> Verifier ->
+  authenticated Higress -> Policy Broker -> immutable Docker pytest sandbox.
+- Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`.
+- Result: exactly one governed `SUCCEEDED` ToolCall.
+- Gate: 283 pytest passed, 3 opt-in Docker tests skipped; Ruff, strict mypy,
+  pip-audit, syntax, migration, diff, and secret checks passed.
+- Skill catalog: `code-review-and-quality` is `PUBLISHED`; four upstream Skills
+  are `QUARANTINED`; the original supply-chain audit remains a prototype.
+- Human L2 approval is `APPROVED`; PR #1141 remains `OPEN`.
+- P0 package exists; final real recording, public upload, and competition-page
+  submission remain Human-owned.
+
+## Structure
+
+Both READMEs must present, in this order:
+
+1. Product definition and current status.
+2. Competition scope and evidence baseline.
+3. Architecture and trust boundaries.
+4. Quick start for model-free local verification.
+5. Full AgentTeams deployment and Provider Profile links.
+6. Implemented capabilities and evidence.
+7. Historical evidence and reproduction paths, clearly labelled.
+8. Remaining roadmap, provenance, and security.
+
+## Provider boundary
+
+The public surface must distinguish validation, configuration, connection
+testing, and strict AgentTeams E2E. A secret-free Provider Profile validates
+only configuration shape. It cannot prove that every OpenAI-compatible model
+supports role messages, streaming, tool calling, reasoning parameters, context
+limits, or repair workflows.
+
+## Acceptance checks
+
+- English and Chinese current-state facts are equivalent.
+- No first-party current-run claim names Qwen, DeepSeek, or StepFun.
+- Historical provider evidence is retained and explicitly labelled historical.
+- No stale 146/175/182 test count or all-five-Skills-quarantined claim remains
+  outside an explicitly quoted historical record.
+- Model-free commands make no paid calls; paid probes require explicit opt-in.
+- Relative links resolve in the worktree.
+- Human checkpoints remain incomplete.

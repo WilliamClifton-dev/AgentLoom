@@ -2,14 +2,16 @@
 param(
     [ValidateSet("lite", "full")]
     [string]$Profile = "lite",
-    [ValidateSet("none", "qwen", "deepseek", "stepfun")]
+    [ValidateSet("none", "qwen", "deepseek", "stepfun", "minimax", "custom")]
     [string]$Provider = "none",
-    [ValidateSet("qwen3.7-plus", "deepseek-v4-flash", "deepseek-v4-pro", "step-3.7-flash")]
+    [ValidateSet("qwen3.7-plus", "deepseek-v4-flash", "deepseek-v4-pro", "step-3.7-flash", "MiniMax-M2.5")]
     [string]$Model = "qwen3.7-plus",
+    [string]$ProviderProfilePath = "",
     [string]$PythonExecutable = "",
     [string]$EvidencePath = "",
     [switch]$SkipPackageInstall,
-    [switch]$SkipProviderConnectionTest
+    [switch]$SkipProviderConnectionTest,
+    [switch]$RunProviderConnectionTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,12 +82,41 @@ function Test-EnvironmentVariablePresent {
     return $false
 }
 
+function Get-ValidatedCustomProviderProfile {
+    if ([string]::IsNullOrWhiteSpace($ProviderProfilePath)) {
+        throw "The custom provider requires -ProviderProfilePath."
+    }
+
+    $validationArguments = @(
+        "-ProfilePath", $ProviderProfilePath,
+        "-ValidateOnly"
+    )
+    $validationOutput = @(
+        & (Join-Path $agentTeamsRoot "configure-openai-compatible-provider.ps1") @validationArguments
+    )
+    if ($validationOutput.Count -eq 0) {
+        throw "Provider Profile validation returned no result."
+    }
+    try {
+        return ($validationOutput -join [Environment]::NewLine) |
+            ConvertFrom-Json -AsHashtable -Depth 10
+    }
+    catch {
+        throw "Provider Profile validation returned an invalid result."
+    }
+}
+
 function Assert-FullProfilePrerequisites {
+    param([Collections.IDictionary]$CustomProviderProfile)
+
     if ($PSVersionTable.PSVersion.Major -lt 7) {
         throw "The full profile requires PowerShell 7 or newer."
     }
     if ($Provider -eq "none") {
-        throw "The full profile requires -Provider qwen, deepseek, or stepfun."
+        throw (
+            "The full profile requires -Provider qwen, deepseek, stepfun, " +
+            "minimax, or custom."
+        )
     }
     if ($Provider -eq "qwen" -and $Model -ne "qwen3.7-plus") {
         throw "The qwen provider requires -Model qwen3.7-plus."
@@ -95,6 +126,31 @@ function Assert-FullProfilePrerequisites {
     }
     if ($Provider -eq "stepfun" -and $Model -ne "step-3.7-flash") {
         throw "The stepfun provider requires -Model step-3.7-flash."
+    }
+    if ($Provider -eq "minimax" -and $Model -ne "MiniMax-M2.5") {
+        throw "The minimax provider requires -Model MiniMax-M2.5."
+    }
+    if ($Provider -ne "custom" -and
+        -not [string]::IsNullOrWhiteSpace($ProviderProfilePath)) {
+        throw "-ProviderProfilePath is valid only with -Provider custom."
+    }
+    if ($Provider -ne "custom" -and $RunProviderConnectionTest) {
+        throw "-RunProviderConnectionTest is valid only with -Provider custom."
+    }
+    if ($Provider -eq "custom" -and
+        $SkipProviderConnectionTest -and $RunProviderConnectionTest) {
+        throw "Provider connection test switches conflict."
+    }
+
+    $requiredVariable = switch ($Provider) {
+        "qwen" { "QWEN_API_KEY" }
+        "deepseek" { "DEEPSEEK_API_KEY" }
+        "stepfun" { "STEPFUN_API_KEY" }
+        "minimax" { "MINIMAX_API_KEY" }
+        "custom" { $CustomProviderProfile.apiKeyEnvironmentVariable }
+    }
+    if (-not (Test-EnvironmentVariablePresent -Name $requiredVariable)) {
+        throw "Environment variable $requiredVariable is missing."
     }
 
     $null = Get-Command "docker" -ErrorAction Stop
@@ -107,14 +163,6 @@ function Assert-FullProfilePrerequisites {
         throw "The AgentTeams controller is not running."
     }
 
-    $requiredVariable = switch ($Provider) {
-        "qwen" { "QWEN_API_KEY" }
-        "deepseek" { "DEEPSEEK_API_KEY" }
-        "stepfun" { "STEPFUN_API_KEY" }
-    }
-    if (-not (Test-EnvironmentVariablePresent -Name $requiredVariable)) {
-        throw "Environment variable $requiredVariable is missing."
-    }
 }
 
 Write-Host "AgentLoom bootstrap profile: $Profile"
@@ -153,7 +201,12 @@ if ($Profile -eq "lite") {
     return
 }
 
-Assert-FullProfilePrerequisites
+$customProviderProfile = $null
+if ($Provider -eq "custom") {
+    $customProviderProfile = Get-ValidatedCustomProviderProfile
+    $Model = $customProviderProfile.modelId
+}
+Assert-FullProfilePrerequisites -CustomProviderProfile $customProviderProfile
 if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
     $EvidencePath = Join-Path $projectRoot "artifacts\agentteams\deployment.json"
 }
@@ -168,9 +221,21 @@ elseif ($Provider -eq "deepseek") {
     & (Join-Path $agentTeamsRoot "configure-deepseek-provider.ps1") `
         -Model $Model -SkipConnectionTest:$SkipProviderConnectionTest
 }
-else {
+elseif ($Provider -eq "stepfun") {
     & (Join-Path $agentTeamsRoot "configure-stepfun-provider.ps1") `
         -Model $Model -SkipConnectionTest:$SkipProviderConnectionTest
+}
+elseif ($Provider -eq "minimax") {
+    & (Join-Path $agentTeamsRoot "configure-minimax-provider.ps1") `
+        -Model $Model -SkipConnectionTest:$SkipProviderConnectionTest
+}
+else {
+    $configurationArguments = @("-ProfilePath", $ProviderProfilePath)
+    if ($Provider -eq "custom" -and $RunProviderConnectionTest) {
+        $configurationArguments += "-RunConnectionTest"
+    }
+    & (Join-Path $agentTeamsRoot "configure-openai-compatible-provider.ps1") `
+        @configurationArguments
 }
 
 $healthEvidencePath = Join-Path $projectRoot "artifacts\agentteams\health.json"

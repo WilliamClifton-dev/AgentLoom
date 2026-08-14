@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "agentloom.demo-case/v1alpha1",
+  "caseId": "retry-delay-cap",
+  "title": "Cap retry delay without raising smaller requests",
+  "issuePath": "issue.md",
+  "acceptanceCriteria": [
+    "The original failure is reproduced before the patch.",
+    "Requests below or at the maximum are preserved.",
+    "Requests above the maximum are capped and invalid values remain rejected."
+  ],
+  "provenancePath": "provenance.json",
+  "sourceRoot": "before",
+  "expectedPatchRoot": "expected",
+  "hiddenTestsPath": "hidden-tests",
+  "workingDirectory": ".",
+  "testCommand": ["pytest", "-q"],
+  "staticCheckCommand": ["compileall", "-q", "src", "tests"],
+  "targetFailingTests": [
+    "tests/test_retry_policy.py::test_retry_delay_below_cap_is_preserved"
+  ],
+  "allowedChangedPaths": ["src/retry_policy.py"],
+  "timeoutSeconds": 60,
+  "outputLimitBytes": 65536,
+  "runtime": {
+    "language": "python",
+    "version": ">=3.12,<3.13"
+  },
+  "expectedRootCause": "The retry delay used max instead of min when applying the cap."
+}
+

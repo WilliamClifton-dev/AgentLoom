@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -10,8 +11,9 @@ from hashlib import sha256
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-from pydantic import ConfigDict, Field, ValidationError, model_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
+from agentloom.benchmark import benchmark_case_fingerprint
 from agentloom.contracts import (
     ContractModel,
     CoordinationTrace,
@@ -35,8 +37,13 @@ AgentName = Literal[
     "agentloom-implementer",
     "agentloom-verifier",
 ]
-ProviderName = Literal["dashscope", "deepseek", "stepfun"]
-ModelName = Literal["qwen3.7-plus", "deepseek-v4-pro", "step-3.7-flash"]
+ProviderName = Literal["dashscope", "deepseek", "stepfun", "minimax-cn"]
+ModelName = Literal[
+    "qwen3.7-plus",
+    "deepseek-v4-pro",
+    "step-3.7-flash",
+    "MiniMax-M2.5",
+]
 
 _EXPECTED_AGENTS: tuple[AgentName, ...] = (
     "agentloom-investigator",
@@ -47,9 +54,12 @@ _PROVIDER_MODELS: dict[ProviderName, ModelName] = {
     "dashscope": "qwen3.7-plus",
     "deepseek": "deepseek-v4-pro",
     "stepfun": "step-3.7-flash",
+    "minimax-cn": "MiniMax-M2.5",
 }
 _HIDDEN_WORKSPACE = ".agentloom-hidden-tests"
 _MAX_PATCH_BYTES = 131_072
+_MAX_SOURCE_FILES = 64
+_MAX_SOURCE_BYTES = 1_048_576
 
 
 class LiveRepairError(RuntimeError):
@@ -65,6 +75,66 @@ class AgentRoleEvent(ContractModel):
     room_id: str = Field(alias="roomId", pattern=r"^![^\s]+$")
     event_id: str = Field(alias="eventId", pattern=r"^\$[^\s]+$")
     origin_server_timestamp: int = Field(alias="originServerTimestamp", ge=1)
+
+
+class LiveRepairSourceFile(ContractModel):
+    source_path: str = Field(alias="sourcePath", min_length=1, max_length=300)
+    object_name: str = Field(alias="objectName", min_length=1, max_length=305)
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    size_bytes: int = Field(alias="sizeBytes", ge=0, le=_MAX_SOURCE_BYTES)
+
+    @field_validator("source_path", "object_name")
+    @classmethod
+    def paths_are_safe(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if (
+            path.is_absolute()
+            or value in {"", "."}
+            or ".." in path.parts
+            or "\\" in value
+            or "\x00" in value
+            or path.as_posix() != value
+        ):
+            raise ValueError("live repair source path is unsafe")
+        return value
+
+
+class LiveRepairCaseContext(ContractModel):
+    schema_version: Literal["agentloom.live-repair-case/v1alpha1"] = Field(
+        default="agentloom.live-repair-case/v1alpha1", alias="schemaVersion"
+    )
+    case_id: str = Field(alias="caseId", pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    case_fingerprint: str = Field(
+        alias="caseFingerprint", pattern=r"^[a-f0-9]{64}$"
+    )
+    title: str = Field(min_length=1, max_length=200)
+    issue: str = Field(min_length=1, max_length=20_000)
+    acceptance_criteria: list[str] = Field(
+        alias="acceptanceCriteria", min_length=1, max_length=20
+    )
+    source_files: list[LiveRepairSourceFile] = Field(
+        alias="sourceFiles", min_length=1, max_length=_MAX_SOURCE_FILES
+    )
+    working_directory: str = Field(alias="workingDirectory")
+    test_command: list[str] = Field(alias="testCommand", min_length=1)
+    test_shell_command: str = Field(alias="testShellCommand", min_length=1)
+    static_check_command: list[str] = Field(
+        alias="staticCheckCommand", min_length=1
+    )
+    static_check_shell_command: str = Field(
+        alias="staticCheckShellCommand", min_length=1
+    )
+    target_failing_tests: list[str] = Field(
+        alias="targetFailingTests", min_length=1
+    )
+    allowed_changed_paths: list[str] = Field(
+        alias="allowedChangedPaths", min_length=1
+    )
+    timeout_seconds: int = Field(alias="timeoutSeconds", ge=1, le=120)
+    output_limit_bytes: int = Field(
+        alias="outputLimitBytes", ge=1024, le=1_048_576
+    )
+    spec: str = Field(min_length=1, max_length=30_000)
 
 
 class LiveRepairSubmission(ContractModel):
@@ -316,6 +386,75 @@ class LiveRepairVerifier:
             bundle=submission.bundle,
             artifacts_dir=artifacts,
         )
+
+
+def prepare_live_repair_case_context(case_root: Path) -> LiveRepairCaseContext:
+    """Expose only validated, model-visible inputs for a live repair Case."""
+
+    case = load_demo_case(case_root)
+    files = sorted(path for path in case.source_root.rglob("*") if path.is_file())
+    if len(files) > _MAX_SOURCE_FILES:
+        raise LiveRepairError("live repair Case contains too many source files")
+    source_files: list[LiveRepairSourceFile] = []
+    total_bytes = 0
+    for path in files:
+        relative = path.relative_to(case.source_root).as_posix()
+        size = path.stat().st_size
+        total_bytes += size
+        if total_bytes > _MAX_SOURCE_BYTES:
+            raise LiveRepairError("live repair Case source exceeds the size limit")
+        source_files.append(
+            LiveRepairSourceFile(
+                source_path=relative,
+                object_name=f"base/{relative}",
+                sha256=sha256(path.read_bytes()).hexdigest(),
+                size_bytes=size,
+            )
+        )
+    test_command = list(case.test_command)
+    static_command = list(case.static_check_command)
+    static_shell = (
+        shlex.join(["python", "-m", *static_command])
+        if static_command[0] == "compileall"
+        else shlex.join(static_command)
+    )
+    acceptance = "\n".join(
+        f"- {criterion}" for criterion in case.manifest.acceptance_criteria
+    )
+    allowed_paths = "\n".join(
+        f"- {path}" for path in case.manifest.allowed_changed_paths
+    )
+    targets = "\n".join(
+        f"- {target}" for target in case.manifest.target_failing_tests
+    )
+    spec = (
+        f"# AgentLoom live repair Case: {case.manifest.case_id}\n\n"
+        f"{case.issue}\n\n"
+        f"Acceptance criteria:\n{acceptance}\n\n"
+        f"Allowed changed paths:\n{allowed_paths}\n\n"
+        f"Target failing tests:\n{targets}\n\n"
+        f"Working directory: {case.manifest.working_directory}\n"
+        f"Visible command: {shlex.join(test_command)}\n"
+        f"Static command: {static_shell}\n"
+    )
+    return LiveRepairCaseContext(
+        case_id=case.manifest.case_id,
+        case_fingerprint=benchmark_case_fingerprint(case),
+        title=case.manifest.title,
+        issue=case.issue,
+        acceptance_criteria=case.manifest.acceptance_criteria,
+        source_files=source_files,
+        working_directory=case.manifest.working_directory,
+        test_command=test_command,
+        test_shell_command=shlex.join(test_command),
+        static_check_command=static_command,
+        static_check_shell_command=static_shell,
+        target_failing_tests=case.manifest.target_failing_tests,
+        allowed_changed_paths=case.manifest.allowed_changed_paths,
+        timeout_seconds=case.manifest.timeout_seconds,
+        output_limit_bytes=case.manifest.output_limit_bytes,
+        spec=spec,
+    )
 
 
 def _load_submission(path: Path) -> LiveRepairSubmission:

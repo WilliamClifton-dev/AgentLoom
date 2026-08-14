@@ -9,7 +9,7 @@
 2. 人把任务交给 Manager，Manager 建立阶段计划，Investigator、Implementer、Verifier 沿既有链路以结构化交接完成闭环。
 3. AgentLoom 原创价值是 Skill Registry、Policy Broker、三层检测、Evidence、
    Human 审批和回滚治理。
-4. Qwen 修复、StepFun 四角色回滚、真人 L2 审批和 175 项测试均有证据。
+4. MiniMax 真实委派、Higress / Policy Broker 授权、Docker 独立验证、唯一 ToolCall、真人 L2 审批和 283 passed / 3 skipped 均有证据。
 5. 第三方来源、当前缺口和未完成功能均诚实披露。
 
 ## 2. AI 开始前必须获得的输入
@@ -29,7 +29,7 @@
 | GitHub Actions 与 PR #1141 截图 | 建议 | 展示工程质量和上游贡献 |
 
 证据截图缺失时使用带编号的明显占位符，例如
-`[待插入 E03：StepFun 回滚 PASS 截图]`。禁止生成、绘制或伪造真实系统截图。
+`[待插入 E03：Docker 治理 ToolCall PASS 截图]`。禁止生成、绘制或伪造真实系统截图。
 
 ## 3. 来源优先级
 
@@ -42,7 +42,7 @@
 5. README 和其他仓库文档。
 6. 旧 PPT 草稿。
 
-旧 PPT 中的 `146 项测试`、`真人审批待完成`、`未创建任何 GitHub PR`、
+旧 PPT 中的 `146/175/182 项测试`、`真人审批待完成`、`未创建任何 GitHub PR`、
 `生产环境就绪` 均为过期或过度表述，必须替换。
 
 ## 4. 模板与版式合同
@@ -64,9 +64,9 @@
 | 编号 | 素材 | 最低可见信息 | 脱敏要求 |
 | --- | --- | --- | --- |
 | E01 | AgentTeams 健康检查 | v1.1.2、Manager、Team、3 Workers、Human、PASS | 不显示 Docker Inspect、密码、环境变量 |
-| E02 | Qwen 修复证据 | 任务、三角色、隐藏测试、补丁哈希、PASS | 不显示 Key、完整原始 Trace、个人路径 |
-| E03 | StepFun 回滚 Team Room | 四个事件、真实发送者、严格时间顺序 | 长消息拆成两个镜头/截图，不暴露登录信息 |
-| E04 | 回滚公开回放 | stepfun、step-3.7-flash、roleEventCount=4、PASS | 必须使用 `-PublicOutput`，路径为 `<redacted>` |
+| E02 | Task 17 真实委派证据 | Administrator 任务信封、Manager 标记、Investigator 委派、Verifier PASS | 不显示 Matrix 正文、Key、完整原始 Trace、个人路径 |
+| E03 | Docker 治理 ToolCall | Higress、Policy Broker、短时 Grant、Docker Evidence、唯一 `SUCCEEDED` ToolCall | 不显示 Signed Grant、Worker 原始日志或凭据 |
+| E04 | 历史 StepFun 回滚摘要 | 2026-08-05、四个角色事件、回滚计划哈希、PASS | 必须明确为历史固化证据，不冒充当前 Task 17 运行 |
 | E05 | 真人 L2 审批 | Manager 请求、developer 决策、APPROVED | 不显示 Human 密码、Token、完整 Human JSON |
 | E06 | GitHub Actions | 最新提交、CI success | 仓库公开页面，不显示本地目录 |
 | E07 | AgentTeams PR #1141 | 标题、Open、待审核 | 不得写“已合并” |
@@ -93,7 +93,7 @@
 | 1 | 核心痛点 | 来源不清、权限不可控、效果不可证、失败不可回退 | `4 项痛点` |
 | 2 | 整体方案 | AgentTeams Manager + 三业务 Agent 结构化交接 + Skill Registry + Policy Broker MCP + 三层检测 | `治理控制面` |
 | 3 | 主流程 | Issue -> Manager 规划 -> Investigator -> Implementer -> Verifier -> 审批/回滚 -> Evidence | `7 步闭环` |
-| 4 | 已验证成果 | Qwen 修复、StepFun 回滚、真人 L2 审批、隐藏测试、TUI | `175 项测试` |
+| 4 | 已验证成果 | MiniMax 真实委派、Higress / Policy Broker、Docker 独立验证、真人 L2 审批 | `283 passed / 3 skipped` |
 | 5 | 差异化定位 | 不是通用 Coding Agent，而是可迁移的 Skill 治理控制面 | `可复用` |
 
 - 禁止：`生产环境就绪`、`全自动创建 PR`。
@@ -150,7 +150,7 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
   - AgentTeams：Manager、Worker、Team、Human、Matrix、共享产物和协同运行。
   - AgentLoom：Skill 准入、风险、路由、Grant、状态、验证和证据。
 - 技术栈：Python 3.12、FastAPI、Pydantic、SQLAlchemy、MCP、Typer、Textual、Rich。
-- 模型：Qwen、DeepSeek、StepFun 通过配置注入，不写死在业务契约中。
+- 模型：管理员可通过经过校验的 OpenAI-compatible Provider Profile 注入自备 Provider；维护者付费证据当前只使用 MiniMax。
 - 禁止把 DevDispatcher 画成 AgentLoom 内部模块；它是独立开发辅助项目。
 
 ### 第 8 页：章节页 - 多 Agent 协同
@@ -194,13 +194,13 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 | --- | --- | --- | --- |
 | debugging-and-error-recovery | addyosmani/agent-skills | Investigator | QUARANTINED |
 | test-driven-development | addyosmani/agent-skills | Implementer | QUARANTINED |
-| code-review-and-quality | addyosmani/agent-skills | Verifier | QUARANTINED |
+| code-review-and-quality | addyosmani/agent-skills | Verifier | PUBLISHED |
 | security-and-hardening | addyosmani/agent-skills | Verifier | QUARANTINED |
 | using-agent-skills | addyosmani/agent-skills | Manager | QUARANTINED |
 | skill-supply-chain-audit | 团队原创 | Manager + Verifier | IMPLEMENTED / EVAL PENDING |
 
 - 页脚：`上游 Skill 是工作流内容源，不是编排、授权或验证运行时。`
-- 禁止把上游 Skill 改名后标成原创，禁止把 `QUARANTINED` 写成 `PUBLISHED`。
+- 禁止把上游 Skill 改名后标成原创；生命周期状态必须与 `skills/catalog.json` 和匹配 Eval 证据一致。
 
 ### 第 12 页：章节页 - 工程验证与安全
 
@@ -214,14 +214,13 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 
 | 列 | 标题 | 可见要点 | 大数字/标签 |
 | --- | --- | --- | --- |
-| 1 | 真实运行与工程检查 | AgentTeams v1.1.2；Qwen 无人值守修复；StepFun 四角色回滚；隐藏测试；Ruff；strict mypy | `175 tests` |
+| 1 | 真实运行与工程检查 | AgentTeams v1.1.2；MiniMax 真实委派；Higress / Policy Broker；Docker 独立验证；Ruff；strict mypy | `283 passed / 3 skipped` |
 | 2 | 安全与可观测 | L0-L3；短时参数绑定 Grant；路径/工具白名单；Human 审批；八类实体 ID | `L0-L3` |
-| 3 | 诚实边界与贡献 | 真人 L2 已验证；PR #1141 已提交待审核；录屏和提交包待完成；未向真实业务仓库自动写 PR | `Evidence-bound` |
+| 3 | 诚实边界与贡献 | 真人 L2 已验证；PR #1141 已提交待审核；最终录屏待完成；未向真实业务仓库自动写 PR | `#1141 OPEN` |
 
 - 建议素材：E04 或 E08 放入第一列下方；E05 放入第二列或第三列下方。
 - 截图必须保证 `PASS`、`APPROVED`、发送者和 `<redacted>` 可读。
-- 演讲备注必须说清 Qwen 是历史真实修复证据，StepFun 是当前真实回滚证据，
-  二者不是同一次运行。
+- 演讲备注必须说清当前 Task 17 只使用 MiniMax；Qwen、DeepSeek 和 StepFun 均未调用。StepFun 回滚如出现，只能标为 2026-08-05 的历史固化证据。
 
 ### 第 14 页：章节页 - 开放与开源
 
@@ -252,14 +251,14 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 
 | 列 | 内容 |
 | --- | --- |
-| 已完成 | AgentTeams 部署；三 Agent 协作；Qwen 修复；StepFun 回滚；真人 L2；隐藏测试；TUI；检测/授权/回滚；175 tests |
-| 提交前 | 公开录屏；PPT/PDF；无痕访问检查；提交包敏感信息扫描；release/tag |
+| 已完成 | AgentTeams 部署；三 Agent 真实委派；MiniMax + Docker 治理 E2E；真人 L2；TUI；检测/授权/回滚；283 passed / 3 skipped；PPT/PDF 与提交包 |
+| 提交前 | 公开录屏；无痕访问检查；比赛页面提交；release/tag |
 | 复赛候选 | 自动修复接入真实业务 Issue/PR；更多 Skill Eval；第二场景；OTLP；可选云 Skill |
 
 - 底部风险条：模型波动、AgentTeams 版本变化、第三方 Skill 漂移、Demo 环境
   复杂、范围蔓延。
 - 对应控制：版本锁定、回放证据、降级方案、非目标约束。
-- 禁止继续把真人审批或 StepFun 回滚列为待办。
+- 禁止继续把真人审批、PPT/PDF 或提交包列为待办。
 
 ### 第 18 页：章节页 - 团队
 
@@ -274,7 +273,7 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 - 身份：`独立开发者（多智能体系统 / Agent Infra）`
 - 职能：需求与赛题对齐、架构、AgentTeams 集成、后端 API、TUI、测试、安全、
   文档、Demo。
-- 可验证原则：`以 Git 提交、175 项测试和运行 Evidence 说明成果。`
+- 可验证原则：`以 Git 提交、283 passed / 3 skipped 和运行 Evidence 说明成果。`
 - 明确：不虚构企业客户、论文、奖项或额外成员。
 
 ### 模板结束页（若存在）
@@ -319,8 +318,8 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 - [ ] 项目名、赛题、团队名与提交页面完全一致。
 - [ ] AgentTeams 在架构、流程和证据页均为真实运行时。
 - [ ] Manager 与三个业务 Agent 的边界准确。
-- [ ] 五个上游 Skill 标记为 `QUARANTINED`，来源和许可证清楚。
-- [ ] 175 项测试、真人 L2、StepFun 回滚、PR #1141 状态均为最新事实。
+- [ ] 五个上游 Skill 状态准确：`code-review-and-quality` 为 `PUBLISHED`，其余四个为 `QUARANTINED`；来源和许可证清楚。
+- [ ] 283 passed / 3 skipped、真人 L2、MiniMax Task 17 链路、PR #1141 OPEN 状态均为最新事实。
 - [ ] 没有 `146 tests`、`生产就绪`、`PR 已合并`、`Skill 已发布`等过期表述。
 - [ ] 所有真实系统截图均来自提供素材，未生成假截图。
 - [ ] 所有公开终端/TUI 截图使用 `-PublicOutput`，路径为 `<redacted>`。

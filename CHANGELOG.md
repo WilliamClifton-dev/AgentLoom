@@ -9,6 +9,37 @@ The project follows [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Project branding asset and a timed Chinese competition-demo narration script.
+- Stable Capability, Provider, and Consumer contracts with replayable causal task
+  and governed ToolCall events.
+- Authenticated Higress-to-Policy-Broker deployment, persistent Grant replay
+  protection, and a pinned Docker pytest sandbox for untrusted tests.
+- Administrator-defined, secret-free OpenAI-compatible Provider Profiles with
+  model-free validation and explicit paid-probe activation.
+- AgentTeams Investigator-to-Verifier governed delegation evidence using
+  MiniMax and exactly one successful sandboxed ToolCall.
+- Deterministic preliminary submission artifacts and aligned English/Chinese
+  public repository entry points.
+
+### Changed
+
+- The Skill catalog now publishes `code-review-and-quality`; the other four
+  imported upstream Skills remain quarantined.
+- Current paid maintainer evidence uses `minimax-cn / MiniMax-M2.5`. Qwen,
+  DeepSeek, and StepFun evidence is retained as historical and those paid paths
+  are disabled pending quota and explicit reauthorization.
+
+### Security
+
+- Worker identity is enforced by Higress allowlists; Manager remains MCP-free.
+- Tool execution now binds consumer, parameters, workspace, nonce consumption,
+  immutable runner image, and replayable evidence digests.
+
+### Known limitations
+
+- Upstream PR #1141 remains open.
+- The P0 package is complete, but the real recording, public upload,
+  repository release/tag, and competition-page submission remain pending.
+- Full bootstrap still needs validation on additional clean Windows machines.
 
 ## [0.1.0-rc.1] - 2026-08-09
 

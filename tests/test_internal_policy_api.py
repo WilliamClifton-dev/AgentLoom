@@ -36,6 +36,7 @@ def signed_grant(grant_authorizer: SkillGrantAuthorizer) -> dict[str, object]:
         tool_name="test-runner",
         action="process.exec:test",
         parameter_digest="b" * 64,
+        authorized_paths=["src/parser.py"],
         risk_level="L1",
         nonce="nonce-api-01",
         issued_at=issued_at,

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "agentloom.demo-provenance/v1alpha1",
+  "repositoryUrl": "https://github.com/WilliamClifton-dev/AgentLoom",
+  "frozenCommit": "d5238e0626e143a95a296989615084abf94656cd",
+  "issueUrl": "https://github.com/WilliamClifton-dev/AgentLoom/blob/d5238e0626e143a95a296989615084abf94656cd/docs/architecture/agentloom-architecture.md",
+  "license": "Apache-2.0",
+  "snapshotSha256": "sha256:2c063c4ca3af355a2ceee839bbb4f3a8f21e55a10f372d73efe8ca49bcbaba79"
+}

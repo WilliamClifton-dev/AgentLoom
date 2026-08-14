@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "agentloom.provider-profile/v1alpha1",
+  "providerId": "custom-example",
+  "displayName": "Example OpenAI-compatible provider",
+  "baseUrl": "https://api.example.com/v1",
+  "modelId": "example/model-1",
+  "apiKeyEnvironmentVariable": "EXAMPLE_API_KEY",
+  "generate": {
+    "temperature": 0.1,
+    "maxTokens": 4096
+  }
+}

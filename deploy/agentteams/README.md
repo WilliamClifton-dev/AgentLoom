@@ -19,6 +19,13 @@ framework slot while retaining its Investigator duties. No separate TeamLeader
 Agent is created. `hiclaw get workers --team agentloom-repair` therefore returns
 the same three business identities.
 
+All three business identities receive one MCP endpoint named
+`agentloom-policy-broker`. The Manager receives no MCP configuration. For the
+local embedded-Docker topology, Workers use the authenticated Higress endpoint
+`http://aigw-local.hiclaw.io:8080/mcp-servers/mcp-agentloom-policy-broker`.
+Higress forwards that route to the host Broker at
+`http://host.docker.internal:8765/mcp` using Streamable HTTP.
+
 ## Configure
 
 Use credentials only from ignored host-side environment files or process,
@@ -26,15 +33,98 @@ user, or machine environment variables. The tracked `hiclaw.env.example`
 contains names and non-secret defaults only. Never put a real key in this
 repository or a Worker resource.
 
-Competition cloud default:
+Current paid-probe default:
 
 ```text
-HICLAW_LLM_PROVIDER=qwen
-HICLAW_DEFAULT_MODEL=qwen3.7-plus
+MINIMAX_API_KEY=<process-or-user-environment-only>
+HICLAW_LLM_PROVIDER=minimax-cn
+HICLAW_DEFAULT_MODEL=MiniMax-M2.5
 ```
 
-The running CoPaw containers can also be switched without a restart. Put your
-own key in the `QWEN_API_KEY` process or user environment variable, then run:
+### Administrator-defined OpenAI-compatible providers
+
+Downstream deployers are not restricted by this repository maintainer's
+MiniMax-only spending policy. They may use a provider and quota they administer
+when its Chat API is compatible with CoPaw's `OpenAIChatModel`. AgentLoom does
+not accept arbitrary private protocols: the endpoint must be a public HTTPS
+OpenAI-compatible API, and the administrator remains responsible for checking
+streaming, tool calling, reasoning fields, context limits, and model-specific
+behavior.
+
+Start from the tracked, secret-free template and change only non-secret
+metadata. The `providerId` must retain the `custom-` prefix, and
+`apiKeyEnvironmentVariable` names the host environment variable that will hold
+the credential:
+
+```powershell
+Copy-Item `
+  .\deploy\agentteams\provider-profiles\example.json `
+  .\my-provider.json
+
+.\deploy\agentteams\configure-openai-compatible-provider.ps1 `
+  -ProfilePath .\my-provider.json `
+  -ValidateOnly
+```
+
+Validation is local and model-free. It does not read the named secret, contact
+Docker, or call the provider. After validation, set the named environment
+variable outside the repository and perform the full deployment:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    "MY_PROVIDER_API_KEY",
+    (Read-Host "Provider API key" -MaskInput),
+    "Process"
+)
+
+.\scripts\bootstrap.ps1 `
+  -Profile full `
+  -Provider custom `
+  -ProviderProfilePath .\my-provider.json
+```
+
+The bootstrap validates the Profile before checking the secret or Docker,
+deploys Manager and Worker resources with the Profile's model ID, and activates
+the custom provider last. It makes no paid model call by default. A deployer who
+intentionally wants one connection probe per configured identity must add
+`-RunProviderConnectionTest`. The lower-level equivalent is:
+
+```powershell
+.\deploy\agentteams\configure-openai-compatible-provider.ps1 `
+  -ProfilePath .\my-provider.json
+
+# Optional paid probe; requires explicit authorization and available quota.
+.\deploy\agentteams\configure-openai-compatible-provider.ps1 `
+  -ProfilePath .\my-provider.json `
+  -RunConnectionTest
+```
+
+Successful validation proves only that the Profile satisfies the deployment
+contract. Successful configuration proves that CoPaw accepted the settings. A
+paid connection probe checks basic provider access. None of these is strict
+AgentTeams role-message or repair E2E evidence.
+
+### Fixed maintainer providers
+
+Put the MiniMax key in the `MINIMAX_API_KEY` process or user environment
+variable, then configure Manager and all three AgentLoom Workers:
+
+```powershell
+.\deploy\agentteams\configure-minimax-provider.ps1
+```
+
+The script uses the custom provider ID `minimax-cn`, fixes the endpoint to
+`https://api.minimaxi.com/v1`, and limits the model to `MiniMax-M2.5`. The
+built-in CoPaw `minimax` provider targets the international Anthropic endpoint
+and is not used. The script never accepts an arbitrary endpoint or writes or
+prints the key. Its connection checks are paid calls; use `-SkipConnectionTest`
+only for configuration staging. On 2026-08-14 all four AgentTeams identities
+passed the MiniMax connection check.
+
+Qwen remains a historical, independently evidenced provider, but it is not used
+for current paid probes while that account has no balance. Do not run the
+following historical reactivation command unless quota is restored and a human
+explicitly authorizes the provider again:
 
 ```powershell
 .\deploy\agentteams\configure-provider.ps1
@@ -46,14 +136,16 @@ Workers, and performs one paid connection probe per identity. When quota is
 unavailable or a probe is not wanted, use `-SkipConnectionTest`; activation does
 not itself invoke the model.
 
-DeepSeek is a bounded OpenAI-compatible alternative. Put the key in
-`DEEPSEEK_API_KEY`, then run:
+DeepSeek is historical and currently disabled because its account has no
+balance. Do not run the following retained configuration command or any
+DeepSeek probe unless quota is restored and a human explicitly authorizes the
+provider again:
 
 ```powershell
 .\deploy\agentteams\configure-deepseek-provider.ps1
 ```
 
-The script fixes the provider to `deepseek` and the endpoint to
+The retained script fixes the provider to `deepseek` and the endpoint to
 `https://api.deepseek.com/v1`. Its model allowlist is limited to the models
 advertised by the current account: `deepseek-v4-flash` is the low-cost default,
 while `deepseek-v4-pro` is available for the final repair E2E. It creates the
@@ -63,8 +155,9 @@ not accept an arbitrary provider endpoint and never writes or prints the key.
 Use `-SkipConnectionTest` only for configuration staging; it does not prove the
 key or quota works.
 
-StepFun Step Plan is the recommended bounded alternative for the live rollback
-demo when Qwen quota is unavailable. Put the key in `STEPFUN_API_KEY`, then run:
+StepFun Step Plan also remains a historical provider path; the current paid
+provider decision authorizes MiniMax only. Do not run the following retained
+configuration command unless that decision is explicitly changed:
 
 ```powershell
 .\deploy\agentteams\configure-stepfun-provider.ps1
@@ -77,8 +170,10 @@ model for Manager and all three AgentLoom Workers with
 prints the key. Use `-SkipConnectionTest` only when a subsequent live run will
 provide the connection evidence.
 
-For the official OpsPilot baseline, first switch the Manager so it can create
-the Team, then configure the five new Worker containers after creation:
+The following official OpsPilot configuration is retained only to reproduce the
+historical DeepSeek evidence. It is disabled while DeepSeek quota is unavailable
+and must not be run. When explicitly reauthorized, first switch the Manager so
+it can create the Team, then configure the five new Worker containers:
 
 ```powershell
 .\deploy\agentteams\configure-deepseek-provider.ps1 `
@@ -102,14 +197,112 @@ Container names must be confirmed with `docker ps` after AgentTeams creates the
 Team. If this deployment uses different names, pass only the confirmed local
 `hiclaw-manager` or `hiclaw-worker-*` names.
 
+## Start the Policy Broker
+
+Build the hash-locked pytest runner once. The build uses a Python base image by
+immutable digest, installs only wheel hashes from `uv.lock`, and records the
+resulting local image ID:
+
+```powershell
+.\deploy\sandbox\build-runner.ps1
+$sandboxImage = (Get-Content .\artifacts\sandbox\runner-image.txt -Raw).Trim()
+```
+
+Inject `AGENTLOOM_POLICY_SIGNING_KEY` and `AGENTLOOM_GATEWAY_ASSERTION` into the
+Broker process environment, then start the Broker before applying the
+AgentTeams resources. Inject the same assertion into the gateway configurator's
+process environment without printing or persisting it. The launcher validates
+the workspace and `.venv` runtime, creates ignored Evidence/database
+directories, and keeps both secrets out of Worker resources and command output:
+
+```powershell
+.\deploy\agentteams\start-policy-broker.ps1 `
+  -WorkspaceRoot .\demo\cases\pagination-boundary\before `
+  -EvidenceRoot .\artifacts\policy-broker\evidence `
+  -DatabasePath .\artifacts\policy-broker\broker.db `
+  -SandboxImage $sandboxImage
+```
+
+The launcher rejects mutable or missing images, fixes the backend to Docker,
+and removes the local host-execution acknowledgement from the child process.
+There is no production fallback to host pytest. The launcher stays in the
+foreground. Keep it running and use a separately
+authorized process holding the same assertion to configure the authenticated
+MCP gateway before reapplying the AgentTeams resources:
+
+```powershell
+.\deploy\agentteams\configure-policy-broker-gateway.ps1 `
+  -EvidencePath .\artifacts\policy-broker\live-worker-probe\higress-gateway.json
+```
+
+The configured `AGENTLOOM_DATABASE_URL` is also the replay authority. Each
+consumed Grant nonce is atomically persisted as a SHA-256 digest, so restarting
+the Broker or opening another Broker on the same database does not make the
+Grant reusable. The database contains neither the raw nonce nor the signed
+Grant. Starting a Broker without the database is suitable only for local
+verification and provides process-local replay protection.
+
+The gateway script validates the pinned controller image, registers an official
+Higress `DIRECT_ROUTE` with upstream path `/mcp` and Streamable transport, then
+enables `key-auth` for exactly these existing AgentTeams consumers:
+
+- `worker-agentloom-investigator`
+- `worker-agentloom-implementer`
+- `worker-agentloom-verifier`
+
+Manager and every unrelated Worker remain unauthorized. The script fails if
+the expected consumers do not already exist, if the allowlist does not converge,
+or if the pinned controller image is not running. It writes only redacted route
+metadata; consumer keys and Broker signing authority are never printed.
+
+Embedded Higress `2.2.1` marks generated MCP routes as internal and rejects
+Console Route API updates. The script therefore reads the complete generated
+Ingress from the embedded Kubernetes API, changes only the two header-control
+annotations, preserves `metadata.resourceVersion`, and writes the full object
+back with `PUT`. Merge/JSON Patch and disabling the Broker assertion are not
+supported fallbacks.
+
+On an existing AgentLoom Team, run the gateway script before `deploy.ps1` so the
+reapplied Worker configuration points at a ready route. On a clean environment,
+first apply the Team once to let AgentTeams create the three Worker consumers,
+then run the gateway script and apply the Team a second time. Do not create
+replacement consumers or edit generated Worker `mcporter.json` files manually.
+
+The pinned AgentTeams `setup-mcp-proxy.sh` helper was evaluated but is not used
+for this upstream. It registers native MCP servers as `OPEN_API`; with embedded
+Higress `2.2.1`, that route did not rewrite
+`/mcp-servers/<name>` to the Broker's `/mcp` path and returned upstream `404`.
+Higress `DIRECT_ROUTE` expresses the Streamable HTTP path explicitly and is the
+verified compatible contract for this pinned runtime.
+
+`host.docker.internal` is specific to the local embedded Docker topology. A
+remote or Helm deployment must use its own routable Broker service address in
+the Higress service source; Worker resources should continue to reference the
+gateway URL rather than the upstream Broker directly.
+
+The current local HTTP boundary authorizes tool execution with signed,
+parameter-bound, single-use Grants. On 2026-08-14, the Verifier discovered all
+three Broker tools through Higress, obtained a server-derived five-minute Grant,
+and completed one bounded pytest call. Direct-host identity failures returned
+`401`; the unrelated `worker-alert-intake` returned `403`; the allowlisted
+Implementer could neither request nor consume a Verifier Grant; a pytest target
+outside signed `authorizedPaths`, parameter tampering, and replay were denied.
+The Broker recorded exactly one `SUCCEEDED` ToolCall for
+`agentloom-verifier`. This deterministic probe used no model and consumed no
+MiniMax or Qwen quota. Redacted evidence is written to
+`artifacts/policy-broker/task12/live-verifier-probe.json`.
+
 ## Apply and verify
 
-Start the official `v1.1.2` embedded deployment first. Then run:
+Start the official `v1.1.2` embedded deployment and the Policy Broker first.
+For an existing Team, configure the Policy Broker gateway as described above,
+then run from the second terminal:
 
 ```powershell
 .\deploy\agentteams\deploy.ps1 `
-  -Model qwen3.7-plus `
+  -Model MiniMax-M2.5 `
   -EvidencePath .\artifacts\agentteams\deployment.json
+.\deploy\agentteams\configure-minimax-provider.ps1
 ```
 
 AgentTeams `v1.1.2` accepts `spec.humanMembers` while creating a Team but drops
@@ -119,7 +312,9 @@ and verifies the returned Team spec before continuing. This compatibility step
 is version-scoped, idempotent, and fails the deployment if the member list is
 not persisted; it does not expose the embedded API token.
 
-For DeepSeek, deploy the resources with the alternative model ID first, then
+The following DeepSeek deployment order is historical and currently disabled;
+do not run it while DeepSeek quota is unavailable. If it is explicitly
+reauthorized, deploy the resources with the alternative model ID first, then
 activate the direct provider last. Applying AgentTeams resources restores
 `hiclaw-gateway`, so reversing this order can send a DeepSeek model ID through
 the previously configured Qwen route:
@@ -132,10 +327,12 @@ the previously configured Qwen route:
   -Model deepseek-v4-flash
 ```
 
-Use `-Model deepseek-v4-pro` on both commands for the final live repair run when
-quality is more important than the lower-cost Baseline path.
+The historical `deepseek-v4-pro` variant also remains disabled until quota is
+restored and its use is explicitly reauthorized.
 
-For StepFun, deploy the resources first and activate the direct provider last:
+The following StepFun deployment path is historical and currently disabled. If
+it is explicitly authorized in a future provider decision, deploy the resources
+first and activate the direct provider last:
 
 ```powershell
 .\deploy\agentteams\deploy.ps1 `
@@ -144,9 +341,9 @@ For StepFun, deploy the resources first and activate the direct provider last:
 .\deploy\agentteams\configure-stepfun-provider.ps1
 ```
 
-Keep Qwen evidence as an independent historical run. To roll back the active
-runtime, deploy with `-Model qwen3.7-plus` first, then run
-`configure-provider.ps1` last.
+Keep Qwen evidence as an independent historical run. Its paid rollback path is
+disabled while the account has no balance; do not run `configure-provider.ps1`
+unless quota is restored and a human explicitly reauthorizes Qwen.
 
 For an explicitly local, non-competition smoke test:
 
@@ -205,7 +402,8 @@ official Baseline; AgentLoom's repair artifact path uses the audited namespace
 bridge documented below.
 
 The strict DeepSeek run on 2026-08-04 passed both incidents. Keep the resulting
-ignored JSON as local competition evidence and do not commit it.
+ignored JSON as local competition evidence and do not commit it. This is
+historical evidence, not permission to rerun the paid probe.
 
 ## Strict role-message E2E
 
@@ -213,13 +411,14 @@ The E2E probe invokes live model APIs and can consume paid quota:
 
 ```powershell
 .\deploy\agentteams\e2e.ps1 `
-  -EvidencePath .\artifacts\agentteams\e2e-qwen-cloud.json
+  -EvidencePath .\artifacts\agentteams\e2e-minimax-cloud.json
 ```
 
-Use a provider-specific evidence filename, such as
-`e2e-deepseek-cloud.json`, when DeepSeek is active. A successful connection
-probe is not an E2E result; the strict role-message run must pass again after
-every provider switch.
+Historical evidence uses provider-specific filenames such as
+`e2e-deepseek-cloud.json`. DeepSeek is currently disabled, so do not reactivate
+it or rerun this paid E2E until quota is restored and a human explicitly
+authorizes it. A successful connection probe is not an E2E result; the strict
+role-message run must pass again after every authorized provider switch.
 
 The verified `deepseek-v4-flash` run on 2026-08-04 completed all four
 role-owned markers in 113 seconds. This proves live provider activation and

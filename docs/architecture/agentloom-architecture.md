@@ -8,8 +8,8 @@
 | 参赛赛道 | GOAI 赛道一：新智基座｜Agent Infra |
 | 参考选题 | 方向三：软件研发全流程协同 |
 | 指定协同平台 | [agentscope-ai/AgentTeams](https://github.com/agentscope-ai/AgentTeams) |
-| 文档状态 | Draft v0.6 |
-| 文档日期 | 2026-08-04 |
+| 文档状态 | Draft v0.7 |
+| 文档日期 | 2026-08-14 |
 | 初赛截止 | 2026-08-16 |
 | 产品边界 | 面向 AgentTeams 的第三方 Skill 治理与可验证执行控制面 |
 | 参考场景 | 从 GitHub Issue、错误日志和失败测试到补丁、验证与审计报告的端到端闭环 |
@@ -290,8 +290,66 @@ demo/cases/<case-id>/
 9. **可恢复与幂等**：任务可以从检查点恢复；重复工具调用不得产生重复外部副作用。
 10. **Mock 与真实接口同契约**：初赛 Mock Tool 和复赛真实系统使用同一 Schema。
 11. **不堆叠工具**：工具只有在减少真实风险、提供闭环证据或解决明确工程问题时才进入架构。
+12. **能力通过 seam 组合**：每项可替换能力分为稳定接口、具体 Provider 和 Consumer；Agent 不直接绑定 MCP、模型或执行后端。
+13. **模型可见即已记录**：进入模型请求的上下文、工具调用和关键决策必须落入可回放事件或 EvidenceRef，普通日志不能替代事实记录。
+14. **运行时强制边界**：权限、沙箱和 Agent 作用域必须由执行时的契约和 Policy Broker 强制，不能只依赖 Prompt 或文档约定。
 
-### 6.2 初赛固定实现栈
+### 6.2 能力 seam、事件不变量与实施阶段
+
+AgentLoom 借鉴 DeepSeek Harness 的能力 seam 思路，但不引入 Cordis，也不替代比赛指定的 AgentTeams。一个 seam 必须同时定义三种角色：
+
+```text
+Capability Definition
+  -> Provider（本地、AgentTeams 或远程实现）
+  -> Consumer（Skill、Tool、Verifier 或控制面服务）
+```
+
+当前第一阶段的接口边界如下：
+
+| 能力 | Definition | 当前 Provider | Consumer | 兼容要求 |
+| --- | --- | --- | --- | --- |
+| Skill | `SkillResolutionRequest -> SkillManifest` | `CatalogSkillProvider` | Skill Router / Policy Broker | 只返回已校验、可追溯的版本 |
+| Tool | `ToolExecutionRequest -> ToolExecutionResult` | `CallableToolProvider`；AgentTeams 适配器预留 | Skill / MCP Router | 结果必须是结构化状态并带 EvidenceRef |
+| Verifier | `VerificationRequest -> VerificationResult` | 本地 Callable Provider；AgentTeams 适配器预留 | Workflow / Report | 只能验证冻结补丁，不能修改工作区 |
+
+所有 Task 状态事件都使用 `agentloom.task-event/v1alpha1`。事件至少携带 `eventType`、`actor`、`causationId`、`correlationId` 和 `payloadDigest`。`payloadDigest` 覆盖事件的非易变业务字段；事件回放必须验证摘要，发现不一致时拒绝生成可信报告。
+
+第一阶段只补契约，不改 AgentTeams 主编排：
+
+1. 统一 Capability、Provider、Consumer 术语和边界。
+2. 为 Skill、Tool、Verifier 定义 Python `Protocol` 和 Pydantic 输入输出模型。
+3. 为 TaskEvent 增加因果、关联、操作者和 Payload 摘要，并通过 Alembic 回填既有记录。
+4. 先为 TaskEvent 增加“可回放即必须通过摘要校验”的测试；AgentTeams 模型/工具转录接入后，再把同一不变量扩展到模型可见内容。
+5. 为本地 Provider 与未来 AgentTeams Provider 复用同一组契约测试；远程适配器未锁定真实接口前不得伪造为已完成。
+
+当前落地入口为 `load_skill_provider()` 和 `SkillGrantAuthorizer.issue_from_provider()`：前者只加载并解析本地目录，后者先解析 Skill 再复用既有发布状态、来源哈希、Agent、工具、路径、风险、审批和时效检查；解析不成功统一以 `PolicyDenied` fail-closed。
+
+部署态 Grant 发行使用独立的 `GrantIssuanceRequest`，调用方只能提交 Task/Step、Skill 名称与版本、Tool/Action、参数摘要和请求路径。`agentName`、Grant ID、nonce、签发/过期时间、Skill 内容哈希和风险级别均为服务端字段，不进入请求契约。Issuer 从已认证的 Higress consumer 映射 Agent Identity，从权威 Task 与 Skill Provider 读取状态和 Manifest，仅在 Task 为 `VERIFYING`、Skill 已发布且评测、Agent/权限/工具/路径均匹配时生成五分钟 Grant，再复用 `issue_from_provider()` 完成签名门禁。
+
+工具调用入口为 Policy Broker MCP 的 `execute_governed_tool`：`ToolExecutionEnvelope` 将 `SkillExecutionGrant`、规范化工具参数与 `ToolExecutionRequest` 绑定，Broker 验证参数摘要并消费 nonce 后只把请求交给显式 `ToolProvider`。配置 `AGENTLOOM_DATABASE_URL` 的部署使用数据库唯一主键原子持久化 nonce 的 SHA-256 摘要，使同一数据库上的 Broker 重启或多实例继续拒绝重放；不保存原始 nonce、完整 Grant、签名或密钥。未配置数据库的本地验证模式保留进程内 Store，不能宣称跨重启防重放。生产 `SandboxedTestRunnerProvider` 要求参数中的 `workspaceDigest` 与 Grant 参数摘要一起签名，并通过 `SandboxProvider` 在授权前、执行前和执行后校验同一快照。当前 `DockerSandboxProvider` 使用固定镜像和 Docker 参数创建一次性、无网络、只读、非 root、无 capability 的受限容器；镜像、挂载、环境、容器名和资源限制只来自服务端配置。超时、输出溢出、快照漂移、Docker 或清理确认失败均阻断且不回退宿主执行。`LocalTestRunnerProvider` 只保留给显式 `local-development` 后端，并要求独立的宿主执行确认变量。Provider 返回的结构化结果通过 recorder 追加为 `agentloom.tool-call/v1alpha1` 的 `ToolCall` 事件；事件持久化后回放必须重新通过 Payload 摘要校验。
+
+第二阶段才引入配置组合：
+
+```text
+profile
+  -> AgentTeams 基础配置
+  -> AgentLoom Policy 配置
+  -> Skill Bundle
+  -> 环境或任务级 Patch
+```
+
+Profile、Bundle 和 Patch 只负责选择和叠加已通过契约测试的 Provider，不改变 TaskEvent 语义，不绕过 Policy Broker，也不授予 Agent 额外权限。只有当第二个真实 Provider 出现并通过同一套契约测试后，才提取通用 Registry；在此之前不为单一实现引入空泛的插件框架。
+
+部署层的模型选择使用 `agentloom.provider-profile/v1alpha1`。Profile 只描述
+管理员批准的 OpenAI-compatible Chat endpoint、模型 ID、生成参数和密钥环境
+变量名；密钥本身不进入 Profile、命令行、资源文件或输出。`custom-` Provider
+命名空间防止覆盖内建 Provider，HTTPS/public-host、字段、数值和容器边界在
+任何密钥或 Docker 访问前 fail-closed。实现类固定为 CoPaw
+`OpenAIChatModel`，因此该契约不承诺兼容任意私有协议，也不承诺所有模型都
+支持流式输出、工具调用或推理参数。配置默认不做模型调用，连接探测必须显式
+选择；配置成功不能替代 AgentTeams 角色消息和修复 E2E。
+
+### 6.3 初赛固定实现栈
 
 | 层 | 技术 | 选择理由 | 替代/迁移边界 |
 | --- | --- | --- | --- |
@@ -708,7 +766,13 @@ Agent
   -> Structured Result 返回 Agent
 ```
 
-`spec.mcpServers` 只向 Manager/Worker 配置 `agentloom-policy-broker`，不直接暴露内部工具 MCP。Broker 对每次调用强制验证短时、不可复用的 `SkillExecutionGrant`，其字段至少包括 `taskId`、`stepId`、`agentName`、`skillName`、`skillVersion`、允许的 `tool/action`、参数摘要、风险级别、审批引用、过期时间和 nonce。缺少 Grant、权限不匹配、过期或重放均返回 `POLICY_DENIED`，从机制上保证 Agent 不能绕过 Skill 裸调工具。
+AgentTeams `v1.1.2` 的三个业务 Agent（`spec.leader` 与两个 `spec.workers[]`）只配置 `agentloom-policy-broker`，不直接暴露内部工具 MCP；Manager 不配置 MCP。固定资源契约使用 `MCPServer{name,url,transport}`，本地 embedded Docker 的 Worker 地址为 Higress `http://aigw-local.hiclaw.io:8080/mcp-servers/mcp-agentloom-policy-broker`，`transport=http` 对应 Broker 的 Streamable HTTP 传输。Higress 以 `DIRECT_ROUTE` 将公开路径转发到 `http://host.docker.internal:8765/mcp`；`host.docker.internal` 只存在于网关上游配置，远程或 Helm 部署必须替换为环境内可路由的 Broker 服务地址。
+
+Broker 对每次受治理工具调用强制验证短时、不可复用的 `SkillExecutionGrant`，其字段至少包括 `taskId`、`stepId`、`agentName`、`skillName`、`skillVersion`、允许的 `tool/action`、参数摘要、`authorizedPaths`、风险级别、审批引用、过期时间和 nonce。消费 Grant 时必须把当前 Higress consumer 再映射到 Grant Agent，并由 ToolProvider 从已校验参数解析真实目标路径，与签名路径逐项比对后才可消费 nonce。缺少 Grant、身份或权限不匹配、路径越界、过期或重放均返回 `POLICY_DENIED`，从机制上保证 Agent 不能把 Grant 当作跨身份 bearer token，也不能通过伪报 `requestedPaths` 绕过路径权限。签名密钥只注入 Broker 进程，不进入 Manager、Worker 资源或子进程环境。
+
+当前实现证据分为五层：本地主机真实 MCP 客户端已通过 Streamable HTTP 完成 `initialize/list_tools`；AgentTeams 资源已通过固定 Schema 契约测试；Higress 对无凭据请求返回 `401`，对持有有效 consumer token 但不在 allowlist 的 `worker-alert-intake` 返回 `403`；固定版 AgentTeams Verifier Worker 从下发的 `mcporter.json` 读取网关 endpoint，通过 Higress 发现发行、验证和执行三个 Broker 工具；2026-08-14 的部署态闭环由 Broker 从可信 consumer 映射派生 `agentloom-verifier`，为 `VERIFYING` Task 签发五分钟 Grant，并由 Verifier 执行一次受治理 pytest。
+
+实机负向证据同时覆盖：直连缺身份、缺 assertion、无效 assertion 和重复 consumer 均返回 `401`；allowlist 外 Worker 返回 `403`；allowlist 内 Implementer 请求发行以及消费 Verifier Grant 均返回 `POLICY_DENIED`；声明路径与真实 pytest 目标不一致、参数篡改和 Grant replay 均被拒绝。成功路径只追加一条 `SUCCEEDED` ToolCall，actor 为 `agentloom-verifier`，没有第二次执行。该闭环不调用模型；脱敏证据为 `artifacts/policy-broker/task12/live-verifier-probe.json`，原始测试输出由其 `EvidenceRef` 与摘要绑定。
 
 ### 10.2 Tool Contract
 
@@ -731,7 +795,7 @@ Agent
 | --- | --- | --- | --- | --- |
 | Repository Adapter | 本地 Adapter，保留 MCP 迁移契约 | `repo.read` | 读取文件、搜索、查看 Git 历史 | 返回结构化 NOT_FOUND/OUT_OF_SCOPE |
 | Patch Adapter | 本地 Adapter | `repo.write:sandbox` | 在隔离分支应用补丁 | 原子失败，不留下半成品 |
-| Test Runner | AgentTeams Worker 内 MCP；可选 OpenSandbox 后端 | `process.exec:test` | 执行白名单测试命令 | 超时终止并保留 stdout/stderr |
+| Test Runner | Policy Broker `SandboxedTestRunnerProvider` + 一次性 Docker `SandboxProvider`；未来可替换为 OpenSandbox Provider | `process.exec:test` | 在签名快照上执行 pytest 白名单命令 | 无网络/只读/非 root/资源受限；超时、输出、快照或清理异常失败关闭；stdout/stderr 与镜像/快照身份写 Evidence |
 | Static Check Adapter | 本地 Adapter | `process.exec:lint` | lint、类型或安全检查 | 返回退出码和规则命中 |
 | GitHub Mock Adapter | Mock MCP/Adapter | `github.pr.mock` | 生成 PR 预览，不真实写 GitHub | 保存请求体作为证据 |
 | 阿里云官方 Skill Adapter | 官方调用方式 | 最小云权限 | 条件接入；仅在存在与 Demo 匹配能力时启用 | 超时、配额和权限错误进入降级分支 |
@@ -761,7 +825,7 @@ policy:
 fallback: null
 ```
 
-路由处理顺序固定：
+目标态路由处理顺序固定：
 
 1. 验证 AgentTeams consumer token 和 Agent Identity。
 2. 验证 SkillExecutionGrant 签名、任务、Agent、Skill 版本、action、参数摘要、审批引用、过期时间和 nonce。
@@ -769,7 +833,11 @@ fallback: null
 4. 对请求执行 JSON Schema、大小、路径、域名和命令白名单校验。
 5. 注入服务凭据、TraceContext、idempotencyKey 和 Evidence metadata。
 6. 调用目标，验证第三方响应 Schema，脱敏后返回 Agent；原始结果写 Evidence Store。
-7. 追加 ToolCall 和路由版本；成功、失败、超时和拒绝均产生 Span。
+7. 追加 `ToolCall` 和路由版本；成功、失败、超时和拒绝均产生 Span。当前本地 Provider 已把结构化成功/失败结果写入可回放事件；授权拒绝事件在 Evidence Store 接入后补齐，不能伪造 EvidenceRef。
+
+当前 MVP 已实现第 1 步的 Higress consumer-token/Agent Identity 校验、第 2 步的签名、摘要、有效期和 nonce 校验，以及本地 `ToolProvider` 的边界校验、Evidence 与可回放 `ToolCall`。未带凭据、非 allowlist consumer 和无效 Grant 均已 fail-closed；Task 12 增加可信 Grant 签发入口和一次成功受治理调用，不能以发现与拒绝路径代替。完整不可变路由快照仍是后续路由治理项，不影响上述身份与授权拒绝证据的成立。
+
+Higress `key-auth` 成功后写入 `X-Mse-Consumer`，但 Worker 可直接访问 `host.docker.internal`，因此该头单独存在时不是可信边界。Broker 的 HTTP 外层必须同时满足：`X-Mse-Consumer` 恰好一个值、consumer 在固定映射中、`X-AgentLoom-Gateway-Assertion` 恰好一个值且与进程级随机 secret 常量时间相等。Higress 在生成的 Broker route 上以 `headerControl.request.set` 覆盖 assertion；缺失、重复、无效 assertion 或直连宿主请求均在进入 MCP session 前返回认证错误。assertion 与签名 key 只通过进程环境/标准输入传递，不进入命令行、Agent 资源、日志或 Evidence。
 
 ### 10.5 超时、重试、熔断与降级
 
@@ -939,13 +1007,15 @@ DetectionResult 只追加不可变版本。任何人工豁免生成单独 Approv
 
 ### 12.4 Worker 隔离、沙箱与密钥
 
-- 初赛以 AgentTeams 独立 Worker 容器作为基础隔离边界，Implementer 与 Verifier 不共享可写工作区。
+- AgentTeams 独立 Worker 隔离业务 Agent 和模型凭据；业务 Worker 不执行不可信测试，也不获得 Docker Socket。
 - 每个任务使用独立 MinIO 前缀、仓库快照、工作分支、非特权用户和资源限额。
-- 若 Worker 容器内执行边界不足，再通过 MCP 接入 OpenSandbox 本地 Docker 后端；OpenSandbox 不是 AgentTeams 的替代品。
+- Policy Broker 通过 `SandboxProvider` 为每次 pytest 创建新的 Docker 容器；若需要 VM 级或远程隔离，再实现同一契约的 OpenSandbox Provider。OpenSandbox 尚未实现，也不是 AgentTeams 的替代品。
 - 默认禁止网络；按任务临时开放明确域名。
 - 密钥由宿主侧 Credential Broker 代理，不进入 Prompt、Skill 文件或沙箱环境变量明文。
 - 只挂载仓库副本和必要测试缓存，不挂载用户主目录、SSH、Git 凭据或 Docker Socket。
 - 工具输出在进入 LLM 前进行密钥和个人信息脱敏，原始证据按权限保存。
+- Higress consumer header 不是可由 Broker 单独信任的身份证明；Broker 还要求网关覆盖写入的进程级 assertion，并拒绝重复身份头，防止 Worker 绕过网关直连宿主伪造 consumer。
+- Policy signing key、gateway assertion、Worker gateway key、consumer token 和模型 API key 不得写入 Agent 资源、命令行、日志、Trace 或持久化 Evidence。
 
 ### 12.5 回滚
 
@@ -1133,7 +1203,11 @@ AgentTeams v1.1.2 官方本地安装（该版本运行资源仍使用 HiClaw 名
 ├── agentloom-investigator  Worker / 只读调查
 ├── agentloom-implementer   Worker / 隔离修改
 ├── agentloom-verifier      Worker / 独立验证
-├── agentloom-skillops      MCP + 内部 API
+├── Higress MCP Gateway :8080/mcp-servers/mcp-agentloom-policy-broker
+│   ├── key-auth：仅三个 AgentLoom Worker consumer
+│   └── DIRECT_ROUTE -> host.docker.internal:8765/mcp（仅本地 embedded Docker）
+├── agentloom-policy-broker Windows host :8765/mcp / Streamable HTTP
+├── agentloom-skillops      内部 API
 │   ├── Skill Registry / Router / Evaluation
 │   ├── Policy / Approval / Evidence Gate
 │   └── SQLite metadata
@@ -1270,7 +1344,7 @@ agentloom/
 
 ### 19.1 独立开发阶段的 Codex 分层模型策略
 
-本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。当前 Qwen `qwen3.7-plus` 已有运行证据；DeepSeek `deepseek-v4-flash` 已于 2026-08-04 通过四容器连接探测与 Manager + 三 Worker 消息 E2E，可用于低成本 Baseline；StepFun `step-3.7-flash` 通过 Step Plan 接口用于真实回滚 E2E，并以 `reasoning_effort=low` 控制成本。`deepseek-v4-pro` 保留给高质量真实修复 E2E。每次运行必须记录实际 Provider/模型，不得覆盖其他 Provider 的历史证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
+本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。Qwen `qwen3.7-plus`、DeepSeek `deepseek-v4-flash` 与 StepFun `step-3.7-flash` 均已有历史运行证据；这些证据必须保留，但不能被解释为当前调用授权。由于 Qwen 与 DeepSeek 账户均无余额，当前所有付费 AgentTeams 探测只允许使用 ADR-018 固定的 MiniMax Provider；本地 pytest、契约、策略、部署和安全测试不得调用任何模型。每次运行必须记录实际 Provider/模型，不得覆盖其他 Provider 的历史证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
 
 模型在 Codex 任务创建、续接或显式交接边界选择。可选的外部 DevDispatcher 工具可以读取本架构、本地任务账本、Git 状态和验收命令，在任务边界选择目标模型；它不属于本仓库的产品代码，也不允许运行中的模型自行改写路由。当前分层使用以下准确模型 ID：
 
@@ -1407,35 +1481,37 @@ agentloom/
 
 #### 20.2.1 P0：手册初赛必交
 
-- [ ] 500 字以内作品简介包含项目名称、问题与场景、核心方案、创新点、开放/复用价值和真实当前进展。
-- [ ] 方案 PPT/PDF 覆盖场景价值、AgentTeams 架构映射、至少 3 个不同职能 Agent、任务拆解、上下文传递、结果验证和异常分支。
-- [ ] Agent Identity 清单覆盖附录 A 的 Name、Role、Capabilities、Inputs、Outputs、Dependencies、Decision Boundary 和 Trace。
-- [ ] 核心 Skill 清单覆盖附录 B 的名称、类型、场景、输入输出、调用条件、依赖、失败处理、权限、安全与复用价值。
-- [ ] 说明 RAG、MCP、可观测和推荐工具的采用决定；不使用 RAG 时明确展示共享状态管理与轨迹可观测两项替代能力。
-- [ ] 说明评估指标、安全边界、审批、回滚、风险、开放/开源范围、第三方依赖和后续落地计划。
-- [ ] PPT 只陈述已实现能力；规划中、Mock 和真实调用使用明确标签，不伪造 Demo、数据或 Trace。
+- [x] 500 字以内作品简介包含项目名称、问题与场景、核心方案、创新点、开放/复用价值和真实当前进展。
+- [x] 方案 PPT/PDF 覆盖场景价值、AgentTeams 架构映射、至少 3 个不同职能 Agent、任务拆解、上下文传递、结果验证和异常分支。
+- [x] Agent Identity 清单覆盖附录 A 的 Name、Role、Capabilities、Inputs、Outputs、Dependencies、Decision Boundary 和 Trace。
+- [x] 核心 Skill 清单覆盖附录 B 的名称、类型、场景、输入输出、调用条件、依赖、失败处理、权限、安全与复用价值。
+- [x] 说明 RAG、MCP、可观测和推荐工具的采用决定；不使用 RAG 时明确展示共享状态管理与轨迹可观测两项替代能力。
+- [x] 说明评估指标、安全边界、审批、回滚、风险、开放/开源范围、第三方依赖和后续落地计划。
+- [x] PPT 只陈述已实现能力；规划中、Mock 和真实调用使用明确标签，不伪造 Demo、数据或 Trace。
 
 #### 20.2.2 P1：初赛加分原型
 
 - [x] 实际运行 `agentscope-ai/AgentTeams`，版本、镜像摘要和配置已锁定。
 - [x] Manager、3 个 Worker、Team 和 Human 资源可在 AgentTeams Controller/`hiclaw` 中查验。
-- [x] Element Team Room 显示任务委派、Worker 进展和最终结果；MinIO 可查验补丁和报告。L2/L3 人工审批仍需单独演示。
-- [x] 固定分页任务已从空 Team 前缀经 Qwen 三 Agent 无人协作跑通；精确 filesync、输入指纹、真实 Matrix Event、主机隐藏测试和静态检查证据齐全。
+- [x] Element/Matrix 证据显示 Administrator -> Manager -> Investigator -> Verifier 真实委派；MinIO/证据目录可查验运行产物。真人 L2 审批已有独立历史证据。
+- [x] Task 17 已用 MiniMax 从 Administrator 任务信封完成 Manager、Investigator、Verifier 跨房间委派，并通过 Higress、Policy Broker 与 Docker 沙箱产生唯一成功 ToolCall；Qwen、DeepSeek 和 StepFun 未用于该运行。
 - [x] Textual TUI 已实现本地确定性的“首次验证失败 -> 回滚 -> 单次重试 -> 完成”十步状态分支，并生成 `failure-retry-evidence.json`；该证据不冒充 AgentTeams/Matrix Trace。
-- [x] 真实回滚验证器、付费保护采集脚本和 TUI 投影已实现：绑定四阶段 Matrix 事件，在隔离工作区复现失败并恢复已批准快照；尚未执行首次付费实跑，因此当前不宣称已有真实回滚 Trace。
+- [x] 真实回滚验证器、付费保护采集脚本和 TUI 投影已实现；2026-08-05 StepFun 四角色回滚已固化为历史证据，当前 Task 17 不冒充该历史运行。
 - [ ] 5 个核心 Skill 均有完整 Manifest，主任务至少真实调用其中 3 个；至少 1 个为团队原创 Skill。
-- [ ] Worker 只配置 Policy Broker MCP；缺少、过期或重放 SkillExecutionGrant 的调用被拒绝。
-- [ ] 在 AgentTeams/Element 中录制 1 个由 Human 审阅并发送结构化决定的 L2 审批分支；严格 Matrix 事件验证器和 Prepare/Collect 驱动已实现，本地 TUI 控件仍不能替代真实 Human 事件，当前仅缺最终凭据轮换与真人证据采集。
-- [ ] L1/L2/L3 对主任务产生 DetectionResult/Evidence，Implementer 与 Verifier 权限分离。
-- [ ] 所有最终结论回链 Evidence ID；成功、失败和不确定结果形成 ExperienceRecord。
-- [ ] `THIRD_PARTY.md`、来源、License、模型/API、费用、数据授权和团队原创边界完整。
+- [x] 三个业务 Agent 的 `mcpServers` 只配置 Policy Broker，Manager 无 MCP；本地 Streamable HTTP 客户端已完成初始化与工具发现，缺少、过期或重放 SkillExecutionGrant 的本地契约测试通过。
+- [x] 在运行中的 AgentTeams 中验证 Higress：无凭据请求返回 `401`，非 allowlist consumer 返回 `403`，Verifier `mcporter` 完成工具发现，无效签名返回 `POLICY_DENIED` 且不产生 ToolCall。
+- [x] 受信部署态 Grant 签发入口已通过 Higress 实机验证：Verifier 获得服务端派生、consumer/path 双绑定的短时 Grant，完成一次受治理 pytest；跨 Agent 消费、路径/参数篡改和 replay 均未产生第二条 ToolCall。
+- [x] AgentTeams/Element 中由 Human 审阅并发送结构化决定的 L2 审批分支已完成；严格 Matrix 事件验证器采集结果为 `APPROVED`，本地 TUI 控件不替代真实 Human 事件。
+- [x] L1/L2/L3 对主任务产生 DetectionResult/Evidence，Implementer 与 Verifier 权限分离。
+- [x] 所有最终结论回链 Evidence ID；成功、失败和不确定结果形成 ExperienceRecord。
+- [x] `THIRD_PARTY.md`、来源、License、模型/API、费用、数据授权和团队原创边界完整。
 
 #### 20.2.3 P2：不阻塞初赛
 
 - [ ] 两模式对比与 3-5 个评测任务。
 - [x] 最小 TUI 可选择 Case、展示四角色状态、事件、产物、失败重试和本地审批账本。
 - [ ] 比赛视频和清洁环境 Docker 一键复现。
-- [ ] SQLite Alembic upgrade/downgrade、route rollback 和完整迁移演练。
+- [x] SQLite Alembic upgrade/downgrade、route rollback 和完整迁移演练。
 - [ ] 真实 GitHub PR、官方用云 Skill、Nacos 或集中式观测后端；只在必要且可真实验证时接入。
 
 ## 21. 初赛提交映射
@@ -1512,7 +1588,7 @@ agentloom/
 
 - **状态**：Accepted
 - **原因**：直接向 Worker 暴露内部 MCP 无法强制“工具只能由已发布 Skill 调用”的安全不变量。
-- **实现约束**：Worker 的 `spec.mcpServers` 只包含 Policy Broker；内部工具只接受 Broker 服务身份，Broker 强制验证 SkillExecutionGrant、防重放和审批引用。
+- **实现约束**：三个业务 Agent（Team leader 与两个 workers）的 `spec.mcpServers` 只包含 Higress 暴露的 Policy Broker，Manager 不配置 MCP；Higress `key-auth` allowlist 只包含三个对应 Worker consumer；签名密钥只进入 Broker 进程；内部工具只接受 Broker 服务身份，Broker 强制验证 SkillExecutionGrant、防重放和审批引用。
 - **替代方案**：按 Worker 静态配置多个 MCP Server。
 - **代价**：增加一次代理调用和 Grant 管理，但换取统一授权、审计和撤销边界。
 
@@ -1576,6 +1652,70 @@ agentloom/
 - **替代方案**：单模型直接生成补丁，或另增专职 TeamLeader 业务 Agent。
 - **代价**：保留框架要求的 leader 资源映射并需要解释 Manager/leader 边界；换取稳定的三 Agent 申报口径，避免为了套用通用话术增加无业务价值的角色。
 
+### ADR-015：采用能力 seam 和可回放 TaskEvent，不引入通用插件运行时
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：DeepSeek Harness 的插件化架构证明了 Provider 可替换和事件驱动扩展的价值，但 AgentLoom 已有 Python、AgentTeams、Policy Broker 和 Evidence 边界。直接引入 Cordis 或通用 Registry 会扩大运行时复杂度，并不能替代比赛指定的协同平台。
+- **决定**：Skill、Tool、Verifier 先以 Python `Protocol` 和 Pydantic 输入输出模型定义 seam；TaskEvent 增加事件类型、操作者、因果 ID、关联 ID 和 Payload 摘要。事件回放验证摘要，权限、沙箱和 Agent 作用域继续由 Policy Broker 和执行边界强制。只有出现第二个真实 Provider 并通过同一套契约测试后，才评估通用 Registry。
+- **替代方案**：整体迁移 DeepSeek Harness/Cordis；在当前代码中提前建设通用插件树；只记录普通日志，不保存事件因果链。
+- **代价**：第一阶段需要增加 Protocol、契约模型、事件迁移和回放测试；AgentTeams 远程适配器仍需在真实接口锁定后实现。换取更小的改动面、可替换的执行边界和可审计的事件重建能力。
+
+### ADR-016：Policy Broker 使用 Higress DIRECT_ROUTE 暴露 Streamable HTTP
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：AgentTeams `v1.1.2` 自带的 `setup-mcp-proxy.sh` 将原生 MCP upstream 注册为 `OPEN_API`。在固定的 embedded Higress `2.2.1` 中，该配置没有把公开 `/mcp-servers/<name>` 路径重写到 Broker 的 `/mcp`，实测 upstream 返回 `404`。
+- **决定**：使用 Higress 官方 `DIRECT_ROUTE`，显式配置 `directRouteConfig.path=/mcp` 与 `transportType=streamable`；公开 URL 不附加 `/mcp`。启用 `key-auth`，allowlist 固定为 Investigator、Implementer、Verifier 三个 AgentTeams Worker consumer，Manager 与其他 consumer 不授权。配置脚本必须验证固定镜像、精确 allowlist 和持久化结果并输出脱敏证据。
+- **替代方案**：继续使用 `setup-mcp-proxy.sh` 的 `OPEN_API`；让 Worker 直连 `host.docker.internal:8765/mcp`；自行维护 Envoy/Higress 路径补丁。
+- **代价**：需要维护一个版本锁定的 Higress Console 配置脚本，并在升级 AgentTeams/Higress 时重跑兼容性 Spike；换取正确的 Streamable HTTP 路径语义、网关身份校验和 Worker 资源不暴露 upstream 地址。
+
+### ADR-017：Grant 发行采用网关断言与服务端派生身份
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：Higress `key-auth` 会向 upstream 增加 `X-Mse-Consumer`，但同名 caller header 可能形成重复值，且 AgentTeams Worker 能直连 `host.docker.internal:8765`。若 Broker 只读取该头或接受 caller 提交的 `agentName`，Worker 可绕过网关伪造身份并请求签发 Grant。
+- **决定**：Higress route 覆盖写入 `X-AgentLoom-Gateway-Assertion`；Broker 在 MCP 处理前要求 assertion 与进程级 secret 常量时间匹配，并要求 consumer header 恰好一个值。Issuer 通过固定 consumer-to-Agent 映射派生 Agent Identity，调用方不得提交任何服务端生成字段。首个切片只允许 Verifier 在 `VERIFYING` Task 上为已发布、已评测的 L1 pytest Skill 请求五分钟 Grant。Higress `2.2.1` 生成的 MCP route 是 internal route，Console Route API 明确拒绝更新；配置脚本必须从 embedded Kubernetes API 读取完整 Ingress，在保留 `metadata.resourceVersion` 等服务端字段的前提下只修改 header-control annotations，再以完整对象 `PUT` 回原资源。不得使用会丢失版本字段的 merge/JSON Patch，也不得关闭 Broker assertion 作为兼容手段。
+- **替代方案**：只信任 `X-Mse-Consumer`；让 Worker 直接持有签名 key；在 Prompt 中要求 Worker 如实提交身份；立即引入 mTLS 或外部 OIDC。
+- **代价**：Broker 启动与 Higress route 配置必须共享一个不落盘 secret，并增加 HTTP middleware、route header 契约测试以及对 embedded Kubernetes API 的版本锁定适配；换取对直连绕过、重复 header 和 caller 身份伪造的 fail-closed 防护。升级 Higress 时必须重跑 internal Ingress 读改写 Spike；mTLS/OIDC 保留为多机部署升级项。
+
+### ADR-018：付费 AgentTeams 探测切换到 MiniMax
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：当前 Qwen 与 DeepSeek 账户均无余额。两者已有的连接、消息 E2E 和修复证据仍是有效历史证据，但不能作为继续调用的授权。MiniMax 凭据可用，但国际 endpoint 返回认证失败，中国 endpoint `https://api.minimaxi.com/v1` 已验证可列出模型。
+- **决定**：MiniMax 是当前唯一允许用于付费 AgentTeams 探测的 Provider。Task 12 及后续付费探测使用固定 MiniMax 中国 endpoint，provider 脚本从 `MINIMAX_API_KEY` 读取密钥并默认配置 Manager 与三个 Worker。模型 ID 使用显式 allowlist。Qwen 与 DeepSeek 在余额恢复并由人工明确重新授权前不得调用；本地 pytest、契约、策略、部署与安全测试不调用任何模型。
+- **替代方案**：继续调用无余额的 Qwen 或 DeepSeek；接受 caller 自定义 MiniMax endpoint；把模型调用加入确定性测试。
+- **代价**：需要维护一个 MiniMax provider 配置脚本并记录模型版本，且暂时不能用历史 DeepSeek 路径复跑 E2E；换取单一、明确的费用边界，并避免无效付费请求、任意 endpoint 和密钥泄露。历史 Provider 脚本与证据保留，模型变更不影响 Grant、Tool 或 TaskEvent 契约。
+
+### ADR-019：已消费 Grant nonce 使用数据库摘要持久化
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：Task 12 的 `InMemoryNonceStore` 只能在一个 Broker 进程生命周期内拒绝重放。攻击者可以保留已消费但尚未过期的签名 Grant，等待 Broker 重启后再次执行；同一数据库上的多个 Broker 实例也无法共享消费状态。
+- **决定**：`SkillGrantAuthorizer` 依赖稳定的 `NonceStore` 接口。配置现有 Broker 数据库时，`DatabaseNonceStore` 对原始 nonce 计算 SHA-256，以摘要为 `consumed_grant_nonces` 主键执行原子插入；唯一键冲突统一视为已消费。只保存摘要和消费时间，不保存原始 nonce、完整 Grant、签名 key 或网关 assertion。数据库错误在调用 ToolProvider 前 fail-closed。无数据库的本地验证模式继续使用 `InMemoryNonceStore`，但不提供跨重启保证。
+- **替代方案**：每次 Broker 重启轮换签名 key；把完整 Grant 或原始 nonce 写入 ToolCall；继续只依赖进程内集合；使用外部 Redis 锁。
+- **代价**：每次受治理调用增加一次数据库写入，摘要表随调用量增长并需要后续保留期策略；换取重启与同库多实例下的一次性 Grant 语义，且不引入新基础设施或扩大敏感数据落盘范围。
+
+### ADR-020：下游模型使用版本化 OpenAI-compatible Provider Profile
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：维护者当前只允许 MiniMax 产生新的付费探测，但 AgentLoom 的其他部署者拥有不同 Provider、模型和配额。把维护者费用政策写成产品模型白名单，会迫使下游修改脚本；直接接受 endpoint 和密钥参数又会扩大 SSRF、密钥泄露和意外付费风险。
+- **决定**：增加 `agentloom.provider-profile/v1alpha1` 的无密钥 JSON 契约，允许管理员选择公开 HTTPS 的 OpenAI-compatible Chat API。Profile 的 `providerId` 必须使用 `custom-` 命名空间，密钥仅按受限名称从进程、用户或机器环境读取；未知字段、非公共 IP literal、userinfo、query、fragment、越界生成参数和非 AgentTeams 容器均失败关闭。CoPaw 类型固定为 `OpenAIChatModel`。Profile 校验不读取密钥、不访问 Docker、不调用模型；配置默认也不探测，只有显式开关可以产生付费连接测试。bootstrap 先验证 Profile、再派生模型 ID、部署资源，最后配置 Provider。
+- **政策边界**：ADR-018 仍约束本仓库维护者的付费运行，不能限制下游管理员使用自己的 Provider 和配额。反过来，下游 Profile 也不授权维护者调用该 Provider。比赛 live-repair/live-rollback 的证据 allowlist 暂不泛化；新模型只有设计 Profile 指纹与证据契约并通过严格 E2E 后，才能成为对应比赛证据。
+- **替代方案**：要求每个 Provider fork 脚本；接受任意 endpoint/key 命令行参数；删除比赛证据的固定 Provider/model allowlist；立即建设通用模型插件 Registry。
+- **代价**：部署者需要维护一个版本化 Profile 并自行验证模型能力，公开 DNS 名称仍需要部署网络层的出站控制来抵御 DNS rebinding；换取无脚本修改的常见 Provider 接入、清晰密钥边界和默认零模型调用。非 OpenAI 协议、私网 gateway 和新 CoPaw 类型需要新的 Adapter 或后续 Profile 版本。
+
+### ADR-021：不可信 pytest 使用一次性 Docker SandboxProvider
+
+- **状态**：Accepted
+- **决策日期**：2026-08-14
+- **背景**：进程级超时、输出限制和环境白名单不能阻止测试读取宿主文件、访问网络或修改工作区；业务 AgentTeams Worker 又持有模型和 Matrix 凭据，不应直接承载不可信代码。
+- **决定**：生产 Policy Broker 必须显式配置 `AGENTLOOM_SANDBOX_BACKEND=docker` 和不可变 `AGENTLOOM_SANDBOX_IMAGE`。`workspaceDigest` 进入工具参数和 Grant 摘要，`SandboxedTestRunnerProvider` 只把规范化 pytest argv 交给 `DockerSandboxProvider`。后者固定使用无网络、只读挂载、只读根文件系统、UID/GID 65534、无 capability、`no-new-privileges`、CPU/内存/PID/文件描述符/临时空间限制和清洁环境；超时、输出、快照或清理确认失败均不回退宿主。镜像由固定 Python 基础摘要与 `--require-hashes` pytest 依赖构建，部署前必须已存在本地。宿主 Provider 仅允许 `local-development` 加独立确认变量。
+- **替代方案**：继续在 Broker 宿主或业务 Worker 中运行 pytest；把 Docker Socket 暴露给 Worker；发生沙箱失败时自动回退宿主；立即依赖尚未接入的 OpenSandbox。
+- **代价**：Policy Broker 宿主需要受信 Docker daemon，Docker 仍不是 VM 级安全边界，快照哈希和逐次容器增加启动开销；换取可验证的凭据、网络、文件系统与资源边界。需要更强隔离时，OpenSandbox 作为同一 `SandboxProvider` 的未来实现接入。
+
 ## 23. 主要风险与缓解
 
 | 风险 | 影响 | 缓解措施 |
@@ -1587,7 +1727,7 @@ agentloom/
 | Markdown 工作流与可执行契约不一致 | Agent 理解正确但工具权限、输入输出或失败语义不可强制 | Normalizer 生成 Manifest/Schema；Policy Broker 强制 Grant；契约测试覆盖角色、工具、路径和失败码 |
 | LLM 输出不稳定 | Demo 失败 | 固定任务、固定模型参数、结构化输出、重试预算和录制前回放 |
 | Verifier 与 Implementer 共用偏差 | 错误通过 | 独立 Prompt、权限和干净环境；可选不同模型复核 |
-| 额外沙箱搭建耗时 | 初赛延期 | 初赛先使用 AgentTeams 独立 Worker 容器与清洁快照；OpenSandbox 仅在边界不足时接入 |
+| Docker 沙箱不是 VM 级边界 | 容器逃逸可能影响 Broker 宿主 | 固定镜像与 daemon 配置、最小权限和无网络；高风险任务接入未来 OpenSandbox Provider，不能降级宿主执行 |
 | 评测任务太难 | 无法形成稳定指标 | 从小型确定性 Bug 开始，保留失败案例但不追求全通过 |
 | 上游许可证混杂 | 取消资格或扣分 | 锁定文件级来源与 License；不使用授权不清内容 |
 | 与成熟代码审查或多 Agent 工具定位重叠 | 评委误判为套壳，原创贡献难以辨识 | 将 SkillOps 控制面作为产品本体、软件修复作为参考场景；竞品只做对照；保留 Git 时间线、来源披露、原创契约测试和运行证据 |

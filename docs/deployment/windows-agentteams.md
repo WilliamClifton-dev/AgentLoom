@@ -11,7 +11,8 @@ runtime.
 - PowerShell 7 or newer
 - Git and Python 3.12
 - Recommended minimum: 4 CPU cores, 8 GB RAM, and 20 GB free disk
-- A Qwen, DeepSeek, or StepFun account with available API quota
+- A MiniMax account or an administrator-approved OpenAI-compatible Chat API
+  account with available quota
 
 ## 1. Install the pinned upstream runtime
 
@@ -33,20 +34,20 @@ continuing.
 
 ## 2. Supply a model credential
 
-Use a masked prompt so the key is not placed in shell history. DeepSeek is the
-lower-cost default for deployment validation:
+Use a masked prompt so the key is not placed in shell history. The current
+repository maintainer permits paid probes only through MiniMax:
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
-    "DEEPSEEK_API_KEY",
-    (Read-Host "DeepSeek API key" -MaskInput),
+    "MINIMAX_API_KEY",
+    (Read-Host "MiniMax API key" -MaskInput),
     "Process"
 )
 ```
 
-For Qwen, set `QWEN_API_KEY` in the same way. For StepFun, set
-`STEPFUN_API_KEY`. Do not edit `.env.example`, commit a key, paste it into a
-resource JSON file, or include it in screenshots.
+Other deployers may instead create a secret-free Provider Profile that names
+their own environment variable. Do not edit `.env.example`, commit a key, paste
+it into a Profile or resource JSON file, or include it in screenshots.
 
 ## 3. Bootstrap AgentLoom
 
@@ -56,8 +57,9 @@ Set-Location AgentLoom
 
 .\scripts\bootstrap.ps1 `
   -Profile full `
-  -Provider deepseek `
-  -Model deepseek-v4-flash
+  -Provider minimax `
+  -Model MiniMax-M2.5 `
+  -SkipProviderConnectionTest
 ```
 
 The command performs local Python initialization, applies the pinned AgentTeams
@@ -70,16 +72,29 @@ drops the Team's `humanMembers`. It writes the declared member list through the
 embedded Kubernetes API, verifies the persisted response, and stops on any
 mismatch. No manual container patch is required.
 
-Use `deepseek-v4-pro` for the final live repair when quality matters more than
-cost, or use `-Provider qwen -Model qwen3.7-plus` for Qwen. For the live
-rollback path, use StepFun Step Plan:
+The fixed MiniMax bootstrap preserves the historical fixed-provider behavior;
+`-SkipProviderConnectionTest` avoids a paid probe during setup. Qwen, DeepSeek,
+and StepFun paths remain for historical evidence but are not authorized by the
+current maintainer while their quota is unavailable.
+
+For another administrator-approved OpenAI-compatible Chat API, copy and edit
+the secret-free example, validate it locally, set the environment variable named
+by `apiKeyEnvironmentVariable`, and let bootstrap derive the model ID:
 
 ```powershell
+.\deploy\agentteams\configure-openai-compatible-provider.ps1 `
+  -ProfilePath .\my-provider.json `
+  -ValidateOnly
+
 .\scripts\bootstrap.ps1 `
   -Profile full `
-  -Provider stepfun `
-  -Model step-3.7-flash
+  -Provider custom `
+  -ProviderProfilePath .\my-provider.json
 ```
+
+The custom path performs no connection probe unless the deployer explicitly
+adds `-RunProviderConnectionTest`. Configuration or a basic connection probe is
+not strict role-message or repair E2E evidence.
 
 ## 4. Verify and collect evidence
 

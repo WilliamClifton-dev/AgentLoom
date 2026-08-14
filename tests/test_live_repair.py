@@ -7,11 +7,71 @@ from pathlib import Path
 
 import pytest
 
-from agentloom.live_repair import LiveRepairError, LiveRepairVerifier
+from agentloom.live_repair import (
+    LiveRepairError,
+    LiveRepairSubmission,
+    LiveRepairVerifier,
+    prepare_live_repair_case_context,
+)
 from agentloom.mock_repair import MockRepairRunner
 
 ROOT = Path(__file__).resolve().parents[1]
 CASE = ROOT / "demo" / "cases" / "severity-normalization"
+
+
+@pytest.mark.parametrize(
+    ("case_id", "changed_path", "visible_test"),
+    [
+        (
+            "severity-normalization",
+            "src/severity.py",
+            "base/tests/test_severity.py",
+        ),
+        (
+            "pagination-boundary",
+            "lib/pagination.py",
+            "base/tests/test_pagination.py",
+        ),
+        (
+            "retry-delay-cap",
+            "src/retry_policy.py",
+            "base/tests/test_retry_policy.py",
+        ),
+    ],
+)
+def test_live_repair_case_context_is_manifest_driven_and_redacted(
+    case_id: str,
+    changed_path: str,
+    visible_test: str,
+) -> None:
+    context = prepare_live_repair_case_context(
+        ROOT / "demo" / "cases" / case_id
+    )
+
+    assert context.case_id == case_id
+    assert context.allowed_changed_paths == [changed_path]
+    assert visible_test in [source.object_name for source in context.source_files]
+    assert context.test_shell_command.startswith("pytest ")
+    assert context.static_check_shell_command.startswith("python -m compileall ")
+    assert len(context.case_fingerprint) == 64
+    assert all("expected" not in source.object_name for source in context.source_files)
+    assert all("hidden" not in source.object_name for source in context.source_files)
+    assert all(not Path(source.source_path).is_absolute() for source in context.source_files)
+
+
+def test_live_repair_submission_accepts_current_minimax_pair(tmp_path: Path) -> None:
+    submission = _submission(
+        tmp_path,
+        provider="minimax-cn",
+        model="MiniMax-M2.5",
+    )
+
+    parsed = LiveRepairSubmission.model_validate_json(
+        submission.read_text(encoding="utf-8")
+    )
+
+    assert parsed.provider == "minimax-cn"
+    assert parsed.model == "MiniMax-M2.5"
 
 
 def test_live_repair_accepts_role_traced_patch_after_independent_verification(
@@ -141,7 +201,12 @@ def test_live_repair_rejects_patch_that_only_passes_visible_tests(
         LiveRepairVerifier(CASE).run(submission, tmp_path / "live-run")
 
 
-def _submission(tmp_path: Path) -> Path:
+def _submission(
+    tmp_path: Path,
+    *,
+    provider: str = "dashscope",
+    model: str = "qwen3.7-plus",
+) -> Path:
     mock = MockRepairRunner(CASE).run(tmp_path / "model-output")
     patch = (mock.artifacts_dir / "repair.patch").read_text(encoding="utf-8")
     bundle = mock.bundle.model_dump(mode="json", by_alias=True)
@@ -215,8 +280,8 @@ def _submission(tmp_path: Path) -> Path:
             {
                 "schemaVersion": "agentloom.live-repair-submission/v1alpha1",
                 "taskId": task_id,
-                "provider": "dashscope",
-                "model": "qwen3.7-plus",
+                "provider": provider,
+                "model": model,
                 "coordinationTrace": coordination_trace,
                 "roleEvents": traces,
                 "repairPatch": patch,

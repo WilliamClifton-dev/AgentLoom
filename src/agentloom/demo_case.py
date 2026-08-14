@@ -272,6 +272,12 @@ def resolve_command(command: tuple[str, ...]) -> list[str]:
     return [sys.executable, "-m", *command]
 
 
+def validate_pytest_command(command: list[str]) -> tuple[str, ...]:
+    """Validate one pytest argument vector without accepting a shell command."""
+
+    return tuple(_validate_command(command, module="pytest"))
+
+
 def _validate_command(value: list[str], *, module: str) -> list[str]:
     if not value:
         raise ValueError("command must not be empty")

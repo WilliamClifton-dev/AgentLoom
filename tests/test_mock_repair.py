@@ -8,9 +8,11 @@ from pathlib import Path
 import pytest
 
 from agentloom.contracts import (
+    ExperienceRecord,
     PatchArtifact,
     RiskReport,
     RootCauseReport,
+    TaskEvidenceBundle,
     VerificationResult,
 )
 from agentloom.demo_case import snapshot_sha256
@@ -26,6 +28,7 @@ SEVERITY_CASE = CASES / "severity-normalization"
     [
         ("severity-normalization", "src/severity.py"),
         ("pagination-boundary", "lib/pagination.py"),
+        ("retry-delay-cap", "src/retry_policy.py"),
     ],
 )
 def test_mock_repair_reproduces_failure_and_emits_verified_artifacts(
@@ -54,7 +57,10 @@ def test_mock_repair_reproduces_failure_and_emits_verified_artifacts(
         "patch-artifact.json",
         "verification-result.json",
         "risk-report.json",
+        "implementer-test-results.txt",
         "test-results.txt",
+        "experience-record.json",
+        "task-evidence-bundle.json",
     }
     assert expected_files <= {path.name for path in artifacts.iterdir()}
 
@@ -70,12 +76,52 @@ def test_mock_repair_reproduces_failure_and_emits_verified_artifacts(
     risk = RiskReport.model_validate_json(
         (artifacts / "risk-report.json").read_text(encoding="utf-8")
     )
+    experience = ExperienceRecord.model_validate_json(
+        (artifacts / "experience-record.json").read_text(encoding="utf-8")
+    )
+    task_evidence = TaskEvidenceBundle.model_validate_json(
+        (artifacts / "task-evidence-bundle.json").read_text(encoding="utf-8")
+    )
     assert {root_cause.task_id, patch.task_id, verification.task_id, risk.task_id} == {
         result.task.task_id
     }
     assert patch.sha256 == sha256((artifacts / "repair.patch").read_bytes()).hexdigest()
     assert verification.patch_hash == patch.sha256
+    assert experience.task_id == result.task.task_id
+    assert experience.outcome == "SUCCEEDED"
+    assert task_evidence == result.task_evidence
+    assert [record.result.stage for record in task_evidence.detections] == [
+        "STATIC",
+        "DYNAMIC",
+        "VERIFICATION",
+    ]
+    assert [record.producer_agent for record in task_evidence.detections] == [
+        "agentloom-implementer",
+        "agentloom-implementer",
+        "agentloom-verifier",
+    ]
+    stage_evidence = {
+        evidence_id
+        for record in task_evidence.detections
+        for evidence_id in record.result.evidence_refs
+    }
+    assert stage_evidence <= set(experience.evidence_refs)
+    assert {record.task_id for record in task_evidence.evidence} == {
+        result.task.task_id
+    }
+    evidence_producers = {
+        record.kind: record.producer for record in task_evidence.evidence
+    }
+    assert evidence_producers == {
+        "STATIC_PATCH_SCAN": "agentloom-implementer",
+        "DYNAMIC_TEST_RUN": "agentloom-implementer",
+        "INDEPENDENT_VERIFICATION": "agentloom-verifier",
+    }
 
+    implementer_results = (artifacts / "implementer-test-results.txt").read_text(
+        encoding="utf-8"
+    )
+    assert "IMPLEMENTER ALLOWLISTED TESTS: PASSED" in implementer_results
     test_results = (artifacts / "test-results.txt").read_text(encoding="utf-8")
     assert "ORIGINAL FAILURE: REPRODUCED" in test_results
     assert "PATCHED TESTS: PASSED" in test_results
@@ -83,6 +129,9 @@ def test_mock_repair_reproduces_failure_and_emits_verified_artifacts(
     assert json.loads((artifacts / "verification-result.json").read_text())["verdict"] == (
         "PASSED"
     )
+    result_markdown = (artifacts / "result.md").read_text(encoding="utf-8")
+    for evidence_id in experience.evidence_refs:
+        assert evidence_id in result_markdown
     assert not (tmp_path / "run" / "workspace" / "hidden-tests").exists()
     assert not (
         tmp_path / "run" / "workspace" / ".agentloom-hidden-tests"

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "agentloom.repair-benchmark-suite/v1alpha1",
+  "suiteId": "agentloom-repair-v1",
+  "version": "1.0.0",
+  "cases": [
+    {
+      "caseId": "severity-normalization",
+      "caseRoot": "demo/cases/severity-normalization",
+      "caseFingerprint": "9f436e991c54322cc57b3d5c397a266122cbf829d819377e74e4a9a70cb8b0e5"
+    },
+    {
+      "caseId": "pagination-boundary",
+      "caseRoot": "demo/cases/pagination-boundary",
+      "caseFingerprint": "6345395ec99f227f3fcfa1939aa9b50e923e07f5ecd1927ce1e70c65e74d8b8e"
+    },
+    {
+      "caseId": "retry-delay-cap",
+      "caseRoot": "demo/cases/retry-delay-cap",
+      "caseFingerprint": "cb9d64b38720a8db0b62b6ac584bfdf75145f28f78887895d29c0b5be300d299"
+    }
+  ]
+}
