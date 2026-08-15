@@ -212,7 +212,9 @@ def test_live_repair_applies_patch_inside_ignored_repository_directory(
     payload["bundle"]["patch"]["sha256"] = patch_hash
     payload["bundle"]["verification"]["patch_hash"] = patch_hash
     submission.write_text(json.dumps(payload), encoding="utf-8")
-    ignored_root = Path(tempfile.mkdtemp(prefix="live-repair-", dir=ROOT / ".tmp"))
+    ignored_parent = ROOT / ".tmp"
+    ignored_parent.mkdir(exist_ok=True)
+    ignored_root = Path(tempfile.mkdtemp(prefix="live-repair-", dir=ignored_parent))
     output_root = ignored_root / "output"
     try:
         result = LiveRepairVerifier(CASE).run(
