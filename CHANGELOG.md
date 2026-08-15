@@ -47,6 +47,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Team-original Skill source digests now canonicalize Git CRLF checkouts to LF,
   so immutable workspace snapshots reopen identically on Windows and Linux.
+- `inspect-live --public-output` and the competition replay entry point now
+  redact local artifact paths in both JSON and TUI output before recording.
 
 ### Security
 
@@ -62,10 +64,9 @@ The project follows [Semantic Versioning](https://semver.org/).
 ### Known limitations
 
 - Upstream PR #1141 remains open.
-- The eight-entry P0 package is complete, but the final worktree still needs a
-  frozen commit and public commit-URL verification.
-- The real recording, public upload, annotated release tag/GitHub Release, and
-  competition-page submission remain Human-owned checkpoints.
+- The eight-entry P0 package is complete; public video upload, the annotated
+  release tag/GitHub Release, and competition-page submission remain delivery
+  checkpoints.
 - Full bootstrap still needs validation on a second clean Windows/Docker host;
   successful Lite reproduction does not prove that external checkpoint.
 

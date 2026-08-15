@@ -190,6 +190,10 @@ def test_inspect_rollback_public_output_redacts_local_artifact_path(
 def test_inspect_live_outputs_stable_redacted_summary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    help_result = CliRunner().invoke(app, ["inspect-live", "--help"])
+    assert help_result.exit_code == 0
+    assert "--public-output" in unstyle(help_result.output)
+
     summary = LiveEvidenceSummary(
         task_id="AL-LIVE-CLI-01",
         case_id="pagination-boundary",
@@ -236,6 +240,23 @@ def test_inspect_live_outputs_stable_redacted_summary(
         "status": "PASS",
         "taskId": "AL-LIVE-CLI-01",
     }
+
+    public_result = CliRunner().invoke(
+        app,
+        [
+            "inspect-live",
+            "--health-evidence",
+            str(tmp_path / "health.json"),
+            "--run-evidence",
+            str(tmp_path / "run.json"),
+            "--verified-evidence",
+            str(tmp_path / "verified.json"),
+            "--public-output",
+        ],
+    )
+    assert public_result.exit_code == 0
+    assert json.loads(public_result.output)["artifactsDirectory"] == "<redacted>"
+    assert str(tmp_path) not in public_result.output
 
 
 def test_l2_approval_commands_expose_separate_prepare_and_verify_phases() -> None:

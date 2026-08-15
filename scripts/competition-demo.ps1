@@ -162,7 +162,8 @@ Invoke-AgentLoom -Arguments @(
     "inspect-live",
     "--health-evidence", ([IO.Path]::GetFullPath($HealthEvidencePath)),
     "--run-evidence", $evidence.run,
-    "--verified-evidence", $evidence.verified
+    "--verified-evidence", $evidence.verified,
+    "--public-output"
 )
 
 if (-not $NoTui) {
@@ -170,6 +171,7 @@ if (-not $NoTui) {
         "tui",
         "--health-evidence", ([IO.Path]::GetFullPath($HealthEvidencePath)),
         "--run-evidence", $evidence.run,
-        "--verified-evidence", $evidence.verified
+        "--verified-evidence", $evidence.verified,
+        "--public-output"
     )
 }

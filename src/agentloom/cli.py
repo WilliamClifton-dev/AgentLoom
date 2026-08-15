@@ -284,6 +284,10 @@ def inspect_live(
         Path,
         typer.Option(help="Independent host verification evidence."),
     ],
+    public_output: Annotated[
+        bool,
+        typer.Option(help="Redact local filesystem paths for public demos."),
+    ] = False,
 ) -> None:
     """Validate and summarize one bound live AgentTeams evidence chain."""
     try:
@@ -308,7 +312,11 @@ def inspect_live(
                 "roleEventCount": len(summary.role_events),
                 "hiddenTestsPassed": summary.hidden_tests_passed,
                 "patchSha256": summary.patch_sha256,
-                "artifactsDirectory": str(summary.artifacts_dir.resolve()),
+                "artifactsDirectory": (
+                    "<redacted>"
+                    if public_output
+                    else str(summary.artifacts_dir.resolve())
+                ),
             },
             sort_keys=True,
         )

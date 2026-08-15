@@ -166,6 +166,7 @@ def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:
     assert '"run-live-repair.ps1"' in script
     assert '"verify-live"' in script
     assert '"inspect-live"' in script
+    assert script.count('"--public-output"') == 2
     assert '"tui"' in script
     assert script.index('"run-live-repair.ps1"') < script.index('"verify-live"')
     assert script.index('"verify-live"') < script.index('"inspect-live"')
