@@ -158,6 +158,7 @@ def test_clean_reproduction_full_mode_propagates_prerequisite_failures() -> None
 
 def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:
     script = read_script("competition-demo.ps1")
+    player = (ROOT / "docs" / "demo.html").read_text(encoding="utf-8")
 
     assert '[ValidateSet("replay", "live")]' in script
     assert '[string]$Mode = "replay"' in script
@@ -172,6 +173,11 @@ def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:
     assert script.index('"verify-live"') < script.index('"inspect-live"')
     assert "QWEN_API_KEY" not in script
     assert "DEEPSEEK_API_KEY" not in script
+    assert "<video" in player
+    assert "AgentLoom-.Demo-b21bd90.mp4" in player
+    assert 'poster="assets/agentloom-demo-poster.jpg"' in player
+    assert "<script" not in player
+    assert (ROOT / "docs" / "assets" / "agentloom-demo-poster.jpg").is_file()
 
 
 def test_competition_rollback_demo_replays_free_and_guards_live_collection() -> None:
