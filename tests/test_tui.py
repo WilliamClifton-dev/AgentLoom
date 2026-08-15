@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from agentloom.tui import (
     ApprovalQueueService,
     DemoRunError,
     DemoRunService,
+    DemoRunSummary,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -313,19 +316,28 @@ async def test_tui_renders_and_decides_pending_approval(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_tui_runs_failure_rollback_retry_demo_from_button(tmp_path: Path) -> None:
+async def test_tui_runs_failure_rollback_retry_demo_from_button(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
+    run_failure_retry_demo = service.run_failure_retry_demo
+
+    def delayed_run_failure_retry_demo() -> DemoRunSummary:
+        time.sleep(1.1)
+        return run_failure_retry_demo()
+
+    monkeypatch.setattr(service, "run_failure_retry_demo", delayed_run_failure_retry_demo)
     app = AgentLoomApp(service)
 
     async with app.run_test(size=(150, 60)) as pilot:
         app._show_retry_running()
         assert app.query_one("#agent-status", DataTable).get_row_at(1)[1] == "COMPLETED"
         await pilot.click("#run-failure-retry")
-        for _ in range(20):
-            await pilot.pause(0.05)
-            status = str(app.query_one("#run-status", Static).render())
-            if "verification WORKFLOW_PASSED" in status:
-                break
+        async with asyncio.timeout(10):
+            await app.workers.wait_for_complete()
+        await pilot.pause()
+        status = str(app.query_one("#run-status", Static).render())
 
         assert "verification WORKFLOW_PASSED" in status
         assert app.query_one("#task-events", DataTable).row_count == 10
