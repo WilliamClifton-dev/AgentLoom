@@ -26,9 +26,12 @@ def test_bootstrap_exposes_bounded_lite_and_full_profiles() -> None:
     assert "sys.version_info[:2]" in script
     assert '"3.12"' in script
     assert '"-m", "venv"' in script
+    assert "$pythonCommand = @(Resolve-PythonCommand)" in script
     assert "if (Test-Path -LiteralPath $venvPython -PathType Leaf)" in script
     assert "$pythonCommand = @($venvPython)" in script
-    assert '"-m", "pip", "install", "-e"' in script
+    assert '"-m", "pip", "install", "--upgrade", "pip>=26.1.2,<27"' in script
+    assert script.index('"pip>=26.1.2,<27"') < script.index('"--no-cache-dir"')
+    assert '"--retries", "10", "--timeout", "60", "-e"' in script
     assert '"-m", "alembic", "-c"' in script
     assert '"upgrade", "head"' in script
     assert "Push-Location $projectRoot" in script
@@ -106,12 +109,51 @@ def test_health_check_verifies_runtime_resources_and_writes_redacted_evidence() 
 def test_demo_entrypoint_is_offline_and_case_bounded() -> None:
     script = read_script("demo.ps1")
 
-    assert '[ValidateSet("severity-normalization", "pagination-boundary")]' in script
+    assert (
+        '[ValidateSet("severity-normalization", "pagination-boundary", '
+        '"retry-delay-cap")]'
+    ) in script
     assert '"-m", "agentloom.mock_repair"' in script
     assert '"--case-root"' in script
     assert '"--output-root"' in script
     assert "QWEN_API_KEY" not in script
     assert "DEEPSEEK_API_KEY" not in script
+
+
+def test_clean_reproduction_is_fresh_redacted_and_fail_closed() -> None:
+    script = read_script("verify-clean-reproduction.ps1")
+
+    assert '[ValidateSet("lite", "full")]' in script
+    assert '[string]$EvidenceRoot = ""' in script
+    assert "Assert-NewDirectory" in script
+    assert "Test-Path -LiteralPath $Path" in script
+    assert 'throw "EvidenceRoot already exists' in script
+    assert '"bootstrap.ps1"' in script
+    assert '"demo.ps1"' in script
+    assert "Invoke-Checked" in script
+    assert '"--no-cache-dir"' in script
+    assert '"--retries", "10", "--timeout", "60", "-e"' in script
+    assert '"--junitxml"' in script
+    assert "failures -ne 0" in script
+    assert "errors -ne 0" in script
+    assert "ConvertTo-Json" in script
+    assert "Get-FileHash" in script
+    assert "agentloom.clean-reproduction/v1alpha1" in script
+    assert "323 passed" not in script
+    assert "继续" not in script
+
+
+def test_clean_reproduction_full_mode_propagates_prerequisite_failures() -> None:
+    script = read_script("verify-clean-reproduction.ps1")
+
+    assert '[ValidateSet("minimax", "stepfun", "custom")]' in script
+    assert "MINIMAX_API_KEY" in script
+    assert "STEPFUN_API_KEY" in script
+    assert 'Get-Command "docker"' in script
+    assert '"info"' in script
+    assert "docker inspect $container" in script
+    assert "requiredContainers" in script
+    assert "exit 1" not in script
 
 
 def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:

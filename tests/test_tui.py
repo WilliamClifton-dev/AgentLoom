@@ -59,6 +59,7 @@ def test_demo_run_service_lists_manifest_defined_cases(tmp_path: Path) -> None:
 
     assert [case.case_id for case in cases] == [
         "pagination-boundary",
+        "retry-delay-cap",
         "severity-normalization",
     ]
     assert cases[0].runtime == "python >=3.12,<3.13"
@@ -203,12 +204,14 @@ async def test_tui_renders_bound_live_agentteams_evidence(tmp_path: Path) -> Non
     live_summary = LiveEvidenceSummary(
         task_id="AL-LIVE-TUI-01",
         case_id="pagination-boundary",
+        case_fingerprint="b" * 64,
         provider="dashscope",
         model="qwen3.7-plus",
         patch_sha256="a" * 64,
         manager_status="HEALTHY",
         role_events=role_events,
         hidden_tests_passed=True,
+        verified_workspace_digest="c" * 64,
         artifacts_dir=tmp_path / "verified" / "artifacts",
         coordination_verified=True,
     )

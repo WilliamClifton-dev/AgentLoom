@@ -2,6 +2,7 @@
 param(
     [ValidatePattern("^(?:sha256:[a-f0-9]{64}|[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64})$")]
     [Parameter(Mandatory)][string]$SandboxImage,
+    [Parameter(Mandatory)][string]$CaseRoot,
     [ValidatePattern("^task[0-9]+$")]
     [string]$RunNamespace = "task16",
     [string]$WorkspaceRoot = ".\deploy\sandbox\fixtures\passing-workspace",
@@ -113,6 +114,10 @@ $resolvedWorkspace = Resolve-RepoPath -Path $WorkspaceRoot
 if (-not (Test-Path -LiteralPath $resolvedWorkspace -PathType Container)) {
     throw "Sandbox E2E workspace is unavailable"
 }
+$resolvedCaseRoot = Resolve-RepoPath -Path $CaseRoot
+if (-not (Test-Path -LiteralPath $resolvedCaseRoot -PathType Container)) {
+    throw "Sandbox E2E Case is unavailable"
+}
 $runId = "$RunNamespace-" + [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmss") + `
     "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
 $resolvedRunRoot = if ([string]::IsNullOrWhiteSpace($RunRoot)) {
@@ -139,6 +144,7 @@ Invoke-AgentLoomPython -Arguments @(
     "--database-url", $databaseUrl,
     "--workspace", $resolvedWorkspace,
     "--skill-catalog", (Join-Path $repoRoot "skills\catalog.json"),
+    "--case-root", $resolvedCaseRoot,
     "--output", $contextPath
 )
 $context = Get-Content -Raw -LiteralPath $contextPath | ConvertFrom-Json
@@ -278,6 +284,8 @@ $runEvidence = [ordered]@{
     status = "DIRECT_PASS"
     sandboxImage = $SandboxImage
     workspaceDigest = $context.workspaceDigest
+    caseId = $context.caseId
+    caseFingerprint = $context.caseFingerprint
     wrongConsumerDenied = $true
     replayDenied = $true
     direct = $directVerification.tasks.direct

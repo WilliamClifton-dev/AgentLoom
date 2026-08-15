@@ -100,6 +100,19 @@ scripts\bootstrap.ps1 -Profile lite
 
 # Full 模式（需要 AgentTeams v1.1.2 和模型凭据）
 scripts\bootstrap.ps1 -Profile full
+
+# 配置 MiniMax Provider（在 Workers 部署后必须执行）
+.\deploy\agentteams\configure-minimax-provider.ps1 -Model "MiniMax-M2.5"
+
+# 运行 Live Repair（从项目根目录，使用相对路径）
+.\deploy\agentteams\run-live-repair.ps1 `
+  -TaskId 'YOUR-TASK-ID' `
+  -CaseRoot ./demo/cases/severity-normalization `
+  -Provider 'minimax-cn' `
+  -Model 'MiniMax-M2.5' `
+  -TimeoutSeconds 3600 `
+  -SubmissionPath ./artifacts/benchmarks/YOUR-TASK/submission.json `
+  -EvidencePath ./artifacts/benchmarks/YOUR-TASK/run-evidence.json
 ```
 
 ## 架构概览
@@ -135,10 +148,17 @@ scripts\bootstrap.ps1 -Profile full
 - 追加式因果事件：每个状态变更生成不可变事件
 - Evidence：任务执行的摘要、输入/输出哈希、时间戳
 
-**6. AgentTeams 集成**
+**6. Skill 开发 (`skills/` 目录)**
+- 团队原创 Skill 存放在 `skills/team-original/`
+- 每个 Skill 包含：`skill.json`（元数据）、实现代码、测试套件
+- Skill 测试应独立可运行：`pytest skills/team-original/<skill-name>/test_*.py`
+- 当前已发布原创 Skill：`patch-scope-validator` v1.0.1
+
+**7. AgentTeams 集成**
 - 三个业务 Agent：`agentloom-investigator`（占用 `spec.leader` 槽位）、`agentloom-implementer`、`agentloom-verifier`
 - Manager 不直接调用 Policy Broker
 - 通过 Higress 认证网关路由 MCP 请求：`http://aigw-local.hiclaw.io:8080/mcp-servers/mcp-agentloom-policy-broker`
+- **重要：** Workers 必须配置为使用正确的模型 Provider（通过 `configure-minimax-provider.ps1`）
 
 ### 数据流
 
@@ -246,8 +266,38 @@ Evidence（可回放记录）
 此项目参加 GOAI 赛道一（Agent Infra）初赛。关键约束：
 - **运行时：** 必须使用 AgentTeams v1.1.2
 - **Agent 数量：** 3 个业务 Agent（Investigator、Implementer、Verifier）
-- **Skill：** 必选项，当前 1 PUBLISHED / 4 QUARANTINED
-- **证据基线：** 323 passed / 2 failed (TUI tests, 非阻塞) / 3 skipped (opt-in Docker tests)
+- **Skill：** 必选项，当前 2 PUBLISHED / 4 QUARANTINED
+  - `code-review-and-quality` (上游)
+  - `patch-scope-validator` v1.0.1 (团队原创)
+- **证据基线：** 339 passed / 0 failed / 3 skipped (opt-in Docker tests)
 - **开源：** Apache-2.0，依赖披露见 `THIRD_PARTY.md`
+
+## 常见问题排查
+
+### AgentTeams Live Repair 问题
+
+**问题：Workers 使用错误的模型**
+- **症状：** `hiclaw get workers` 显示 `step-3.7-flash` 而不是 `MiniMax-M2.5`
+- **原因：** Workers 部署时使用默认模型，未配置 Provider
+- **解决：** 运行 `.\deploy\agentteams\configure-minimax-provider.ps1 -Model "MiniMax-M2.5"`
+- **验证：** 容器内 CoPaw 配置已更新，虽然 Worker 元数据仍显示旧模型名
+
+**问题：run-live-repair.ps1 路径错误**
+- **症状：** `GetFullPath: 不支持给定路径的格式`
+- **原因：** 从错误的目录调用脚本，或使用了绝对路径参数
+- **解决：** 必须从项目根目录调用，使用相对路径（`./demo/cases/...`）
+- **错误示例：** `cd deploy/agentteams && .\run-live-repair.ps1` ❌
+- **正确示例：** `cd D:\Projects\Agent-Infra && .\deploy\agentteams\run-live-repair.ps1` ✅
+
+**问题：Investigator 完成后不委派**
+- **症状：** 运行超时，只完成 Investigator 阶段
+- **原因：** Workers 未正确配置模型 Provider，无法调用 LLM
+- **解决：** 确保已运行 Provider 配置脚本
+- **验证：** 检查 Manager/Workers 的 `/api/models/active` 配置
+
+**问题：输出目录未创建**
+- **症状：** 脚本运行但没有生成证据文件
+- **原因：** 脚本在早期阶段失败（路径、Provider 等）
+- **检查：** 查看 PowerShell 错误输出，通常在前几行
 
 详细架构设计见 `docs/architecture/agentloom-architecture.md`。

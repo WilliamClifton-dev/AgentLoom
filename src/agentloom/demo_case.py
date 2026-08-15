@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -249,6 +250,38 @@ def snapshot_sha256(root: Path) -> str:
         content = _canonical_snapshot_content(path.read_bytes())
         digest.update(len(relative).to_bytes(8, "big"))
         digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def demo_case_fingerprint(case: DemoCase) -> str:
+    """Hash every trusted input that can affect one Case outcome."""
+
+    digest = sha256()
+    manifest = json.dumps(
+        case.manifest.model_dump(mode="json", by_alias=True),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    provenance = json.dumps(
+        case.provenance.model_dump(mode="json", by_alias=True),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    issue = case.issue.replace("\r\n", "\n").encode("utf-8")
+    parts = (
+        ("manifest", manifest),
+        ("provenance", provenance),
+        ("issue", issue),
+        ("source", snapshot_sha256(case.source_root).encode("ascii")),
+        ("expected", snapshot_sha256(case.expected_patch_root).encode("ascii")),
+        ("hidden", snapshot_sha256(case.hidden_tests_root).encode("ascii")),
+    )
+    for label, content in parts:
+        label_bytes = label.encode("ascii")
+        digest.update(len(label_bytes).to_bytes(8, "big"))
+        digest.update(label_bytes)
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
     return digest.hexdigest()

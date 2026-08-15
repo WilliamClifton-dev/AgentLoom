@@ -10,22 +10,24 @@ boundaries or substituting local artifacts for Human/external actions.
 
 | Design item | Current evidence | Status | Owning task |
 | --- | --- | --- | --- |
-| Five core Skill manifests, one original Skill, at least three real calls | Five upstream manifests exist; one is published; original audit remains a prototype; Task 17 proves one Skill-backed ToolCall | Incomplete | Task 26 |
+| Five core upstream Skill manifests, one original Skill, at least three real calls | Five upstream manifests remain provenance-bound; `patch-scope-validator` v1.0.1 is team-original and PUBLISHED; three distinct Policy Broker -> ToolProvider calls strictly reopen with SkillVersion, Agent, Grant, ToolCall, and Evidence closure | Complete | Task 26 + Task 27 security audit |
 | L1/L2/L3 DetectionResult and Evidence with Implementer/Verifier separation | Task 23 main-case bundle binds ordered STATIC/DYNAMIC/VERIFICATION results to distinct immutable Evidence; Implementer owns L1/L2 and Verifier owns L3 | Complete | Task 23 |
 | Final conclusions link Evidence IDs; success/failure/uncertain ExperienceRecord | Task 23 emits a successful main-task ExperienceRecord referencing every stage; strict contracts cover failed, unsafe, and uncertain terminal outcomes without claiming unexecuted runs | Complete | Task 23 |
-| Two-mode comparison and 3-5 evaluation tasks | Two deterministic cases and several live runs exist, but no one versioned comparison matrix | Incomplete | Task 24 |
-| Competition video and clean Docker one-command reproduction | Recording runbook exists; real video is Human-owned; clean Docker one-command proof is missing | Partial | Task 25 + Human checkpoint |
+| Two-mode comparison and 3-5 evaluation tasks | Three versioned cases each passed both LOCAL_DETERMINISTIC and AGENTTEAMS_GOVERNED modes; the strict report reopens as 6 PASSED / 0 NOT_RUN | Complete | Task 24 |
+| Competition video and clean Docker one-command reproduction | Clean-clone Lite one-command evidence passed; Full/Docker on a second clean host and the real recording remain Human-owned delivery checkpoints | Partial | Task 25 + Human checkpoint |
 | SQLite upgrade/downgrade, route rollback, complete migration rehearsal | Task 21 proves the deterministic five-step Alembic cycle and replay; Task 22 proves the real Provider factory sequence and byte-equivalent route rollback without executing a tool | Complete | Tasks 21-22 |
 | Real GitHub PR / optional cloud Skill, Nacos, or centralized observability | Real upstream PR #1141 exists and remains open. The design explicitly rejects forced cloud/Nacos/observability integration without a necessary, verifiable use case | Engineering criterion satisfied; publication state still open | Task 27 audit |
-| Final artifact, repository, recording, upload, tag, and competition submission | P0 ZIP and draft release exist; public repository/access, real video URL, tag/Release, and page submission are not proven | Human/external incomplete | Task 27 + Human checkpoint |
+| Final artifact, repository, recording, upload, tag, and competition submission | The refreshed eight-entry P0 ZIP reopens and matches its source files; unauthenticated GitHub API confirms the repository is public on `main`; the final dirty-worktree changes are not frozen/pushed, and the real video URL, tag/Release, and page submission are not proven | Human/external incomplete | Task 27 + Human checkpoint |
 
 ## Boundaries
 
 - Always preserve AgentTeams `v1.1.2`, fail-closed policy, replayable evidence,
-  Provider/Consumer scope, and current MiniMax-only maintainer paid authorization.
+  Provider/Consumer scope, and the MiniMax/StepFun authorization in ADR-023;
+  Task 24 remains MiniMax-only.
 - Always use deterministic, model-free verification unless a task explicitly
   requires live Agent output.
-- Never call Qwen, DeepSeek, or StepFun; never read or publish raw Worker logs,
+- Never call Qwen or DeepSeek; use MiniMax or StepFun only for explicit live
+  Agent work with separate run IDs. Never read or publish raw Worker logs,
   Matrix message bodies, credentials, Signed Grants, or private paths.
 - Never mark recording, public upload, repository visibility, tag/Release, PR
   merge, or competition-page submission complete without direct external proof.

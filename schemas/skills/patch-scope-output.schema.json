@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentloom.dev/schemas/skills/patch-scope-output.schema.json",
+  "title": "Patch Scope Validator Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "taskId",
+    "stepId",
+    "verdict",
+    "patchSha256",
+    "allowedPaths",
+    "actualModifiedPaths",
+    "violations",
+    "errorCode"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "agentloom.patch-scope-result/v1alpha1"},
+    "taskId": {"type": "string", "minLength": 1},
+    "stepId": {"type": "string", "minLength": 1},
+    "verdict": {"enum": ["PASSED", "FAILED", "DENIED"]},
+    "patchSha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "allowedPaths": {"type": "array", "items": {"type": "string"}},
+    "actualModifiedPaths": {"type": "array", "items": {"type": "string"}},
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file_path", "violation_type", "reason"],
+        "properties": {
+          "file_path": {"type": "string", "minLength": 1},
+          "violation_type": {"const": "modified"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "errorCode": {"type": ["string", "null"]}
+  }
+}

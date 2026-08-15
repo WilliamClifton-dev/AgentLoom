@@ -17,9 +17,11 @@ repair task and ends with independently verified, replayable evidence.
 > `Administrator -> Manager -> Investigator -> Verifier -> authenticated Higress
 > -> Policy Broker -> immutable Docker pytest sandbox` path with
 > `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
-> The repository gate is **323 passed / 2 failed (TUI tests, non-blocking) / 3 skipped
-> (opt-in Docker tests)**. The Skill catalog is **1 PUBLISHED / 4 QUARANTINED**; the
-> original supply-chain audit is still a prototype. Human L2 approval is `APPROVED`,
+> A clean-clone Lite gate is **339 passed / 0 failed / 3 skipped (opt-in Docker
+> tests)**; the current worktree gate is **375 passed / 3 skipped**. The
+> versioned Task 24 benchmark is **6 PASSED / 0 NOT_RUN**. The Skill catalog is
+> **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
+> has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
 > and upstream PR [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) remains
 > `OPEN`. The deterministic P0 package is complete; the real recording, public upload,
 > and competition-page submission remain Human-owned checkpoints.
@@ -30,13 +32,15 @@ repair task and ends with independently verified, replayable evidence.
 - Direction: software-development lifecycle collaboration
 - Runtime: AgentTeams/HiClaw `v1.1.2`
 - Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`
-- Current result: one governed successful ToolCall through Higress, the Policy
+- Current result: the three-case, two-mode Task 24 matrix completed 6/6 cells;
+  Task 17 separately proves one delegated ToolCall through Higress, the Policy
   Broker, and a fresh Docker sandbox
-- Quality gate: 323 passed / 2 failed (TUI tests, non-blocking) / 3 skipped
-  (opt-in Docker); Ruff, strict mypy, pip-audit, syntax, migration, diff, and
-  secret checks passed
-- Skill status: `code-review-and-quality` is `PUBLISHED`; four upstream Skills
-  are `QUARANTINED`
+- Current worktree gate: 375 passed / 3 skipped (opt-in Docker); clean-clone
+  Lite evidence: 339 passed / 0 failed / 3 skipped; Ruff, strict mypy,
+  pip-audit, syntax, migration, diff, and secret checks passed
+- Skill status: `code-review-and-quality` (upstream) and `patch-scope-validator`
+  (team-original) are `PUBLISHED`; four upstream Skills are `QUARANTINED`; three
+  original-Skill invocation bundles reopen with full identity closure
 - Submission status: P0 artifact package complete; recording, upload, and final
   submission pending
 
@@ -95,8 +99,12 @@ Launch the local evidence control panel with:
 .venv\Scripts\agentloom tui
 ```
 
-For the guided Windows path, use `scripts/bootstrap.ps1 -Profile lite`, then
-`scripts/demo.ps1`. See the [five-minute quickstart](docs/deployment/quickstart.md).
+For the fail-closed clean-clone gate, run the single
+[`verify-clean-reproduction.ps1`](scripts/verify-clean-reproduction.ps1) entry
+point. It creates new evidence, runs the deterministic Demo and all quality gates,
+and emits a redacted JSON summary plus SHA-256. See the
+[clean-environment reproduction guide](docs/deployment/clean-environment-reproduction.md)
+and the [five-minute quickstart](docs/deployment/quickstart.md).
 
 ## Full AgentTeams Deployment
 
@@ -166,9 +174,11 @@ Worker, or Provider Profile configuration.
 ## Historical Evidence
 
 > The items below are retained for audit and reproduction. They are **not the
-> current evidence baseline**. Qwen, DeepSeek, and StepFun are disabled for
-> maintainer-paid calls until quota is restored and use is explicitly
-> reauthorized. Do not run these historical paid paths by default.
+> current evidence baseline**. Qwen and DeepSeek remain disabled because their
+> accounts have no balance. MiniMax and StepFun are authorized subscription
+> Providers, but every new run must use a unique run ID and exact Provider/model
+> evidence; StepFun evidence must not be merged into the MiniMax-only Task 24
+> versioned benchmark. Do not replay historical paid paths as if they were new.
 
 - On 2026-08-04, Qwen `qwen3.7-plus` completed an unattended repair that passed
   independent visible, host-only hidden, and static checks. The generated patch

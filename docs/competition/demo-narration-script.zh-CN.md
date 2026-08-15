@@ -21,7 +21,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
 
 确认 AgentTeams `v1.1.2` Controller、Manager 和三个 Worker 健康，并确认
-`323 passed / 2 failed (TUI) / 3 skipped`。正式录制只展示已经脱敏的 Task 17 Evidence 摘要，
+`375 passed / 3 skipped`，Task 24 两模式矩阵为 `6 PASSED / 0 NOT_RUN`。正式录制只展示已经脱敏的 Task 17/24/26 Evidence 摘要，
 不打开 Matrix 正文、Worker 原始日志、凭据或 Signed Grant。
 
 ## 1. 开场与真实场景（00:00-00:35）

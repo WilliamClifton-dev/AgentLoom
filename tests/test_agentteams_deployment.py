@@ -478,15 +478,14 @@ def test_live_repair_runner_binds_fresh_role_events_and_task_artifacts() -> None
     assert "[ValidateRange(1, 3600)]" in script
     assert "[ValidateRange(1, 60)]" in script
     assert 'shared/tasks/$TaskId/' in script
-    assert '[string]$CaseRoot = ".\\demo\\cases\\pagination-boundary"' in script
+    assert '[Parameter(Mandatory)][string]$CaseRoot' in script
     assert "Stage-LiveRepairCase" in script
-    assert '"before/lib/__init__.py"' in script
-    assert '"before/lib/pagination.py"' in script
-    assert '"before/tests/test_pagination.py"' in script
-    assert '"base/lib/__init__.py"' in script
-    assert '"base/lib/pagination.py"' in script
-    assert '"base/tests/test_pagination.py"' in script
+    assert "$caseContext.sourceFiles" in script
+    assert '"before/" + [string]$_.sourcePath' in script
+    assert "[string]$_.objectName" in script
     assert '"mc", "cp"' in script
+    assert "mc cp" in script
+    assert "New-CoPawSendCommand" in script
     assert "$initialObjects.Count -eq 0" in script
     assert "lastModified" in script
     assert "[DateTimeOffset]$object.lastModified" in script
@@ -501,11 +500,9 @@ def test_live_repair_runner_binds_fresh_role_events_and_task_artifacts() -> None
     assert '@("REJECTED", "TIMEOUT") -notcontains $resumeEvidence.status' in script
     assert "StartedAtIso" not in script
     assert "if (-not $Resume)" in script
-    assert "expected/" in script
-    assert "hidden" in script
-    assert "filesync push" in script
-    assert "Never push the whole task directory" in script
-    assert "PYTHONDONTWRITEBYTECODE=1" in script
+    assert '(^|/)(expected|hidden[^/]*)/' in script
+    assert "filesync" not in script
+    assert "Worker-local pytest is unavailable" in script
     assert "patch-artifact.json" in script
     assert "resultObjectsMustBeAllowlisted" in script
     assert "inputObjectsRemainUnchanged" in script
@@ -530,6 +527,144 @@ def test_live_repair_runner_binds_fresh_role_events_and_task_artifacts() -> None
     assert "[DateTimeOffset]::MaxValue" not in script
     assert "initialPassword" not in script
     assert "Write-Output $authToken" not in script
+
+
+def test_live_repair_runner_reserves_time_for_every_stage_and_sends_one_reminder() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    assert "$runDeadline =" in script
+    assert "function Get-StageDeadline" in script
+    assert "[ValidateRange(1, 3)][int]$RemainingStages" in script
+    assert "[Parameter(Mandatory)][DateTimeOffset]$Deadline" in script
+    assert "[ValidateRange(0, 3600)][int]$ReminderAfterSeconds = 0" in script
+    assert "[scriptblock]$OnReminder = $null" in script
+    assert "$reminderSent = $false" in script
+    assert "-not $reminderSent -and" in script
+    assert "-Deadline (Get-StageDeadline -RemainingStages 3)" in script
+    assert "-Deadline (Get-StageDeadline -RemainingStages 2)" in script
+    assert "-Deadline (Get-StageDeadline -RemainingStages 1)" in script
+    assert "-OnReminder $investigatorReminder" in script
+    assert "-OnReminder $implementerReminder" in script
+    assert "-OnReminder $verifierReminder" in script
+    assert "while ([DateTimeOffset]::UtcNow -lt $deadline)" not in script
+
+
+def test_live_repair_stage_continuations_are_reactivated_through_manager() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    assert "[$TaskId] IMPLEMENTATION_ENVELOPE" not in script
+    assert "[$TaskId] VERIFICATION_ENVELOPE" not in script
+    assert "$implementerTransitionEvent = Send-MatrixText" not in script
+    assert "$verifierTransitionEvent = Send-MatrixText" not in script
+    assert "$implementerInvestigatorDispatchCommand = New-CoPawSendCommand" in script
+    assert "$verifierInvestigatorDispatchCommand = New-CoPawSendCommand" in script
+    assert "$implementerManagerPrompt = @\"" in script
+    assert "$verifierManagerPrompt = @\"" in script
+    assert script.count("Send-MatrixText -RoomId $manager.roomID") >= 3
+    assert "-Text $implementerManagerPrompt" in script
+    assert "-Text $verifierManagerPrompt" in script
+    assert "-MentionUserId $manager.matrixUserID -AuthToken $authToken" in script
+
+
+def test_live_repair_manager_reactivates_each_single_purpose_handoff() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    assert "$implementerInvestigatorPrompt = @\"" in script
+    assert "$verifierInvestigatorPrompt = @\"" in script
+    assert "Run only the exact CoPaw dispatch command below" in script
+    conflicting_instruction = (
+        "Do not inspect code, copy artifacts, or delegate to another Worker yourself"
+    )
+    assert conflicting_instruction not in script
+    assert "IMPLEMENTER_DISPATCH_COMMAND_PLACEHOLDER" not in script
+    assert "VERIFIER_DISPATCH_COMMAND_PLACEHOLDER" not in script
+    verifier_requirement = script[script.index('key = "verifier-assigned"') :]
+    verifier_requirement = verifier_requirement[: verifier_requirement.index("},")]
+    assert 'agentName = "agentloom-investigator"' in verifier_requirement
+    assert "sender = $investigator.matrixUserID" in verifier_requirement
+
+
+def test_live_repair_investigator_reminder_reactivates_through_manager() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+    reminder = script[script.index("$investigatorReminder = {") :]
+    reminder = reminder[: reminder.index("Wait-ForRequiredMarkers")]
+
+    assert "Send-MatrixText -RoomId $manager.roomID" in reminder
+    assert "-Text $investigatorManagerReminder" in reminder
+    assert "-Text $prompt" not in reminder
+    assert "Send-MatrixText -RoomId $investigator.roomID" not in reminder
+    assert "$investigatorCompletionDispatchCommand" in script
+    assert "Confirm that root-cause-report.json is already uploaded" in script
+
+
+def test_live_repair_assignments_emit_matrix_mentions_for_the_target_role() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    implementer_assignment = (
+        '$implementerBody = @"\n$($implementer.matrixUserID)\n'
+        "[$TaskId] IMPLEMENTER_ASSIGNED"
+    )
+    assert implementer_assignment in script
+    assert '$verifierBody = @"\n$($verifier.matrixUserID)\n[$TaskId] VERIFIER_ASSIGNED' in script
+
+
+def test_live_repair_stages_assignments_as_immutable_input_objects() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    assert "function Stage-AssignmentObject" in script
+    assert '"assignments/implementer.txt"' in script
+    assert '"assignments/verifier.txt"' in script
+    assert script.count("Stage-AssignmentObject -TaskPrefix $taskPrefix") == 2
+    assert '-ObjectName "assignments/implementer.txt" -Text $implementerBody' in script
+    assert '-ObjectName "assignments/verifier.txt" -Text $verifierBody' in script
+    assert "$expectedInitial" in script
+    assert "$initialInputObjects" in script
+    assert "$allowedFinalKeys = @($expectedInitial" in script
+
+
+def test_live_repair_implementer_generates_patch_with_git_diff() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    assert "git diff --check" in script
+    assert (
+        'git diff --no-ext-diff -- "$changedPath" '
+        '> "$implementerRoot/repair.patch"'
+    ) in script
+    assert "Do not hand-write unified diff hunk headers" in script
+
+
+def test_live_repair_dispatches_assignment_objects_without_nested_base64() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    assert "function New-CoPawSendObjectCommand" in script
+    assert "--text \"`$(mc cat '$ObjectPath')\"" in script
+    assert "$verifierDispatchCommand = New-CoPawSendObjectCommand" in script
+    assert "$implementerDispatchCommand = New-CoPawSendObjectCommand" in script
+    assert '-ObjectPath "$remoteTaskRoot/assignments/verifier.txt"' in script
+    assert '-ObjectPath "$remoteTaskRoot/assignments/implementer.txt"' in script
+    assert "$verifierDispatchCommand = New-CoPawSendCommand" not in script
+    assert "$implementerDispatchCommand = New-CoPawSendCommand" not in script
+
+
+def test_live_repair_run_evidence_projects_only_public_role_event_fields() -> None:
+    script = (DEPLOY / "run-live-repair.ps1").read_text(encoding="utf-8")
+
+    save_evidence = script[script.index("function Save-RunEvidence") :]
+    save_evidence = save_evidence[: save_evidence.index("$resolvedCaseRoot")]
+    assert "$eventEvidence += $Markers[$key]" not in save_evidence
+    assert "$marker = $Markers[$key]" in save_evidence
+    for field in (
+        "key = $marker.key",
+        "agentName = $marker.agentName",
+        "sender = $marker.sender",
+        "eventId = $marker.eventId",
+        "roomId = $marker.roomId",
+        "originServerTimestamp = $marker.originServerTimestamp",
+    ):
+        assert field in save_evidence
+    assert "phase = $marker.phase" not in save_evidence
+    assert "mentionedAgent = $marker.mentionedAgent" not in save_evidence
+    assert "mentionedUserId = $marker.mentionedUserId" not in save_evidence
 
 
 def test_live_rollback_runner_is_paid_guarded_and_collects_role_owned_events() -> None:

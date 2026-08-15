@@ -13,7 +13,8 @@
 5. Task 25: provide and verify clean Docker one-command reproduction; the real
    recording remains Human-owned.
 6. Task 26: implement/evaluate one team-original Skill and prove at least three
-   real Skill calls in the main task, using MiniMax only if a model is required.
+   real Skill calls in the main task. MiniMax or StepFun may be used if a model
+   is required, but the frozen Task 24 benchmark remains MiniMax-only.
 7. Task 27: perform a requirement-by-requirement design, package, repository,
    release, and submission audit; check only directly proven items.
 8. Human checkpoint: publish repository/recording, verify URLs, freeze commit,

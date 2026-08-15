@@ -13,6 +13,7 @@ from agentloom.benchmark import (
     BenchmarkReport,
     BenchmarkSuiteError,
     load_benchmark_suite,
+    record_governed_benchmark_result,
     run_local_benchmark,
 )
 
@@ -190,3 +191,280 @@ def test_run_local_benchmark_executes_all_three_cases_without_model(
     )
     assert reopened == report
 
+
+def test_record_governed_result_binds_live_host_and_docker_evidence(
+    tmp_path: Path,
+) -> None:
+    suite = load_benchmark_suite(SUITE, repository_root=ROOT)
+    local = run_local_benchmark(
+        suite=suite,
+        output_root=tmp_path / "local",
+        run_id="task24-governed-test",
+    )
+    case = suite.cases[0]
+    fingerprint = suite.case_fingerprints[0]
+    run_path, verified_path, sandbox_path = _governed_evidence_set(
+        tmp_path / "governed",
+        case_id=case.manifest.case_id,
+        case_fingerprint=fingerprint,
+    )
+
+    updated = record_governed_benchmark_result(
+        suite=suite,
+        report_path=tmp_path / "local" / "benchmark-report.json",
+        case_id=case.manifest.case_id,
+        run_evidence_path=run_path,
+        verified_evidence_path=verified_path,
+        sandbox_evidence_path=sandbox_path,
+        output_path=tmp_path / "benchmark-with-governed.json",
+    )
+
+    assert not updated.complete
+    governed = next(
+        cell
+        for cell in updated.cells
+        if cell.case_id == case.manifest.case_id
+        and cell.mode == "AGENTTEAMS_GOVERNED"
+    )
+    assert governed.status == "PASSED"
+    assert governed.provider == "minimax-cn"
+    assert {evidence.kind for evidence in governed.evidence} == {
+        "AGENTTEAMS_REPAIR",
+        "INDEPENDENT_VERIFICATION",
+        "GOVERNED_DOCKER_TOOLCALL",
+    }
+    assert local.cells[0] in updated.cells
+
+
+def test_record_governed_result_rejects_different_verified_workspace(
+    tmp_path: Path,
+) -> None:
+    suite = load_benchmark_suite(SUITE, repository_root=ROOT)
+    run_local_benchmark(
+        suite=suite,
+        output_root=tmp_path / "local",
+        run_id="task24-workspace-mismatch",
+    )
+    case = suite.cases[0]
+    fingerprint = suite.case_fingerprints[0]
+    run_path, verified_path, sandbox_path = _governed_evidence_set(
+        tmp_path / "governed",
+        case_id=case.manifest.case_id,
+        case_fingerprint=fingerprint,
+    )
+    sandbox = json.loads(sandbox_path.read_text(encoding="utf-8"))
+    sandbox["workspaceDigest"] = "9" * 64
+    sandbox_path.write_text(json.dumps(sandbox), encoding="utf-8")
+
+    with pytest.raises(BenchmarkSuiteError, match="workspace digest"):
+        record_governed_benchmark_result(
+            suite=suite,
+            report_path=tmp_path / "local" / "benchmark-report.json",
+            case_id=case.manifest.case_id,
+            run_evidence_path=run_path,
+            verified_evidence_path=verified_path,
+            sandbox_evidence_path=sandbox_path,
+            output_path=tmp_path / "rejected.json",
+        )
+
+
+def test_record_governed_result_rejects_docker_evidence_before_run_completion(
+    tmp_path: Path,
+) -> None:
+    suite = load_benchmark_suite(SUITE, repository_root=ROOT)
+    run_local_benchmark(
+        suite=suite,
+        output_root=tmp_path / "local",
+        run_id="task24-timestamp-mismatch",
+    )
+    case = suite.cases[0]
+    run_path, verified_path, sandbox_path = _governed_evidence_set(
+        tmp_path / "governed",
+        case_id=case.manifest.case_id,
+        case_fingerprint=suite.case_fingerprints[0],
+    )
+    sandbox = json.loads(sandbox_path.read_text(encoding="utf-8"))
+    sandbox["verifiedAt"] = "2026-08-15T00:00:30Z"
+    sandbox_path.write_text(json.dumps(sandbox), encoding="utf-8")
+
+    with pytest.raises(BenchmarkSuiteError, match="timestamps"):
+        record_governed_benchmark_result(
+            suite=suite,
+            report_path=tmp_path / "local" / "benchmark-report.json",
+            case_id=case.manifest.case_id,
+            run_evidence_path=run_path,
+            verified_evidence_path=verified_path,
+            sandbox_evidence_path=sandbox_path,
+            output_path=tmp_path / "rejected.json",
+        )
+
+
+def _governed_evidence_set(
+    root: Path,
+    *,
+    case_id: str,
+    case_fingerprint: str,
+) -> tuple[Path, Path, Path]:
+    root.mkdir(parents=True)
+    task_id = f"task24-{case_id}"
+    role_events = [
+        {
+            "agentName": "agentloom-investigator",
+            "matrixUserId": "@agentloom-investigator:example.test",
+            "roomId": "!repair:example.test",
+            "eventId": "$investigator",
+            "originServerTimestamp": 1_700_000_000_002,
+        },
+        {
+            "agentName": "agentloom-implementer",
+            "matrixUserId": "@agentloom-implementer:example.test",
+            "roomId": "!repair:example.test",
+            "eventId": "$implementer",
+            "originServerTimestamp": 1_700_000_000_004,
+        },
+        {
+            "agentName": "agentloom-verifier",
+            "matrixUserId": "@agentloom-verifier:example.test",
+            "roomId": "!repair:example.test",
+            "eventId": "$verifier",
+            "originServerTimestamp": 1_700_000_000_006,
+        },
+    ]
+    coordination = {
+        "schemaVersion": "agentloom.coordination-trace/v1alpha1",
+        "taskId": task_id,
+        "events": [
+            {
+                "phase": "MANAGER_DELEGATED",
+                "agentName": "agentloom-manager",
+                "matrixUserId": "@manager:example.test",
+                "mentionedAgent": "agentloom-investigator",
+                "mentionedUserId": "@agentloom-investigator:example.test",
+                "roomId": "!manager:example.test",
+                "eventId": "$manager-delegated",
+                "originServerTimestamp": 1_700_000_000_001,
+            },
+            {
+                "phase": "IMPLEMENTER_ASSIGNED",
+                "agentName": "agentloom-investigator",
+                "matrixUserId": "@agentloom-investigator:example.test",
+                "mentionedAgent": "agentloom-implementer",
+                "mentionedUserId": "@agentloom-implementer:example.test",
+                "roomId": "!repair:example.test",
+                "eventId": "$implementer-assigned",
+                "originServerTimestamp": 1_700_000_000_003,
+            },
+            {
+                "phase": "VERIFIER_ASSIGNED",
+                "agentName": "agentloom-investigator",
+                "matrixUserId": "@agentloom-investigator:example.test",
+                "mentionedAgent": "agentloom-verifier",
+                "mentionedUserId": "@agentloom-verifier:example.test",
+                "roomId": "!repair:example.test",
+                "eventId": "$verifier-assigned",
+                "originServerTimestamp": 1_700_000_000_005,
+            },
+        ],
+    }
+    started = "2026-08-15T00:00:00Z"
+    verified_at = "2026-08-15T00:01:00Z"
+    workspace_digest = "8" * 64
+    run_path = root / "agentteams-run.json"
+    run_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.live-repair-run/v1alpha1",
+                "taskId": task_id,
+                "caseId": case_id,
+                "caseFingerprint": case_fingerprint,
+                "provider": "minimax-cn",
+                "model": "MiniMax-M2.5",
+                "startedAt": started,
+                "verifiedAt": verified_at,
+                "status": "SUBMISSION_READY",
+                "strict": True,
+                "criteria": {
+                    "senderMustMatchRole": True,
+                    "eventMustFollowTaskStart": True,
+                    "markerMustBeIndependentTrimmedLine": True,
+                    "resultObjectsMustFollowTaskStart": True,
+                    "hiddenAndExpectedObjectsForbidden": True,
+                    "resultObjectsMustBeAllowlisted": True,
+                    "inputObjectsRemainUnchanged": True,
+                    "completionEventMustFollowArtifacts": True,
+                    "coordinationEventsMustMatchMentions": True,
+                },
+                "inputObjects": [],
+                "coordinationTrace": coordination,
+                "roleEvents": [
+                    {
+                        "key": str(event["agentName"]).removeprefix("agentloom-"),
+                        "agentName": event["agentName"],
+                        "sender": event["matrixUserId"],
+                        "roomId": event["roomId"],
+                        "eventId": event["eventId"],
+                        "originServerTimestamp": event["originServerTimestamp"],
+                    }
+                    for event in role_events
+                ],
+                "objects": [],
+                "submissionSha256": "a" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+    verified_path = root / "live-repair-evidence.json"
+    verified_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.live-repair-evidence/v1alpha1",
+                "status": "PASS",
+                "taskId": task_id,
+                "caseId": case_id,
+                "caseFingerprint": case_fingerprint,
+                "caseSnapshotSha256": "sha256:" + "7" * 64,
+                "provider": "minimax-cn",
+                "model": "MiniMax-M2.5",
+                "submissionSha256": "a" * 64,
+                "patchSha256": "b" * 64,
+                "testResultsSha256": "c" * 64,
+                "verifiedWorkspaceDigest": workspace_digest,
+                "roleEvents": role_events,
+                "coordinationTrace": coordination,
+                "independentVerification": {
+                    "originalFailureReproduced": True,
+                    "targetTestsPassed": True,
+                    "regressionTestsPassed": True,
+                    "hiddenTestsPassed": True,
+                    "staticChecksPassed": True,
+                    "unauthorizedChanges": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    sandbox_path = root / "sandbox-run.json"
+    sandbox_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.agentteams-sandbox-e2e/v1alpha1",
+                "runId": f"sandbox-{case_id}",
+                "verifiedAt": "2026-08-15T00:02:00Z",
+                "status": "DIRECT_PASS",
+                "sandboxImage": "sha256:" + "d" * 64,
+                "workspaceDigest": workspace_digest,
+                "caseId": case_id,
+                "caseFingerprint": case_fingerprint,
+                "wrongConsumerDenied": True,
+                "replayDenied": True,
+                "direct": {
+                    "taskId": f"sandbox-task-{case_id}",
+                    "providerId": "sandboxed-test-runner/docker-sandbox",
+                    "evidenceRef": f"ev-tool-{case_id}",
+                    "outputDigest": "e" * 64,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return run_path, verified_path, sandbox_path

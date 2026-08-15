@@ -29,7 +29,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 - AgentTeams `v1.1.2` 健康状态为 `PASS`。
 - Manager、Team、3 个 Worker 和 Human 均可用。
-- 本地门禁为 `323 passed / 2 failed (TUI) / 3 skipped`。
+- 当前工作树门禁为 `375 passed / 3 skipped`；Task 25 clean-clone Lite 证据为
+  `339 passed / 0 failed / 3 skipped`，两者不得混写。
 - Task 17 脱敏摘要中的 provider/model 为 `minimax-cn` / `MiniMax-M2.5`。
 - Task 17 数据库结果为且仅为一个 `SUCCEEDED` ToolCall。
 - 不打开 Matrix 正文、Worker 原始日志、凭据、Signed Grant 或本机绝对路径。

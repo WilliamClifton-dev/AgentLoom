@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("severity-normalization", "pagination-boundary")]
+    [ValidateSet("severity-normalization", "pagination-boundary", "retry-delay-cap")]
     [string]$Case = "severity-normalization",
     [string]$OutputRoot = ""
 )

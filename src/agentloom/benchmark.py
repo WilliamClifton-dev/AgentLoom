@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import sys
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -11,10 +13,11 @@ from hashlib import sha256
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from agentloom.contracts import ContractModel
-from agentloom.demo_case import DemoCase, load_demo_case, snapshot_sha256
+from agentloom.demo_case import DemoCase, demo_case_fingerprint, load_demo_case
+from agentloom.live_evidence import LiveRunEvidence, VerifiedLiveEvidence
 from agentloom.mock_repair import MockRepairRunner
 
 BenchmarkMode = Literal["LOCAL_DETERMINISTIC", "AGENTTEAMS_GOVERNED"]
@@ -112,6 +115,41 @@ class BenchmarkEvidence(ContractModel):
         if path.is_absolute() or not path.parts or ".." in path.parts:
             raise ValueError("benchmark Evidence URI is unsafe")
         return value
+
+
+class BenchmarkSandboxTask(ContractModel):
+    task_id: str = Field(alias="taskId", min_length=1)
+    provider_id: Literal["sandboxed-test-runner/docker-sandbox"] = Field(
+        alias="providerId"
+    )
+    evidence_ref: str = Field(alias="evidenceRef", pattern=r"^ev-tool-[A-Za-z0-9._-]+$")
+    output_digest: str = Field(alias="outputDigest", pattern=r"^[a-f0-9]{64}$")
+
+
+class BenchmarkSandboxEvidence(ContractModel):
+    schema_version: Literal["agentloom.agentteams-sandbox-e2e/v1alpha1"] = Field(
+        alias="schemaVersion"
+    )
+    run_id: str = Field(alias="runId", min_length=1)
+    verified_at: datetime = Field(alias="verifiedAt")
+    status: Literal["DIRECT_PASS"]
+    sandbox_image: str = Field(
+        alias="sandboxImage",
+        pattern=(
+            r"^(?:sha256:[a-f0-9]{64}|"
+            r"[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64})$"
+        ),
+    )
+    workspace_digest: str = Field(
+        alias="workspaceDigest", pattern=r"^[a-f0-9]{64}$"
+    )
+    case_id: str = Field(alias="caseId", pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    case_fingerprint: str = Field(
+        alias="caseFingerprint", pattern=r"^[a-f0-9]{64}$"
+    )
+    wrong_consumer_denied: Literal[True] = Field(alias="wrongConsumerDenied")
+    replay_denied: Literal[True] = Field(alias="replayDenied")
+    direct: BenchmarkSandboxTask
 
 
 class BenchmarkCell(ContractModel):
@@ -245,35 +283,9 @@ class BenchmarkReport(ContractModel):
 
 
 def benchmark_case_fingerprint(case: DemoCase) -> str:
-    """Hash every trusted input that can affect one benchmark outcome."""
+    """Backward-compatible benchmark name for the canonical Case fingerprint."""
 
-    digest = sha256()
-    manifest = json.dumps(
-        case.manifest.model_dump(mode="json", by_alias=True),
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    provenance = json.dumps(
-        case.provenance.model_dump(mode="json", by_alias=True),
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    issue = case.issue.replace("\r\n", "\n").encode("utf-8")
-    parts = (
-        ("manifest", manifest),
-        ("provenance", provenance),
-        ("issue", issue),
-        ("source", snapshot_sha256(case.source_root).encode("ascii")),
-        ("expected", snapshot_sha256(case.expected_patch_root).encode("ascii")),
-        ("hidden", snapshot_sha256(case.hidden_tests_root).encode("ascii")),
-    )
-    for label, content in parts:
-        label_bytes = label.encode("ascii")
-        digest.update(len(label_bytes).to_bytes(8, "big"))
-        digest.update(label_bytes)
-        digest.update(len(content).to_bytes(8, "big"))
-        digest.update(content)
-    return digest.hexdigest()
+    return demo_case_fingerprint(case)
 
 
 def load_benchmark_suite(
@@ -400,3 +412,252 @@ def run_local_benchmark(
     )
     return report
 
+
+def record_governed_benchmark_result(
+    *,
+    suite: LoadedBenchmarkSuite,
+    report_path: Path,
+    case_id: str,
+    run_evidence_path: Path,
+    verified_evidence_path: Path,
+    sandbox_evidence_path: Path,
+    output_path: Path,
+) -> BenchmarkReport:
+    """Replace one NOT_RUN cell only after all governed evidence is bound."""
+
+    report = _load_model(report_path, BenchmarkReport, "benchmark report")
+    if (
+        report.suite_id != suite.manifest.suite_id
+        or report.suite_version != suite.manifest.version
+        or report.suite_digest != suite.suite_digest
+    ):
+        raise BenchmarkSuiteError("benchmark report does not match the loaded suite")
+    references = {
+        case.manifest.case_id: fingerprint
+        for case, fingerprint in zip(
+            suite.cases, suite.case_fingerprints, strict=True
+        )
+    }
+    if case_id not in references:
+        raise BenchmarkSuiteError("governed result Case is not in the suite")
+    if any(
+        references.get(cell.case_id) != cell.case_fingerprint
+        for cell in report.cells
+    ):
+        raise BenchmarkSuiteError("benchmark report contains a stale Case fingerprint")
+    existing = [
+        cell
+        for cell in report.cells
+        if cell.case_id == case_id and cell.mode == "AGENTTEAMS_GOVERNED"
+    ]
+    if len(existing) != 1 or existing[0].status != "NOT_RUN":
+        raise BenchmarkSuiteError("governed benchmark cell is not replaceable")
+
+    run = _load_model(run_evidence_path, LiveRunEvidence, "AgentTeams run Evidence")
+    verified = _load_model(
+        verified_evidence_path,
+        VerifiedLiveEvidence,
+        "independent verification Evidence",
+    )
+    sandbox = _load_model(
+        sandbox_evidence_path,
+        BenchmarkSandboxEvidence,
+        "governed Docker Evidence",
+    )
+    fingerprint = references[case_id]
+    if (
+        run.case_id != case_id
+        or run.case_fingerprint != fingerprint
+        or verified.case_id != case_id
+        or verified.case_fingerprint != fingerprint
+        or sandbox.case_id != case_id
+        or sandbox.case_fingerprint != fingerprint
+    ):
+        raise BenchmarkSuiteError("governed Evidence does not match the frozen Case")
+    if (
+        run.provider != "minimax-cn"
+        or run.model != "MiniMax-M2.5"
+        or verified.provider != run.provider
+        or verified.model != run.model
+    ):
+        raise BenchmarkSuiteError("governed Evidence does not use the authorized MiniMax pair")
+    if (
+        run.task_id != verified.task_id
+        or run.submission_sha256 != verified.submission_sha256
+    ):
+        raise BenchmarkSuiteError("AgentTeams and host verification tasks do not match")
+    run_roles = [
+        (
+            event.agent_name,
+            event.sender,
+            event.room_id,
+            event.event_id,
+            event.origin_server_timestamp,
+        )
+        for event in run.role_events
+    ]
+    verified_roles = [
+        (
+            event.agent_name,
+            event.matrix_user_id,
+            event.room_id,
+            event.event_id,
+            event.origin_server_timestamp,
+        )
+        for event in verified.role_events
+    ]
+    if run_roles != verified_roles:
+        raise BenchmarkSuiteError("AgentTeams and host role events do not match")
+    if run.coordination_trace is None or verified.coordination_trace is None:
+        raise BenchmarkSuiteError("governed Evidence lacks the strict coordination trace")
+    if run.coordination_trace.model_dump(
+        mode="json", by_alias=True
+    ) != verified.coordination_trace.model_dump(mode="json", by_alias=True):
+        raise BenchmarkSuiteError("AgentTeams and host coordination traces do not match")
+    if verified.verified_workspace_digest is None:
+        raise BenchmarkSuiteError("host verification lacks a workspace digest")
+    if verified.verified_workspace_digest != sandbox.workspace_digest:
+        raise BenchmarkSuiteError(
+            "host and governed Docker workspace digest values do not match"
+        )
+    if run.verified_at < run.started_at or sandbox.verified_at < run.verified_at:
+        raise BenchmarkSuiteError("governed Evidence timestamps are not ordered")
+
+    prefix = f"artifact://{report.run_id}/{case_id}"
+    governed_cell = BenchmarkCell(
+        case_id=case_id,
+        case_fingerprint=fingerprint,
+        mode="AGENTTEAMS_GOVERNED",
+        status="PASSED",
+        provider="minimax-cn",
+        model="MiniMax-M2.5",
+        started_at=run.started_at,
+        finished_at=sandbox.verified_at,
+        elapsed_ms=int((sandbox.verified_at - run.started_at).total_seconds() * 1000),
+        evidence=[
+            BenchmarkEvidence(
+                kind="AGENTTEAMS_REPAIR",
+                uri=f"{prefix}/agentteams-run-evidence.json",
+                sha256=sha256(run_evidence_path.read_bytes()).hexdigest(),
+            ),
+            BenchmarkEvidence(
+                kind="INDEPENDENT_VERIFICATION",
+                uri=f"{prefix}/live-repair-evidence.json",
+                sha256=sha256(verified_evidence_path.read_bytes()).hexdigest(),
+            ),
+            BenchmarkEvidence(
+                kind="GOVERNED_DOCKER_TOOLCALL",
+                uri=f"{prefix}/sandbox-run-evidence.json",
+                sha256=sha256(sandbox_evidence_path.read_bytes()).hexdigest(),
+            ),
+        ],
+    )
+    cells = [
+        governed_cell
+        if cell.case_id == case_id and cell.mode == "AGENTTEAMS_GOVERNED"
+        else cell
+        for cell in report.cells
+    ]
+    updated = BenchmarkReport(
+        suite_id=report.suite_id,
+        suite_version=report.suite_version,
+        suite_digest=report.suite_digest,
+        run_id=report.run_id,
+        created_at=datetime.now(UTC),
+        complete=all(cell.status != "NOT_RUN" for cell in cells),
+        cells=cells,
+    )
+    _write_report(output_path, updated)
+    return updated
+
+
+def _load_model[ModelT: ContractModel](
+    path: Path,
+    model_type: type[ModelT],
+    label: str,
+) -> ModelT:
+    try:
+        if path.stat().st_size > 2 * 1024 * 1024:
+            raise BenchmarkSuiteError(f"{label} exceeds the size limit")
+        return model_type.model_validate_json(path.read_text(encoding="utf-8"))
+    except BenchmarkSuiteError:
+        raise
+    except (OSError, UnicodeError, ValidationError) as exc:
+        raise BenchmarkSuiteError(f"invalid {label}") from exc
+
+
+def _write_report(path: Path, report: BenchmarkReport) -> None:
+    resolved = path.resolve()
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    with resolved.open("x", encoding="utf-8", newline="\n") as stream:
+        stream.write(
+            json.dumps(
+                report.model_dump(mode="json", by_alias=True),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        stream.write("\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run versioned AgentLoom benchmarks")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    local = subcommands.add_parser("run-local")
+    local.add_argument("--suite", required=True, type=Path)
+    local.add_argument("--repository-root", required=True, type=Path)
+    local.add_argument("--output-root", required=True, type=Path)
+    local.add_argument("--run-id", required=True)
+    governed = subcommands.add_parser("record-governed")
+    governed.add_argument("--suite", required=True, type=Path)
+    governed.add_argument("--repository-root", required=True, type=Path)
+    governed.add_argument("--report", required=True, type=Path)
+    governed.add_argument("--case-id", required=True)
+    governed.add_argument("--run-evidence", required=True, type=Path)
+    governed.add_argument("--verified-evidence", required=True, type=Path)
+    governed.add_argument("--sandbox-evidence", required=True, type=Path)
+    governed.add_argument("--output", required=True, type=Path)
+    arguments = parser.parse_args()
+    try:
+        suite = load_benchmark_suite(
+            arguments.suite,
+            repository_root=arguments.repository_root,
+        )
+        if arguments.command == "run-local":
+            report = run_local_benchmark(
+                suite=suite,
+                output_root=arguments.output_root,
+                run_id=arguments.run_id,
+            )
+        else:
+            report = record_governed_benchmark_result(
+                suite=suite,
+                report_path=arguments.report,
+                case_id=arguments.case_id,
+                run_evidence_path=arguments.run_evidence,
+                verified_evidence_path=arguments.verified_evidence,
+                sandbox_evidence_path=arguments.sandbox_evidence,
+                output_path=arguments.output,
+            )
+    except (OSError, RuntimeError, ValueError, UnicodeError) as exc:
+        print(f"benchmark failed: {exc}", file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "schemaVersion": "agentloom.repair-benchmark-summary/v1alpha1",
+                "runId": report.run_id,
+                "suiteDigest": report.suite_digest,
+                "complete": report.complete,
+                "passed": sum(cell.status == "PASSED" for cell in report.cells),
+                "notRun": sum(cell.status == "NOT_RUN" for cell in report.cells),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

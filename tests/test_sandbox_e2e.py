@@ -4,6 +4,7 @@ import hashlib
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -86,11 +87,13 @@ def test_prepare_sandbox_e2e_derives_governed_request_from_case(
     )
 
     assert context.case_id == case_id
-    assert context.tasks["direct"].tool_request.parameters["command"][-1].startswith(
-        "tests/test_"
-    )
+    raw_command = context.tasks["direct"].tool_request.parameters["command"]
+    assert isinstance(raw_command, list)
+    assert all(isinstance(argument, str) for argument in raw_command)
+    command = cast(list[str], raw_command)
+    assert command[-1].startswith("tests/test_")
     assert context.tasks["direct"].issuance_request.requested_paths == [
-        context.tasks["direct"].tool_request.parameters["command"][-1].split("::")[0]
+        command[-1].split("::")[0]
     ]
 
 
@@ -138,6 +141,48 @@ def test_verify_sandbox_e2e_requires_matching_toolcall_and_docker_evidence(
 
     assert verified["direct"].provider_id == "sandboxed-test-runner/docker-sandbox"
     assert verified["direct"].evidence_ref == "ev-tool-direct"
+
+
+def test_verify_sandbox_e2e_rejects_non_exact_pass_count(tmp_path: Path) -> None:
+    database, _, context = prepare(tmp_path)
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    direct = context.tasks["direct"]
+    evidence_content = (
+        "STATUS: SUCCEEDED\n"
+        "SANDBOX_PROVIDER: docker-sandbox\n"
+        f"IMAGE_REF: {IMAGE_REF}\n"
+        f"SNAPSHOT_DIGEST: {context.workspace_digest}\n"
+        "EXIT_CODE: 0\n"
+        "STDOUT:\n11 passed\n"
+        "STDERR:\n\n"
+    )
+    output_digest = hashlib.sha256(evidence_content.encode()).hexdigest()
+    database.record_tool_call(
+        ToolCallEventRecord.from_execution(
+            event_id="tool-event-direct",
+            request=direct.tool_request,
+            result=ToolExecutionResult(
+                status="SUCCEEDED",
+                evidence_refs=["ev-tool-direct"],
+                output_digest=output_digest,
+            ),
+            provider_id="sandboxed-test-runner/docker-sandbox",
+            grant_id="grant-direct",
+            actor="agentloom-verifier",
+            created_at=datetime.now(UTC),
+        )
+    )
+    (evidence_root / "ev-tool-direct.txt").write_bytes(evidence_content.encode())
+
+    with pytest.raises(SandboxE2EVerificationError, match="expected sandbox result"):
+        verify_sandbox_e2e(
+            database_url=str(database.engine.url),
+            evidence_root=evidence_root,
+            context=context,
+            expected_image=IMAGE_REF,
+            task_names=["direct"],
+        )
 
 
 def test_verify_sandbox_e2e_rejects_missing_or_host_provider_evidence(

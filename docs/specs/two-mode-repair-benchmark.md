@@ -55,6 +55,23 @@ The matrix contains six cells. `NOT_RUN` is data, not success. A suite is
 complete only when all six cells were executed; only then may the architecture
 checklist item be checked.
 
+### AgentTeams v1.1.2 transport boundary
+
+The live runner must use commands that are actually present in the pinned
+Worker image. Cross-room assignments use CoPaw's `copaw channels send` command
+with the exact Team Room, target user, and UTF-8/Base64-bound message body.
+Shared artifacts use the Worker image's configured MinIO alias and `mc cp` for
+allowlisted objects. The unpinned `filesync` command is not part of the
+AgentTeams v1.1.2 image and must not appear in a live prompt or evidence claim.
+
+The Worker image is not the test authority and does not include the repository's
+pytest environment. Investigator and Implementer may report analysis, patch,
+and static checks only. Verifier may return `UNCERTAIN` when Worker-local test
+execution is unavailable, with all unrun test checks set to false. The final
+`PASSED` verdict is then produced by the independent host verifier and bound to
+the pinned Docker ToolCall; the original Agent `UNCERTAIN` result is preserved
+as a separate artifact and is never overwritten.
+
 ## Provider boundary
 
 Maintainer-paid live runs use only `minimax-cn` / `MiniMax-M2.5`. Qwen,
@@ -78,4 +95,3 @@ run ID and cannot be merged into the maintainer matrix.
   six-cell report, or incomplete cells remain explicitly `NOT_RUN`.
 - Focused tests, full pytest, Ruff, strict mypy, dependency audit, Alembic
   single-head check, script parsing, diff check, and secret scan pass.
-

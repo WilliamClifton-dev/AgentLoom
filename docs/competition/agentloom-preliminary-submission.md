@@ -40,9 +40,9 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 ## 2. 500 字以内作品简介
 
-以下正文共 **497 个字符（Python `len()`）**，可直接使用：
+以下正文共 **496 个字符（Python `len()`）**，可直接使用：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散的问题。Human 将带失败测试和白名单的 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，全程生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成委派，MiniMax 驱动唯一受治理 ToolCall；质量门禁为 323 passed / 2 failed (TUI) / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创治理控制面，依赖保留许可证、固定版本与哈希；5 个上游 Skill 中 1 个已评测发布、4 个仍隔离，录屏和最终提交尚未完成。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 375 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏和提交待完成。
 
 ## 3. 一句话定位与价值
 
@@ -79,7 +79,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 - 痛点：第三方 Skill 来源不清、权限不可控、效果不可证、失败不可回退。
 - 方案：AgentTeams Manager + 三业务 Agent 结构化交接 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
 - 主流程：Issue -> Manager 规划 -> Investigator 调查 -> Implementer 受控修复 -> Verifier 独立验证 -> 审批/回滚 -> Evidence 报告。
-- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 单模型链路、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与全量质量门禁（323 passed / 2 failed (TUI) / 3 skipped）。
+- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 三案例治理链路、Task 24 两模式 6/6、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与当前全量质量门禁（375 passed / 3 skipped）。
 - 差异化：不是通用 Coding Agent，而是跨场景可复用的 Skill 治理控制面。
 
 ### 第 3 页：目录
@@ -189,7 +189,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 三列展示：
 
-- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、真人 L2 审批、323 passed / 2 failed (TUI, 非阻塞) / 3 skipped (Docker)、TUI、检测/授权/回滚、PPT/PDF 与提交包一致性审计。
+- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、Task 24 两模式 6/6、真人 L2 审批、375 passed / 3 skipped (opt-in Docker)、TUI、检测/授权/回滚，以及团队原创 `patch-scope-validator` 的三次严格可重开调用。
 - 提交前：演示录屏、公开视频访问检查、公开仓库和比赛页面最终确认。
 - 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
@@ -233,7 +233,7 @@ Manager 是 AgentTeams 编排资源，负责计划、委派、状态聚合和 Hu
 | `code-review-and-quality` | 上游；独立审查 | 冻结补丁、验收条件 -> `ReviewFindings`、verdict | 补丁已冻结并进入清洁环境 | Repository Search、Test Reader | 缺证据返回 `UNCERTAIN`；不得修改补丁 | L0，只读，与 Implementer 会话隔离 | Verifier；可复用于合并前审查 | 来源、commit、MIT、哈希和 Manifest 已锁定；匹配 Eval 已记录，当前为 `PUBLISHED` |
 | `security-and-hardening` | 上游；安全闸门 | Diff、依赖、ToolCall、权限 -> `RiskReport` | 代码/依赖变化或风险触发 | Static Check、Policy Engine | 扫描异常不放行，返回 `UNSAFE/UNCERTAIN` | 只读；规则不可由被审 Agent 修改 | Verifier；也用于 Skill 准入 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
 | `using-agent-skills` | 上游；候选 Skill 选择 | 任务、角色、权限、风险 -> `SkillCandidateSet` | 任务已计划且角色已确定 | Skill Registry | 无匹配则 `NO_COMPATIBLE_SKILL`；不自动扩大权限 | L0，只读 Registry；选择不等于授权 | Manager；可跨业务场景复用 | 来源、commit、MIT、哈希和 Manifest 已锁定；`QUARANTINED`，待 Eval/发布 |
-| `skill-supply-chain-audit` | 团队原创；第三方 Skill 准入 | Git URL、路径、commit、Manifest -> `ProvenanceReport`、`RiskReport`、发布建议 | 导入、升级或重新发布第三方 Skill | Git Reader、许可证/哈希、Scanner、Eval Runner | 来源失效、许可不明、哈希变化或评测失败均保持隔离 | 默认不可信；禁真实密钥；发布和高风险例外需 Human | Manager + Verifier；可迁移到客服、运维等 SkillOps 场景 | 设计和底层目录/策略能力已有；独立可执行 Skill 与完整 Eval 尚待完成 |
+| `patch-scope-validator` v1.0.1 | 团队原创；补丁范围验证 | Unified diff、允许路径 -> verdict、实际路径、违规项、补丁哈希 | 补丁冻结且任务已定义允许路径 | Policy Broker、ToolProvider、Schema | 文件头、hunk 计数、路径或模式错误 fail closed | L0；只读调用参数，不读文件系统、不联网、不写入 | Verifier + Implementer；可复用于修复、PR 审查和合规检查 | `PUBLISHED`；三次治理调用按完整身份闭包严格重开 |
 
 所有上游 Skill 固定来源：`addyosmani/agent-skills` commit `7829ffd90d973b6325f5f12f1b1226dcace74443`，MIT。上游内容提供成熟方法；AgentLoom 自研并负责 Manifest、Schema、哈希、风险、角色绑定、权限、Grant、评测、Evidence 和回滚。不得把上游内容包装成团队原创。
 
@@ -329,7 +329,9 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - L2 Human 审批的 Prepare/Collect 和严格事件校验脚本已实现。
 - 真人 L2 审批 E2E：Manager 发起精确绑定的 `github-pr-v1` 请求，`agentloom-developer` 以独立 Matrix 身份批准，采集结果为 `APPROVED`；见 [L2 审批与上游贡献证据](l2-approval-and-upstream-contribution-evidence.md)。
 - 发现并修复 AgentTeams v1.1.2 更新 Team 时未持久化 `humanMembers` 的上游缺陷，回归测试已通过，修复已提交 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)，当前等待维护者审核。
-- 2026-08-15 本次复核：323 项 pytest 通过，2 项 TUI 测试失败（非阻塞，不影响核心治理链路），3 项显式启用的 Docker live tests 在默认门禁中跳过；Ruff、strict mypy、pip-audit、语法、迁移、diff 和敏感信息门禁通过。
+- Task 24 三案例在本地确定性与 MiniMax 治理模式下全部通过，最终报告严格重开为 `6 PASSED / 0 NOT_RUN`。
+- 团队原创 `patch-scope-validator` v1.0.1 已评测并发布，三次 Policy Broker -> ToolProvider 调用可按完整身份闭包严格重开。
+- 2026-08-15 当前工作树门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff 和敏感信息门禁通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
@@ -343,13 +345,13 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 
 - AgentTeams 上游 PR #1141 已真实创建但尚未合并；AgentLoom 尚未把自动修复结果写入真实业务仓库的 Issue/PR。
 - `addyosmani/agent-skills` 五个样本中，`code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`；其余四个仍为 `QUARANTINED`，不能写成全部发布。
-- 团队原创 `skill-supply-chain-audit` 尚未以独立可执行 Skill 完成全量 Eval。
+- 当前团队原创成果是 `patch-scope-validator` v1.0.1；不得把未交付构想列为第二个已发布原创 Skill。
 - 比赛录屏尚未完成。
 - 第二业务场景、真实云 Skill、RAG、模型训练和生产级多租户均不是初赛已交付能力。
 
 ## 11. 最终提交检查表
 
-- [ ] 作品名称与 PPT、PDF、仓库 README 完全一致。
+- [x] 作品名称与 PPT、PDF、仓库 README 完全一致。
 - [x] 赛题选择“赛题三：软件研发全流程协同”。
 - [x] 作品简介不超过 500 字且未夸大当前进展。
 - [x] PPT 使用官方 19 页模板，不删除必需章节。
@@ -358,7 +360,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - [x] AgentTeams 在架构、运行证据和协作流程中均为实际必选运行时。
 - [x] 正常、失败、审批、拒绝/超时、回滚和审计分支均有说明。
 - [x] 开源范围、许可证、第三方来源、模型/API 和数据边界已披露。
-- [ ] 所有“已完成”能力都有代码、测试、Trace、哈希或截图支撑。
-- [ ] GitHub 仓库可访问，默认分支或提交链接固定，README 可复现。
+- [x] 所有“已完成”能力都有代码、测试、Trace、哈希或截图支撑。
+- [ ] 未认证 GitHub API 已确认仓库 public 且默认分支为 `main`；仍需冻结、提交并 push 当前最终版本后复核其公开 commit URL。
 - [ ] Demo 链接若填写，必须公网可访问；无链接则留空，不填本地地址。
-- [ ] ZIP 可正常解压，PPT/PDF 可打开，附件不含任何密钥或密码。
+- [x] ZIP 可正常解压，8/8 成员哈希与源文件一致；PPTX/PDF 可打开并完成渲染与隐私检查。

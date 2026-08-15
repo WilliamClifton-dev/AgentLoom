@@ -193,12 +193,14 @@ def test_inspect_live_outputs_stable_redacted_summary(
     summary = LiveEvidenceSummary(
         task_id="AL-LIVE-CLI-01",
         case_id="pagination-boundary",
+        case_fingerprint=None,
         provider="dashscope",
         model="qwen3.7-plus",
         patch_sha256="a" * 64,
         manager_status="HEALTHY",
         role_events=(),
         hidden_tests_passed=True,
+        verified_workspace_digest=None,
         artifacts_dir=tmp_path / "artifacts",
     )
     monkeypatch.setattr(

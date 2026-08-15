@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from pathlib import Path
 
 from agentloom.skill_catalog import load_skill_catalog, load_skill_provider
@@ -14,8 +15,15 @@ def test_upstream_catalog_is_pinned_and_schema_complete() -> None:
         "code-review-and-quality",
         "security-and-hardening",
         "using-agent-skills",
+        "patch-scope-validator",
     }
-    for manifest in catalog.skills:
+
+    # Separate validation for upstream and team-original skills
+    upstream_skills = [m for m in catalog.skills if m.skill_type == "external-skill"]
+    team_original_skills = [m for m in catalog.skills if m.skill_type == "team-original"]
+
+    # Validate upstream provenance separately from schemas shared by every Skill.
+    for manifest in upstream_skills:
         assert manifest.source is not None
         assert manifest.source.commit == "7829ffd90d973b6325f5f12f1b1226dcace74443"
         assert manifest.source.license == "MIT"
@@ -24,11 +32,27 @@ def test_upstream_catalog_is_pinned_and_schema_complete() -> None:
         assert manifest.allowed_tools
         assert manifest.allowed_paths is not None
         assert manifest.risk_level is not None
+
+    for manifest in catalog.skills:
         for schema_path in (manifest.input_schema, manifest.output_schema):
             resolved_schema = repository_root / schema_path
             schema = json.loads(resolved_schema.read_text(encoding="utf-8"))
             assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
             assert schema["additionalProperties"] is False
+
+    # Validate team-original skills
+    for manifest in team_original_skills:
+        assert manifest.source is not None
+        assert manifest.source.license == "Apache-2.0"
+        assert manifest.source.commit is None
+        assert manifest.source.workspace_snapshot == manifest.source.content_hash
+        source_path = repository_root / manifest.source.path
+        assert manifest.source.content_hash == (
+            f"sha256:{sha256(source_path.read_bytes()).hexdigest()}"
+        )
+        assert manifest.compatible_agents
+        assert manifest.allowed_tools
+        assert manifest.risk_level is not None
 
     published = next(
         manifest for manifest in catalog.skills if manifest.name == "code-review-and-quality"
@@ -38,6 +62,15 @@ def test_upstream_catalog_is_pinned_and_schema_complete() -> None:
     assert published.evaluation is not None
     assert "tests.execute" in published.permissions
     assert "test-runner:process.exec:test" in (published.allowed_tools or [])
+    assert {
+        manifest.name
+        for manifest in catalog.skills
+        if manifest.lifecycle_state == "PUBLISHED"
+    } == {
+        "code-review-and-quality",
+        "patch-scope-validator",
+    }
+
     assert {
         manifest.name
         for manifest in catalog.skills

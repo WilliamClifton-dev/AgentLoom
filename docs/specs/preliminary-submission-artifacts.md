@@ -54,14 +54,15 @@ checkpoint when no real recording is available. They cannot be simulated.
 - MiniMax `minimax-cn / MiniMax-M2.5` is the only model Provider in that run.
 - Exactly one governed Verifier ToolCall succeeded through
   `sandboxed-test-runner/docker-sandbox`.
-- Full quality gate: 323 passed, 2 failed (TUI tests, non-blocking), 3 skipped; 
+- Current-worktree quality gate: 375 passed, 3 opt-in Docker tests skipped;
+  clean-clone Lite evidence: 339 passed, 0 failed, 3 skipped;
   Ruff, strict mypy, pip-audit, PowerShell/Bash syntax, Alembic single head, 
   diff, and secret scans passed.
 - Human L2 approval was independently verified as `APPROVED`.
-- `code-review-and-quality` is `PUBLISHED` with matching source and AgentLoom
-  Bench evidence; the other four upstream Skills remain `QUARANTINED`. The
-  original supply-chain audit Skill remains a specification/prototype rather
-  than a published Skill.
+- `code-review-and-quality` and team-original `patch-scope-validator` v1.0.1
+  are `PUBLISHED`; the other four upstream Skills remain `QUARANTINED`. Three
+  original-Skill calls strictly reopen with SkillVersion, Agent, Grant,
+  ToolCall, and Evidence closure.
 - AgentTeams PR #1141 is `OPEN`; final recording and submission upload are not
   complete; the project is an MVP, not production-ready.
 

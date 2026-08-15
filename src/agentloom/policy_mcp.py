@@ -23,6 +23,7 @@ from agentloom.contracts import (
     GrantVerificationRequest,
     SignedSkillExecutionGrant,
     SkillExecutionGrant,
+    SkillInvocationEvidenceRecord,
     ToolCallEventRecord,
     ToolExecutionEnvelope,
     ToolExecutionResult,
@@ -38,6 +39,7 @@ from agentloom.policy import (
 )
 from agentloom.sandbox_tools import SandboxedTestRunnerProvider
 from agentloom.skill_catalog import load_skill_provider
+from agentloom.skill_invocations import ImmutableSkillInvocationWriter
 from agentloom.storage import Database, DatabaseNonceStore
 
 POLICY_VERIFY_TOOL = "verify_skill_execution_grant"
@@ -137,6 +139,9 @@ def create_policy_broker_mcp(
     *,
     tool_provider: ToolProvider | None = None,
     tool_call_recorder: Callable[[ToolCallEventRecord], object] | None = None,
+    skill_invocation_recorder: (
+        Callable[[SkillInvocationEvidenceRecord], object] | None
+    ) = None,
     grant_issuer: TrustedGrantIssuer | None = None,
     consumer_agents: Mapping[str, AgentIdentity] | None = None,
     trusted_consumer_getter: Callable[[], str | None] = trusted_gateway_consumer,
@@ -265,6 +270,20 @@ def create_policy_broker_mcp(
                     raise ToolError(
                         "TOOL_EVENT_RECORDING_FAILED: tool result was not committed"
                     ) from exc
+                if skill_invocation_recorder is not None:
+                    invocation = SkillInvocationEvidenceRecord.from_execution(
+                        invocation_id=f"skill-invocation-{uuid4().hex}",
+                        request=request.tool_request,
+                        signed_grant=request.signed_grant,
+                        tool_call=event,
+                    )
+                    try:
+                        skill_invocation_recorder(invocation)
+                    except Exception as exc:
+                        raise ToolError(
+                            "SKILL_INVOCATION_RECORDING_FAILED: invocation closure "
+                            "was not committed"
+                        ) from exc
             return result
 
     return server
@@ -327,6 +346,11 @@ def create_policy_broker_mcp_from_env(
         authorizer,
         tool_provider=provider,
         tool_call_recorder=database.record_tool_call if database is not None else None,
+        skill_invocation_recorder=(
+            ImmutableSkillInvocationWriter(Path(evidence_root))
+            if evidence_root is not None and database is not None
+            else None
+        ),
         grant_issuer=grant_issuer,
         consumer_agents=consumer_agents,
         trusted_consumer_getter=trusted_consumer_getter,

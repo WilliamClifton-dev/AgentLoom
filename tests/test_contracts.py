@@ -258,6 +258,45 @@ def test_published_skill_accepts_pinned_source_role_permissions_and_evals() -> N
     assert manifest.source.content_hash == f"sha256:{'b' * 64}"
 
 
+def test_skill_source_accepts_exact_workspace_snapshot_without_git_commit() -> None:
+    digest = f"sha256:{'c' * 64}"
+
+    source = SkillSource(
+        repository="https://github.com/example/agentloom",
+        path="src/agentloom/skills/original.py",
+        workspace_snapshot=digest,
+        license="Apache-2.0",
+        content_hash=digest,
+    )
+
+    assert source.commit is None
+    assert source.workspace_snapshot == digest
+
+
+@pytest.mark.parametrize(
+    ("commit", "workspace_snapshot", "content_hash"),
+    [
+        (None, None, f"sha256:{'c' * 64}"),
+        ("a" * 40, f"sha256:{'c' * 64}", f"sha256:{'c' * 64}"),
+        (None, f"sha256:{'c' * 64}", f"sha256:{'d' * 64}"),
+    ],
+)
+def test_skill_source_rejects_ambiguous_or_mismatched_revision_binding(
+    commit: str | None,
+    workspace_snapshot: str | None,
+    content_hash: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        SkillSource(
+            repository="https://github.com/example/agentloom",
+            path="src/agentloom/skills/original.py",
+            commit=commit,
+            workspace_snapshot=workspace_snapshot,
+            license="Apache-2.0",
+            content_hash=content_hash,
+        )
+
+
 def test_evidence_requires_sha256_digest() -> None:
     with pytest.raises(ValidationError):
         EvidenceRecord(

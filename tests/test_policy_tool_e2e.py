@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import socket
 import subprocess
@@ -225,6 +226,12 @@ def test_environment_composition_executes_and_replays_local_tool_call(
     assert events[0].grant_id == "grant-tool-e2e"
     assert events[0].has_valid_payload_digest()
     assert len(list(evidence.glob("*.txt"))) == 1
+    invocation_paths = list(evidence.glob("skill-invocation-*.json"))
+    assert len(invocation_paths) == 1
+    invocation = json.loads(invocation_paths[0].read_text(encoding="utf-8"))
+    assert invocation["skillName"] == "code-review-and-quality"
+    assert invocation["toolCallEventId"] == events[0].event_id
+    assert invocation["toolCallPayloadDigest"] == events[0].payload_digest
 
 
 def test_environment_composition_issues_executes_and_rejects_replay(

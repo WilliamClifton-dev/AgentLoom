@@ -19,27 +19,50 @@ The project follows [Semantic Versioning](https://semver.org/).
   MiniMax and exactly one successful sandboxed ToolCall.
 - Deterministic preliminary submission artifacts and aligned English/Chinese
   public repository entry points.
+- Reproducible PEP 517 sdist/wheel builds with isolated installed-wheel version,
+  import, CLI, and dependency-integrity smoke checks.
+- SQLite migration replay, byte-exact tool-route rollback, and bound L1/L2/L3
+  detection-to-ExperienceRecord evidence rehearsals.
+- A versioned three-case benchmark with all six local deterministic and
+  MiniMax-governed cells strictly reopened as passed.
+- Fail-closed clean-clone Lite reproduction with structured, redacted evidence.
+- Team-original `patch-scope-validator` v1.0.1 with three independently
+  governed Policy Broker-to-ToolProvider invocation closures.
 
 ### Changed
 
-- The Skill catalog now publishes `code-review-and-quality`; the other four
-  imported upstream Skills remain quarantined.
-- Current paid maintainer evidence uses `minimax-cn / MiniMax-M2.5`. Qwen,
-  DeepSeek, and StepFun evidence is retained as historical and those paid paths
-  are disabled pending quota and explicit reauthorization.
+- The Skill catalog now publishes `code-review-and-quality` and team-original
+  `patch-scope-validator` v1.0.1; the other four imported upstream Skills remain
+  quarantined.
+- MiniMax and StepFun subscription calls are authorized and may be selected by
+  task fit for independently identified live runs. Each run binds its actual
+  Provider/model; the accepted Task 24 report remains immutable historical
+  `minimax-cn / MiniMax-M2.5` evidence. Qwen and DeepSeek remain disabled while
+  their quota is unavailable.
+- AgentTeams live repair now uses the verified v1.1.2 `copaw channels send` and
+  allowlisted `mc cp` transport contract, with independent host and governed
+  Docker verification rather than unproved Worker-local pytest claims.
 
 ### Security
 
 - Worker identity is enforced by Higress allowlists; Manager remains MCP-free.
 - Tool execution now binds consumer, parameters, workspace, nonce consumption,
   immutable runner image, and replayable evidence digests.
+- `patch-scope-validator` v1.0.1 requires paired unified-diff headers, exact hunk
+  counts, bounded paths/patterns, and iterative `**` matching; immutable Skill
+  invocation IDs and writer paths reject path escape.
+- Governed benchmark evidence enforces causal timestamp ordering, and Docker
+  pytest evidence requires an exact standalone pass-count summary.
 
 ### Known limitations
 
 - Upstream PR #1141 remains open.
-- The P0 package is complete, but the real recording, public upload,
-  repository release/tag, and competition-page submission remain pending.
-- Full bootstrap still needs validation on additional clean Windows machines.
+- The eight-entry P0 package is complete, but the final worktree still needs a
+  frozen commit and public commit-URL verification.
+- The real recording, public upload, annotated release tag/GitHub Release, and
+  competition-page submission remain Human-owned checkpoints.
+- Full bootstrap still needs validation on a second clean Windows/Docker host;
+  successful Lite reproduction does not prove that external checkpoint.
 
 ## [0.1.0-rc.1] - 2026-08-09
 

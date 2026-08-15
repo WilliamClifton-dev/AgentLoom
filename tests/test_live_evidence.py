@@ -116,6 +116,8 @@ def write_evidence_set(
     run = {
         "schemaVersion": "agentloom.live-repair-run/v1alpha1",
         "taskId": TASK_ID,
+        "caseId": "pagination-boundary",
+        "caseFingerprint": "c" * 64,
         "provider": "dashscope",
         "model": "qwen3.7-plus",
         "startedAt": "2026-08-04T11:40:00Z",
@@ -143,6 +145,7 @@ def write_evidence_set(
         "status": "PASS",
         "taskId": TASK_ID,
         "caseId": "pagination-boundary",
+        "caseFingerprint": "c" * 64,
         "caseSnapshotSha256": "sha256:" + "d" * 64,
         "provider": "dashscope",
         "model": "qwen3.7-plus",
@@ -233,6 +236,22 @@ def test_live_evidence_service_rejects_cross_file_event_mismatch(tmp_path: Path)
     run_path.write_text(json.dumps(run), encoding="utf-8")
 
     with pytest.raises(LiveEvidenceError, match="role events do not match"):
+        LiveEvidenceService().load(
+            health_path=health_path,
+            run_path=run_path,
+            verified_path=verified_path,
+        )
+
+
+def test_live_evidence_service_rejects_cross_file_case_fingerprint_mismatch(
+    tmp_path: Path,
+) -> None:
+    health_path, run_path, verified_path = write_evidence_set(tmp_path)
+    verified = json.loads(verified_path.read_text(encoding="utf-8"))
+    verified["caseFingerprint"] = "f" * 64
+    verified_path.write_text(json.dumps(verified), encoding="utf-8")
+
+    with pytest.raises(LiveEvidenceError, match="Case fingerprint"):
         LiveEvidenceService().load(
             health_path=health_path,
             run_path=run_path,

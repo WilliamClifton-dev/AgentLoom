@@ -163,12 +163,31 @@ class CoordinationTrace(ContractModel):
 class SkillSource(ContractModel):
     repository: str = Field(min_length=1)
     path: str = Field(min_length=1)
-    commit: str = Field(pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})$")
+    commit: str | None = Field(
+        default=None,
+        pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+    )
+    workspace_snapshot: str | None = Field(
+        default=None,
+        alias="workspaceSnapshot",
+        pattern=r"^sha256:[a-f0-9]{64}$",
+    )
     license: str = Field(min_length=1)
     content_hash: str = Field(
         alias="contentHash",
         pattern=r"^sha256:[a-f0-9]{64}$",
     )
+
+    @model_validator(mode="after")
+    def revision_is_unambiguous_and_content_bound(self) -> "SkillSource":
+        if (self.commit is None) == (self.workspace_snapshot is None):
+            raise ValueError("Skill source requires exactly one revision binding")
+        if (
+            self.workspace_snapshot is not None
+            and self.workspace_snapshot != self.content_hash
+        ):
+            raise ValueError("workspace snapshot must equal the Skill content hash")
+        return self
 
 
 class SkillEvaluation(ContractModel):
@@ -673,6 +692,183 @@ class SkillExecutionGrant(ContractModel):
 class SignedSkillExecutionGrant(ContractModel):
     grant: SkillExecutionGrant
     signature: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+SKILL_INVOCATION_SCHEMA_VERSION: Literal[
+    "agentloom.skill-invocation/v1alpha1"
+] = "agentloom.skill-invocation/v1alpha1"
+
+
+def skill_invocation_payload_digest(payload: Mapping[str, object]) -> str:
+    """Return the stable digest for one immutable Skill invocation closure."""
+
+    encoded = json.dumps(
+        dict(payload),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+class SkillInvocationEvidenceRecord(ContractModel):
+    """Bind one Skill version to its Grant, ToolCall, Agent, and Evidence."""
+
+    schema_version: Literal["agentloom.skill-invocation/v1alpha1"] = Field(
+        default=SKILL_INVOCATION_SCHEMA_VERSION,
+        alias="schemaVersion",
+    )
+    invocation_id: str = Field(
+        alias="invocationId",
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+    )
+    task_id: str = Field(alias="taskId", min_length=1)
+    step_id: str = Field(alias="stepId", min_length=1)
+    agent_name: str = Field(alias="agentName", min_length=1)
+    skill_name: str = Field(alias="skillName", min_length=1)
+    skill_version: str = Field(alias="skillVersion", min_length=1)
+    skill_content_hash: str = Field(
+        alias="skillContentHash",
+        pattern=r"^sha256:[a-f0-9]{64}$",
+    )
+    grant_id: str = Field(alias="grantId", min_length=1)
+    tool_call_event_id: str = Field(alias="toolCallEventId", min_length=1)
+    tool_call_payload_digest: Sha256Digest = Field(
+        alias="toolCallPayloadDigest",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    input_digest: Sha256Digest = Field(
+        alias="inputDigest",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    output_digest: Sha256Digest = Field(
+        alias="outputDigest",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    evidence_ref: str = Field(alias="evidenceRef", min_length=1)
+    evidence_sha256: Sha256Digest = Field(
+        alias="evidenceSha256",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    status: Literal["SUCCEEDED", "FAILED", "DENIED"]
+    payload_digest: Sha256Digest = Field(
+        alias="payloadDigest",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    created_at: datetime = Field(alias="createdAt")
+
+    @classmethod
+    def from_execution(
+        cls,
+        *,
+        invocation_id: str,
+        request: ToolExecutionRequest,
+        signed_grant: SignedSkillExecutionGrant,
+        tool_call: ToolCallEventRecord,
+    ) -> "SkillInvocationEvidenceRecord":
+        grant = signed_grant.grant
+        closure_matches = (
+            grant.skill_content_hash is not None
+            and grant.grant_id == tool_call.grant_id
+            and grant.task_id == request.task_id == tool_call.task_id
+            and grant.step_id == request.step_id == tool_call.step_id
+            and grant.agent_name == request.agent_name == tool_call.actor
+            and grant.skill_name == request.skill_name
+            and grant.skill_version == request.skill_version
+            and grant.tool_name == request.tool_name == tool_call.tool_name
+            and grant.action == request.action == tool_call.action
+            and grant.parameter_digest
+            == request.parameter_digest
+            == tool_call.parameter_digest
+            and tool_call.output_digest is not None
+            and len(tool_call.evidence_refs) == 1
+            and tool_call.has_valid_payload_digest()
+        )
+        if not closure_matches:
+            raise ValueError("Skill invocation execution closure does not match")
+        assert grant.skill_content_hash is not None
+        assert tool_call.output_digest is not None
+        evidence_ref = tool_call.evidence_refs[0]
+        payload = cls._payload(
+            invocation_id=invocation_id,
+            task_id=request.task_id,
+            step_id=request.step_id,
+            agent_name=request.agent_name,
+            skill_name=request.skill_name,
+            skill_version=request.skill_version,
+            skill_content_hash=grant.skill_content_hash,
+            grant_id=grant.grant_id,
+            tool_call_event_id=tool_call.event_id,
+            tool_call_payload_digest=tool_call.payload_digest,
+            input_digest=request.parameter_digest,
+            output_digest=tool_call.output_digest,
+            evidence_ref=evidence_ref,
+            evidence_sha256=tool_call.output_digest,
+            status=tool_call.status,
+        )
+        return cls(
+            **payload,
+            payload_digest=skill_invocation_payload_digest(payload),
+            created_at=tool_call.created_at,
+        )
+
+    @staticmethod
+    def _payload(
+        *,
+        invocation_id: str,
+        task_id: str,
+        step_id: str,
+        agent_name: str,
+        skill_name: str,
+        skill_version: str,
+        skill_content_hash: str,
+        grant_id: str,
+        tool_call_event_id: str,
+        tool_call_payload_digest: str,
+        input_digest: str,
+        output_digest: str,
+        evidence_ref: str,
+        evidence_sha256: str,
+        status: str,
+    ) -> dict[str, object]:
+        return {
+            "schemaVersion": SKILL_INVOCATION_SCHEMA_VERSION,
+            "invocationId": invocation_id,
+            "taskId": task_id,
+            "stepId": step_id,
+            "agentName": agent_name,
+            "skillName": skill_name,
+            "skillVersion": skill_version,
+            "skillContentHash": skill_content_hash,
+            "grantId": grant_id,
+            "toolCallEventId": tool_call_event_id,
+            "toolCallPayloadDigest": tool_call_payload_digest,
+            "inputDigest": input_digest,
+            "outputDigest": output_digest,
+            "evidenceRef": evidence_ref,
+            "evidenceSha256": evidence_sha256,
+            "status": status,
+        }
+
+    def has_valid_payload_digest(self) -> bool:
+        payload = self._payload(
+            invocation_id=self.invocation_id,
+            task_id=self.task_id,
+            step_id=self.step_id,
+            agent_name=self.agent_name,
+            skill_name=self.skill_name,
+            skill_version=self.skill_version,
+            skill_content_hash=self.skill_content_hash,
+            grant_id=self.grant_id,
+            tool_call_event_id=self.tool_call_event_id,
+            tool_call_payload_digest=self.tool_call_payload_digest,
+            input_digest=self.input_digest,
+            output_digest=self.output_digest,
+            evidence_ref=self.evidence_ref,
+            evidence_sha256=self.evidence_sha256,
+            status=self.status,
+        )
+        return self.payload_digest == skill_invocation_payload_digest(payload)
 
 
 class GrantIssuanceRequest(ContractModel):

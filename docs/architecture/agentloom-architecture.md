@@ -273,7 +273,7 @@ demo/cases/<case-id>/
 
 `case.json` 禁止未知字段和 shell 字符串；命令必须为参数数组，且只映射到当前 Python 解释器的 `pytest` 或 `compileall`。路径穿越、绝对可执行路径、未识别许可证、超过 120 秒的超时、快照哈希不一致、输出超限、隐藏测试泄露到 Implementer workspace、pytest 收集/内部错误、目标失败未复现、隐藏测试失败和越权文件修改均失败关闭。Runner 不抓取 manifest 中的 URL；真实 GitHub Case 的获取、许可证复核和隔离将在导入阶段完成。
 
-当前 `severity-normalization` 与 `pagination-boundary` 两个不同缺陷类型使用同一 Runner 和同一产物契约，并通过 AgentTeams MinIO namespace bridge 往返验证。`expected/` 只能作为明确标注的 Mock 基线，不能用于宣称模型自主生成补丁。
+当前 `severity-normalization`、`pagination-boundary` 与 `retry-delay-cap` 三个不同缺陷类型使用同一 Runner 和同一产物契约，并通过 AgentTeams MinIO namespace bridge 往返验证。`expected/` 只能作为明确标注的 Mock 基线，不能用于宣称模型自主生成补丁。
 
 ## 6. 架构原则与实现技术栈
 
@@ -471,7 +471,7 @@ flowchart TB
 - AgentTeams Manager 运行时选择 OpenClaw 或 QwenPaw；初赛技术 Spike 后固定一种，不在 Demo 中动态切换。
 - Implementer 和 Verifier 优先采用相互独立的 Hermes Worker 容器，确保代码执行与独立复核隔离；若稳定版运行条件不满足，则使用官方支持的 QwenPaw/OpenClaw Worker，并保持独立工作区。
 - 使用稳定版实际提供的 `hiclaw.io/v1beta1` `Manager`、`Worker`、`Team` 和 `Human` 声明式资源或本地等价 Controller API 创建 AgentLoom 团队；材料中同时注明 HiClaw 是 AgentTeams 原名。
-- 人与 Agent、Agent 与 Agent 的主要协作通道为 Matrix；共享大文件、仓库快照和任务产物通过 MinIO，不将大日志反复粘贴进房间上下文。
+- 人与 Agent、Agent 与 Agent 的主要协作通道为 Matrix；共享大文件、仓库快照和任务产物通过 MinIO，不将大日志反复粘贴进房间上下文。初赛固定 AgentTeams `v1.1.2` 的实际传输契约：跨房间委派由 `copaw channels send` 完成，Worker 产物由配置好的 `mc cp` 逐个上传；不存在的 `filesync` 命令不得写入 Prompt 或运行证据。
 - LLM 与 MCP 流量统一经 Higress；Worker 只持有 consumer token，不持有真实 LLM API Key 或 GitHub PAT。
 - 初赛由 AgentLoom 生成结构化日志和 OTel-compatible Skill/Evidence Span，不假设稳定版内置 AgentLoop；复赛再选择 AgentLoop 或其他 OTLP 后端实接。
 
@@ -488,7 +488,7 @@ AgentLoom 在 AgentTeams 上新增 SkillOps 控制面、MCP 服务、策略和�
 | 协作小组 | `Team` | `agentloom-repair-team`，包含 3 个 Worker 和可见的人类协调员 |
 | 人工审批者 | `Human` | 初赛开发者账号，加入 Team Room 并拥有审批权限 |
 | 协作事件 | Matrix Event + AgentLoom TaskState | 任务委派、状态更新、证据引用、审批和终止；不依赖 `v1.2` beta 的 TeamHarness/WorkerFlow |
-| 共享产物 | MinIO team/shared prefix | 仓库快照、补丁、日志、测试结果和报告 |
+| 共享产物 | MinIO team/shared prefix + `mc cp` | 仓库快照、补丁、日志、测试结果和报告；只允许逐个 allowlist 对象传输 |
 | 工具入口 | `spec.mcpServers` + Higress | Worker 只获得 `agentloom-policy-broker`；Broker 验证 SkillExecutionGrant 后转发到 Git Mock、Test Runner 或云能力 |
 | Skill 分发 | `spec.skills` / `spec.package` / Nacos remote skills | 内置协作 Skill、上游工程 Skill 和团队原创 Skill |
 
@@ -500,7 +500,7 @@ AgentLoom 在 AgentTeams 上新增 SkillOps 控制面、MCP 服务、策略和�
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `agentloom-investigator` | AgentTeams Worker；根因定位与证据收集 | 阅读代码、日志和测试；搜索调用链；形成根因候选；不能写工作区 | MinIO 仓库快照、Issue、日志、失败测试 | RootCauseReport、EvidenceRef、修复约束 | Debugging Skill、Policy Broker、MinIO、Team Room | 仅 L0 只读；不得修改文件、执行外部写操作或声明最终成功 | Worker Session、Matrix 状态事件、查询范围、证据 ID 和置信度 |
 | `agentloom-implementer` | AgentTeams Worker；补丁设计与实施 | 选择已发布 Skill；在隔离工作区修改代码；运行局部测试；不能批准自己的结果 | RootCauseReport、TaskConstraints、SkillCandidateSet | PatchArtifact、ImplementationNotes、局部测试证据 | TDD Skill、Policy Broker、MinIO、Team Room | 仅允许修改白名单路径；新增依赖、网络访问和外部写入需审批 | Worker Session、Skill 版本、文件 Diff、命令、退出码和产物哈希 |
-| `agentloom-verifier` | AgentTeams Worker；独立验证与风险审查 | 从清洁快照重放补丁、运行测试、审查 Diff、给出 verdict；不能修改补丁 | MinIO PatchArtifact、验收标准、原始证据 | VerificationResult、RiskReport、Badcase | Testing/Review/Security Skill、独立 Sandbox、Team Room | 可判定通过、失败、不安全或不确定；不得修补代码或降低验收标准 | 独立 Worker Session、测试、静态检查、证据引用和 verdict |
+| `agentloom-verifier` | AgentTeams Worker；独立验证与风险审查 | 从清洁快照重放补丁、执行可用的静态检查、审查 Diff、给出 verdict；不能修改补丁 | MinIO PatchArtifact、验收标准、原始证据 | VerificationResult、RiskReport、Badcase | Testing/Review/Security Skill、独立 Sandbox、Team Room | 本地测试运行时不可用时必须返回 `UNCERTAIN`，不得声称测试通过；最终测试 PASS 由 host verifier 和受治理 Docker ToolCall 产生 | 独立 Worker Session、可用检查、证据引用、role verdict 和 host verdict |
 
 ### 8.4 协作状态机
 
@@ -669,7 +669,7 @@ reuse:
 | Test-Driven Development Skill | 上游 Skill；最小补丁实现 | RootCauseReport、验收标准、白名单路径 -> PatchArtifact、局部测试证据 | 根因达到证据阈值且 Skill 已发布 | Policy Broker、Patch Adapter、Test Runner | 测试失败回滚工作区并返回结构化失败；超过预算交回 Manager | L1，仅隔离工作区；新增依赖、联网或外部写入升级为 L2 审批 | Implementer 使用；可复用于一般 Python 缺陷修复 | 必须 |
 | Code Review Skill | 上游 Skill；独立 Diff 复核 | PatchArtifact、验收标准、EvidenceRef -> ReviewFindings、verdict | 补丁已冻结并进入独立 Verifier 工作区 | Repository Adapter、Static Check Adapter | 输入证据缺失返回 `UNCERTAIN`；不得自行修改补丁 | L0，只读清洁快照；与 Implementer 权限和会话隔离 | Verifier 使用；可复用于人工 PR 前置检查 | 必须 |
 | Security Hardening Skill | 上游 Skill；补丁和调用链安全审查 | Diff、依赖变化、ToolCall、权限清单 -> RiskReport、策略命中 | 代码或依赖发生变化，或触发 L2/L3 风险 | Static Check Adapter、Policy Engine | 扫描异常时不放行，返回 `UNSAFE` 或 `UNCERTAIN` | 只读；规则和阈值不可由被审查 Agent 修改 | Verifier 使用；可复用于 Skill 导入和发布门禁 | 必须 |
-| Skill Supply Chain Audit | 团队原创 Skill；第三方 Skill 准入 | 仓库、路径、commit、候选 Manifest -> ProvenanceReport、RiskReport、发布建议 | 导入、升级或重新发布任意第三方 Skill | Git reader、License scanner、hash、沙箱 dry-run、Eval Runner | 来源失效、许可证不明、哈希变化或扫描失败均隔离，不自动发布 | 默认不可信、禁真实密钥；发布和高风险例外需 Human 批准 | Manager 与 Verifier 共用；可迁移到客服、运维、安全等 SkillOps 场景 | 必须 |
+| Patch Scope Validator | 团队原创 Skill；受治理补丁范围验证 | Unified diff、允许路径 -> 结构化 verdict、实际路径、违规项、补丁哈希 | 补丁冻结且任务已定义允许路径 | `patch-scope-validator:patch.validate:scope` ToolProvider | 解析或模式错误 fail closed；不把未执行检查记为成功 | L0，只读调用参数；不读文件系统、不联网、不写入 | Verifier/Implementer 使用；可复用于修复、PR 审查与合规检查 | 已发布并完成三次真实调用 |
 | 阿里云官方用云 Skill | 官方 Skill；仅限与 Demo 直接相关的云能力 | 以当期官方 Schema 为准 -> 官方结果及 EvidenceRef | 门户存在匹配能力、可真实调用且收益大于接入成本 | 官方 Skill、最小权限云身份 | 配额、超时或权限错误进入降级分支，不伪装成功 | 最小云权限、调用版本和费用可审计，写操作需 L2/L3 审批 | 条件采用；未选时记录原因，不作为初赛通过条件 | 条件采用 |
 
 上游 Skill 只作为内容来源。Skill 导入、标准化、评测、策略、发布、路由、运行记录和回滚属于 AgentLoom 原创系统层。
@@ -1344,7 +1344,7 @@ agentloom/
 
 ### 19.1 独立开发阶段的 Codex 分层模型策略
 
-本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。Qwen `qwen3.7-plus`、DeepSeek `deepseek-v4-flash` 与 StepFun `step-3.7-flash` 均已有历史运行证据；这些证据必须保留，但不能被解释为当前调用授权。由于 Qwen 与 DeepSeek 账户均无余额，当前所有付费 AgentTeams 探测只允许使用 ADR-018 固定的 MiniMax Provider；本地 pytest、契约、策略、部署和安全测试不得调用任何模型。每次运行必须记录实际 Provider/模型，不得覆盖其他 Provider 的历史证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
+本节只约束开发者使用 Codex 设计、实现、调试和审查 AgentLoom 时的模型选择，不属于 AgentLoom 产品运行时。它不改变 AgentTeams 的 Manager/Worker 编排，不进入 Higress LLM Provider 配置，也不替代 Demo 运行模型。Qwen `qwen3.7-plus`、DeepSeek `deepseek-v4-flash` 与 StepFun `step-3.7-flash` 均已有历史运行证据；历史证据必须保留，但不能冒充新运行。Qwen 与 DeepSeek 账户均无余额，继续禁止调用；MiniMax 与 StepFun 均有订阅授权，可按场景选择。Task 24 的版本化基准仍固定为 ADR-018 的 `minimax-cn / MiniMax-M2.5`，任何 StepFun 对照必须使用独立 run ID，且不得并入该基准矩阵。本地 pytest、契约、策略、部署和安全测试不得调用任何模型。每次运行必须记录实际 Provider/模型，不得覆盖其他 Provider 的历史证据；消息 E2E 通过不等于模型已生成并验证真实补丁。
 
 模型在 Codex 任务创建、续接或显式交接边界选择。可选的外部 DevDispatcher 工具可以读取本架构、本地任务账本、Git 状态和验收命令，在任务边界选择目标模型；它不属于本仓库的产品代码，也不允许运行中的模型自行改写路由。当前分层使用以下准确模型 ID：
 
@@ -1475,7 +1475,10 @@ agentloom/
 - **TUI 测试**：使用 Textual 测试驱动验证列表、事件恢复、审批冲突和窄终端布局；TUI 不直连 DB。
 - **迁移演练**：至少验证 Alembic upgrade/downgrade、Mock/真实 route 切换和配置回滚。
 - **端到端测试**：从任务创建到补丁、验证和报告可重复运行。
-- **复现测试**：在清洁环境按 README 一次启动成功。
+- **复现测试**：以 `scripts/verify-clean-reproduction.ps1` 为唯一入口；必须使用全新
+  EvidenceRoot，Demo、JUnit pytest、Ruff、strict mypy、依赖审计、包完整性和迁移
+  任一失败都失败关闭。Lite 与 Full 证据分开声明，Lite 成功不得冒充 Docker、
+  AgentTeams 或模型 E2E 成功。
 
 ### 20.2 初赛交付门禁与加分验收
 
@@ -1497,7 +1500,7 @@ agentloom/
 - [x] Task 17 已用 MiniMax 从 Administrator 任务信封完成 Manager、Investigator、Verifier 跨房间委派，并通过 Higress、Policy Broker 与 Docker 沙箱产生唯一成功 ToolCall；Qwen、DeepSeek 和 StepFun 未用于该运行。
 - [x] Textual TUI 已实现本地确定性的“首次验证失败 -> 回滚 -> 单次重试 -> 完成”十步状态分支，并生成 `failure-retry-evidence.json`；该证据不冒充 AgentTeams/Matrix Trace。
 - [x] 真实回滚验证器、付费保护采集脚本和 TUI 投影已实现；2026-08-05 StepFun 四角色回滚已固化为历史证据，当前 Task 17 不冒充该历史运行。
-- [ ] 5 个核心 Skill 均有完整 Manifest，主任务至少真实调用其中 3 个；至少 1 个为团队原创 Skill。
+- [x] 5 个上游核心 Skill 均有完整 Manifest；团队原创 `patch-scope-validator` v1.0.1 已评测并发布，三次独立 Policy Broker -> ToolProvider 调用严格绑定 SkillVersion、Agent、Grant、ToolCall 与 Evidence，bundle SHA-256 为 `CC14F2180918DB332B35D4C1E043B5B2D5F241A51CE134151A35ACCE1CC863C5`。v1.0.1 对 unified diff 文件头、hunk 计数和输入复杂度执行失败关闭校验。
 - [x] 三个业务 Agent 的 `mcpServers` 只配置 Policy Broker，Manager 无 MCP；本地 Streamable HTTP 客户端已完成初始化与工具发现，缺少、过期或重放 SkillExecutionGrant 的本地契约测试通过。
 - [x] 在运行中的 AgentTeams 中验证 Higress：无凭据请求返回 `401`，非 allowlist consumer 返回 `403`，Verifier `mcporter` 完成工具发现，无效签名返回 `POLICY_DENIED` 且不产生 ToolCall。
 - [x] 受信部署态 Grant 签发入口已通过 Higress 实机验证：Verifier 获得服务端派生、consumer/path 双绑定的短时 Grant，完成一次受治理 pytest；跨 Agent 消费、路径/参数篡改和 replay 均未产生第二条 ToolCall。
@@ -1508,9 +1511,13 @@ agentloom/
 
 #### 20.2.3 P2：不阻塞初赛
 
-- [ ] 两模式对比与 3-5 个评测任务。
+- [x] 两模式对比与 3 个版本化评测任务：`LOCAL_DETERMINISTIC` 与 MiniMax
+  `AGENTTEAMS_GOVERNED` 共 6 个 cell 全部通过，最终报告经严格 Schema 重开为
+  `complete=true`、`6 PASSED`、`0 NOT_RUN`。
 - [x] 最小 TUI 可选择 Case、展示四角色状态、事件、产物、失败重试和本地审批账本。
-- [ ] 比赛视频和清洁环境 Docker 一键复现。
+- [x] Lite 清洁 clone 一键复现：339 passed / 0 failed / 3 skipped，Ruff、strict
+  mypy、pip-audit、pip check 和 Alembic 单头通过，脱敏证据已绑定 SHA-256。
+- [ ] 比赛视频和另一台清洁 Windows/Docker 主机上的 Full 一键复现。
 - [x] SQLite Alembic upgrade/downgrade、route rollback 和完整迁移演练。
 - [ ] 真实 GitHub PR、官方用云 Skill、Nacos 或集中式观测后端；只在必要且可真实验证时接入。
 
@@ -1681,7 +1688,7 @@ agentloom/
 
 ### ADR-018：付费 AgentTeams 探测切换到 MiniMax
 
-- **状态**：Accepted
+- **状态**：Superseded by ADR-023
 - **决策日期**：2026-08-14
 - **背景**：当前 Qwen 与 DeepSeek 账户均无余额。两者已有的连接、消息 E2E 和修复证据仍是有效历史证据，但不能作为继续调用的授权。MiniMax 凭据可用，但国际 endpoint 返回认证失败，中国 endpoint `https://api.minimaxi.com/v1` 已验证可列出模型。
 - **决定**：MiniMax 是当前唯一允许用于付费 AgentTeams 探测的 Provider。Task 12 及后续付费探测使用固定 MiniMax 中国 endpoint，provider 脚本从 `MINIMAX_API_KEY` 读取密钥并默认配置 Manager 与三个 Worker。模型 ID 使用显式 allowlist。Qwen 与 DeepSeek 在余额恢复并由人工明确重新授权前不得调用；本地 pytest、契约、策略、部署与安全测试不调用任何模型。
@@ -1701,9 +1708,9 @@ agentloom/
 
 - **状态**：Accepted
 - **决策日期**：2026-08-14
-- **背景**：维护者当前只允许 MiniMax 产生新的付费探测，但 AgentLoom 的其他部署者拥有不同 Provider、模型和配额。把维护者费用政策写成产品模型白名单，会迫使下游修改脚本；直接接受 endpoint 和密钥参数又会扩大 SSRF、密钥泄露和意外付费风险。
+- **背景**：ADR-020 决策时，维护者只允许 MiniMax 产生新的付费探测；ADR-023 后续将维护者授权扩展为 MiniMax 与 StepFun。AgentLoom 的其他部署者仍拥有不同 Provider、模型和配额。把维护者费用政策写成产品模型白名单，会迫使下游修改脚本；直接接受 endpoint 和密钥参数又会扩大 SSRF、密钥泄露和意外付费风险。
 - **决定**：增加 `agentloom.provider-profile/v1alpha1` 的无密钥 JSON 契约，允许管理员选择公开 HTTPS 的 OpenAI-compatible Chat API。Profile 的 `providerId` 必须使用 `custom-` 命名空间，密钥仅按受限名称从进程、用户或机器环境读取；未知字段、非公共 IP literal、userinfo、query、fragment、越界生成参数和非 AgentTeams 容器均失败关闭。CoPaw 类型固定为 `OpenAIChatModel`。Profile 校验不读取密钥、不访问 Docker、不调用模型；配置默认也不探测，只有显式开关可以产生付费连接测试。bootstrap 先验证 Profile、再派生模型 ID、部署资源，最后配置 Provider。
-- **政策边界**：ADR-018 仍约束本仓库维护者的付费运行，不能限制下游管理员使用自己的 Provider 和配额。反过来，下游 Profile 也不授权维护者调用该 Provider。比赛 live-repair/live-rollback 的证据 allowlist 暂不泛化；新模型只有设计 Profile 指纹与证据契约并通过严格 E2E 后，才能成为对应比赛证据。
+- **政策边界**：ADR-023 约束本仓库维护者的新付费运行；Task 24 仍固定为 MiniMax-only，但其他独立运行可按场景选择 MiniMax 或 StepFun。该政策不能限制下游管理员使用自己的 Provider 和配额；反过来，下游 Profile 也不授权维护者调用该 Provider。比赛 live-repair/live-rollback 的证据 allowlist 暂不泛化；新模型只有设计 Profile 指纹与证据契约并通过严格 E2E 后，才能成为对应比赛证据。
 - **替代方案**：要求每个 Provider fork 脚本；接受任意 endpoint/key 命令行参数；删除比赛证据的固定 Provider/model allowlist；立即建设通用模型插件 Registry。
 - **代价**：部署者需要维护一个版本化 Profile 并自行验证模型能力，公开 DNS 名称仍需要部署网络层的出站控制来抵御 DNS rebinding；换取无脚本修改的常见 Provider 接入、清晰密钥边界和默认零模型调用。非 OpenAI 协议、私网 gateway 和新 CoPaw 类型需要新的 Adapter 或后续 Profile 版本。
 
@@ -1715,6 +1722,35 @@ agentloom/
 - **决定**：生产 Policy Broker 必须显式配置 `AGENTLOOM_SANDBOX_BACKEND=docker` 和不可变 `AGENTLOOM_SANDBOX_IMAGE`。`workspaceDigest` 进入工具参数和 Grant 摘要，`SandboxedTestRunnerProvider` 只把规范化 pytest argv 交给 `DockerSandboxProvider`。后者固定使用无网络、只读挂载、只读根文件系统、UID/GID 65534、无 capability、`no-new-privileges`、CPU/内存/PID/文件描述符/临时空间限制和清洁环境；超时、输出、快照或清理确认失败均不回退宿主。镜像由固定 Python 基础摘要与 `--require-hashes` pytest 依赖构建，部署前必须已存在本地。宿主 Provider 仅允许 `local-development` 加独立确认变量。
 - **替代方案**：继续在 Broker 宿主或业务 Worker 中运行 pytest；把 Docker Socket 暴露给 Worker；发生沙箱失败时自动回退宿主；立即依赖尚未接入的 OpenSandbox。
 - **代价**：Policy Broker 宿主需要受信 Docker daemon，Docker 仍不是 VM 级安全边界，快照哈希和逐次容器增加启动开销；换取可验证的凭据、网络、文件系统与资源边界。需要更强隔离时，OpenSandbox 作为同一 `SandboxProvider` 的未来实现接入。
+
+### ADR-022：AgentTeams live repair 使用实测传输契约并分层验证
+
+- **状态**：Accepted
+- **决策日期**：2026-08-15
+- **背景**：Task 24 的首次 MiniMax 运行在 AgentTeams Worker 有资源活动，但 30 分钟内没有 Matrix 严格角色事件或 MinIO 结果对象。运行态核验显示固定 `v1.1.2` Worker 提供 `copaw` 与 `mc`，不提供 `filesync`；Worker 镜像也不包含仓库的 pytest 环境。旧 Prompt 要求泛化的跨房间消息、`filesync push` 和 Worker 本地 pytest，因此协议与实际运行时不一致，并会诱导 Verifier 声称未执行的测试通过。
+- **决定**：live repair runner 必须用 UTF-8/Base64 绑定正文的 `copaw channels send` 生成跨房间委派命令，用 Worker 已配置的 MinIO alias 和 `mc cp` 逐个上传/下载 allowlist 对象。初始激活和每次阶段续接都走 `Host -> Manager -> Investigator`；host 不直接激活或冒充 Worker。runner 按 `Manager -> Investigator -> Implementer -> Verifier` 阶段等待角色事件和对象，把剩余总预算分配给剩余阶段，并且每阶段最多发送一次有界 reminder。Implementer/Verifier assignment 正文作为不可变 MinIO 输入对象进入初始快照、最终 allowlist 与输入哈希检查，Worker 只用短命令 `mc cat` 读取。Implementer 从本地 Git baseline 通过 `git diff --check` 和 `git diff --no-ext-diff` 生成补丁，不允许手写 hunk header。超时只保存脱敏 marker/object 元数据，公开 evidence 只投影 Schema 字段。Investigator 与 Implementer 不声明不可用的 pytest 结果；Verifier 可提交 `UNCERTAIN`（未运行检查为 false、可用静态检查如实记录）。host verifier 在隔离的临时 Git 元数据中应用补丁，独立重现原失败、运行可见/隐藏/静态检查并生成最终 `PASSED` VerificationResult，随后移除临时 Git 元数据；原始 Agent verdict 作为 `agent-verification-result.json` 保留，最终结果写入独立 `verification-result.json`，两者都进入 live evidence。
+- **替代方案**：在 Worker 中临时 pip 安装 pytest；继续使用不存在的 `filesync`；让 host 直接伪造 Investigator/Verifier Matrix 消息；把 Agent 的 `PASSED` 当作最终成功而跳过独立验证。
+- **代价**：runner 和证据 Schema 更复杂，并需要为每个阶段保留因果顺序；Worker 不安装业务测试依赖，减少了本地执行能力，但避免网络安装、模型角色越权和虚假测试声明，且把不可信 pytest 固定在已验证的 host/Docker SandboxProvider 边界。
+- **验证**：Task 24 的三个 MiniMax governed cell 均完成严格角色链、host 重验证和固定 digest Docker SandboxProvider 闭环；错误 consumer 与 Grant replay 均被拒绝。最终六格报告经 `BenchmarkReport` 严格重开为 `complete=true`、`6 PASSED`、`0 NOT_RUN`。StepFun 可用于独立 run ID，但不得并入该版本化矩阵。
+
+### ADR-023：维护者付费探测允许 MiniMax 与 StepFun，冻结基准不改写
+
+- **状态**：Accepted
+- **决策日期**：2026-08-15
+- **背景**：ADR-018 在 Qwen、DeepSeek 无余额时将新付费探测收敛到 MiniMax。维护者随后明确确认 MiniMax 与 StepFun 均有订阅和充足额度，可由执行者按场景选择；Qwen、DeepSeek 仍无余额。Task 24 已形成版本化、可重开的 MiniMax 基准，改写其 Provider 会破坏证据可比性。
+- **决定**：后续需要真实 Agent 行为时，MiniMax 与 StepFun 均为维护者授权 Provider；每次调用记录独立 run ID、实际 Provider 和 model ID。Task 24 报告永久保持 `minimax-cn / MiniMax-M2.5`，StepFun 对照不得并入或覆盖其六个 cell。Qwen 与 DeepSeek 在余额恢复并获新授权前禁止调用。本地 pytest、契约、策略、部署和安全测试保持无模型。
+- **替代方案**：继续把维护者授权限制为 MiniMax；用 StepFun 重跑并覆盖 Task 24；在确定性门禁中自动调用模型。
+- **代价**：需要同时维护两条受控 Provider 配置和运行标签；换取按场景选择模型的弹性，同时保持已发布基准、费用边界和历史证据不变。
+
+### ADR-024：原创 Skill 安全修订发布为 v1.0.1，历史证据保持不可变
+
+- **状态**：Accepted
+- **决策日期**：2026-08-16
+- **背景**：Task 27 对 `patch-scope-validator` v1.0.0 及其证据闭包做对抗性复核时发现四组阻塞问题：unified diff 的文件头与 hunk 计数校验不够严格；超长路径与递归 `**` 模式缺少明确复杂度边界；调用证据文件名只依赖调用方身份字段，存在路径逃逸风险；governed benchmark 时间线与 Docker pytest 通过数可被语义不精确的证据满足。这些修订改变了 Skill 内容哈希，不能在保留 v1.0.0 版本号的同时静默替换。
+- **决定**：将团队原创 Skill 升级为 `patch-scope-validator` v1.0.1，并为新源码计算独立 `workspaceSnapshot`。解析器只接受成对的 `---`/`+++` 文件头和数量精确的 hunk，hunk 正文不得被当作文件头；路径和 pattern 最长 1,024 字符、最多 128 个 part，`**` 使用有界迭代状态匹配。`invocationId` 采用受限字符集和 128 字符上限，不可变 writer 再独立校验输出路径。governed benchmark 强制 `startedAt <= run.verifiedAt <= sandbox.verifiedAt`；Docker 证据只接受独立一行的精确 `N passed` 或 `N passed in ...`。v1.0.1 必须重新执行三次 Policy Broker -> ToolProvider 调用并生成新的严格可重开 bundle。v1.0.0 报告与 bundle 继续作为不可变历史证据，不覆盖、不删除、不改写为 v1.0.1。
+- **替代方案**：保持 v1.0.0 并静默更新内容哈希；只修测试不重发 Skill；删除 v1.0.0 证据以减少材料数量；在证据重开时对旧格式做宽松兼容。
+- **代价**：目录、交付材料和审计报告需要同时区分历史 v1.0.0 与当前 v1.0.1；换取可审计的版本语义、失败关闭的解析和证据边界，以及可重复验证的供应链升级路径。
+- **验证**：v1.0.1 源 SHA-256 为 `a036e6defc49907366769df0a1371b296ef4adc06f4d64d5d4f821055ca63797`；三次调用 bundle 为 `artifacts/skills/patch-scope-validator-20260815-233912/skill-invocation-bundle.json`，SHA-256 为 `CC14F2180918DB332B35D4C1E043B5B2D5F241A51CE134151A35ACCE1CC863C5`，已严格重开。Task 27 最终门禁收集 378 项，结果为 `375 passed / 3 skipped`。
 
 ## 23. 主要风险与缓解
 

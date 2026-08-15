@@ -129,6 +129,16 @@ class LiveRunEvidence(ContractModel):
     task_id: str = Field(
         alias="taskId", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
     )
+    case_id: str | None = Field(
+        default=None,
+        alias="caseId",
+        pattern=r"^[a-z0-9][a-z0-9-]{0,63}$",
+    )
+    case_fingerprint: str | None = Field(
+        default=None,
+        alias="caseFingerprint",
+        pattern=r"^[a-f0-9]{64}$",
+    )
     provider: ProviderName
     model: ModelName
     started_at: datetime = Field(alias="startedAt")
@@ -186,6 +196,11 @@ class VerifiedLiveEvidence(ContractModel):
         alias="taskId", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
     )
     case_id: str = Field(alias="caseId", pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
+    case_fingerprint: str | None = Field(
+        default=None,
+        alias="caseFingerprint",
+        pattern=r"^[a-f0-9]{64}$",
+    )
     case_snapshot_sha256: str = Field(
         alias="caseSnapshotSha256", pattern=r"^sha256:[a-f0-9]{64}$"
     )
@@ -197,6 +212,19 @@ class VerifiedLiveEvidence(ContractModel):
     patch_sha256: str = Field(alias="patchSha256", pattern=r"^[a-f0-9]{64}$")
     test_results_sha256: str = Field(
         alias="testResultsSha256", pattern=r"^[a-f0-9]{64}$"
+    )
+    verified_workspace_digest: str | None = Field(
+        default=None,
+        alias="verifiedWorkspaceDigest",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    agent_verification_verdict: Literal["PASSED", "UNCERTAIN"] | None = Field(
+        default=None,
+        alias="agentVerificationVerdict",
+    )
+    host_verification_verdict: Literal["PASSED"] | None = Field(
+        default=None,
+        alias="hostVerificationVerdict",
     )
     role_events: list[EvidenceRoleEvent] = Field(
         alias="roleEvents", min_length=3, max_length=3
@@ -219,6 +247,16 @@ class VerifiedLiveEvidence(ContractModel):
             if self.coordination_trace.task_id != self.task_id:
                 raise ValueError("coordination trace must match verified taskId")
             _validate_handoff_order(self.coordination_trace, self.role_events)
+        verdicts = (
+            self.agent_verification_verdict,
+            self.host_verification_verdict,
+        )
+        if any(verdict is not None for verdict in verdicts) and any(
+            verdict is None for verdict in verdicts
+        ):
+            raise ValueError(
+                "agent and host verification verdicts must be recorded together"
+            )
         return self
 
 
@@ -226,12 +264,14 @@ class VerifiedLiveEvidence(ContractModel):
 class LiveEvidenceSummary:
     task_id: str
     case_id: str
+    case_fingerprint: str | None
     provider: ProviderName
     model: ModelName
     patch_sha256: str
     manager_status: Literal["HEALTHY"]
     role_events: tuple[EvidenceRoleEvent, ...]
     hidden_tests_passed: bool
+    verified_workspace_digest: str | None
     artifacts_dir: Path
     coordination_verified: bool = False
 
@@ -263,6 +303,15 @@ class LiveEvidenceService:
             or run.submission_sha256 != verified.submission_sha256
         ):
             raise LiveEvidenceError("run and verification evidence do not match")
+        if run.case_id is not None and run.case_id != verified.case_id:
+            raise LiveEvidenceError("run and verification Case IDs do not match")
+        if (
+            run.case_fingerprint is not None
+            and run.case_fingerprint != verified.case_fingerprint
+        ):
+            raise LiveEvidenceError(
+                "run and verification Case fingerprints do not match"
+            )
         if verified.model != _PROVIDER_MODELS[verified.provider]:
             raise LiveEvidenceError("provider and model are not an approved pair")
 
@@ -304,12 +353,14 @@ class LiveEvidenceService:
         return LiveEvidenceSummary(
             task_id=verified.task_id,
             case_id=verified.case_id,
+            case_fingerprint=verified.case_fingerprint,
             provider=verified.provider,
             model=verified.model,
             patch_sha256=verified.patch_sha256,
             manager_status="HEALTHY",
             role_events=tuple(verified.role_events),
             hidden_tests_passed=verified.independent_verification.hidden_tests_passed,
+            verified_workspace_digest=verified.verified_workspace_digest,
             coordination_verified=run.coordination_trace is not None,
             artifacts_dir=verified_path.resolve().parent,
         )

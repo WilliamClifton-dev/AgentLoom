@@ -15,9 +15,11 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 > **当前证据基线（2026-08-15）：** AgentTeams `v1.1.2` 使用
 > `minimax-cn / MiniMax-M2.5` 完成了 `Administrator -> Manager -> Investigator
 > -> Verifier -> 已认证 Higress -> Policy Broker -> 不可变 Docker pytest 沙箱`
-> 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。仓库门禁为
-> **323 passed / 2 failed（TUI 测试，非阻塞）/ 3 skipped（可选 Docker 测试）**。
-> Skill 目录状态为 **1 PUBLISHED / 4 QUARANTINED**；原始供应链审计仍是原型。
+> 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。clean-clone Lite
+> 门禁为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，当前工作树
+> 门禁为 **375 passed / 3 skipped**；Task 24 两模式基准为
+> **6 PASSED / 0 NOT_RUN**。Skill 目录状态为 **2 PUBLISHED / 4 QUARANTINED**；
+> 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
 > Human L2 审批为 `APPROVED`，上游 PR
 > [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) 仍为 `OPEN`。
 > 确定性的 P0 提交包已经完成；真实录制、公开上传和竞赛页面提交仍是
@@ -29,12 +31,14 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - 方向：软件研发全流程协同
 - 运行时：AgentTeams/HiClaw `v1.1.2`
 - 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
-- 当前结果：一个成功 ToolCall 经过 Higress、Policy Broker 和全新 Docker
-  沙箱的完整治理链路
-- 质量门禁：323 passed / 2 failed（TUI 测试，非阻塞）/ 3 skipped（可选 Docker）；
-  Ruff、strict mypy、pip-audit、语法、迁移、Diff 和密钥检查通过
-- Skill 状态：`code-review-and-quality` 为 `PUBLISHED`，另外四个上游 Skill
-  为 `QUARANTINED`
+- 当前结果：Task 24 三案例两模式矩阵 6/6 完成；Task 17 另行证明一个成功
+  ToolCall 经过 Higress、Policy Broker 和全新 Docker 沙箱的完整治理链路
+- 当前工作树门禁：375 passed / 3 skipped（可选 Docker）；clean-clone Lite
+  证据：339 passed / 0 failed / 3 skipped；Ruff、strict mypy、pip-audit、
+  语法、迁移、Diff 和密钥检查通过
+- Skill 状态：`code-review-and-quality`（上游）和 `patch-scope-validator`（团队原创）
+  为 `PUBLISHED`，另外四个上游 Skill 为 `QUARANTINED`；三次原创 Skill
+  调用均可按完整身份闭包重开
 - 提交状态：P0 产物包完成；录制、上传和最终提交待完成
 
 当前证据和提交声明索引见[初赛提交记录](docs/competition/agentloom-preliminary-submission.md)。
@@ -89,8 +93,11 @@ python -m venv .venv
 .venv\Scripts\agentloom tui
 ```
 
-Windows 引导路径可运行 `scripts/bootstrap.ps1 -Profile lite`，再运行
-`scripts/demo.ps1`。详见[五分钟快速开始](docs/deployment/quickstart.md)。
+清洁 clone 的失败关闭门禁只有一个入口：
+[`scripts/verify-clean-reproduction.ps1`](scripts/verify-clean-reproduction.ps1)。
+它创建全新证据、运行确定性 Demo 和全部质量门禁，并输出脱敏 JSON 摘要及 SHA-256。
+详见[清洁环境复现指南](docs/deployment/clean-environment-reproduction.md)和
+[五分钟快速开始](docs/deployment/quickstart.md)。
 
 ## 完整 AgentTeams 部署
 
@@ -98,8 +105,9 @@ Windows 引导路径可运行 `scripts/bootstrap.ps1 -Profile lite`，再运行
 [deploy/agentteams/README.md](deploy/agentteams/README.md)。Full 模式要求预先安装
 锁定版本的 AgentTeams/HiClaw `v1.1.2`；AgentLoom 不提供单容器独立发行版。
 
-维护者当前的付费 Live 探测只使用 MiniMax。下游管理员也可以用自己的额度，
-通过经过验证、使用公共 HTTPS 的
+已固化的维护者付费证据只使用 MiniMax。新的 Live 探测可按场景选择 MiniMax 或
+StepFun，但必须使用唯一 run ID 并记录准确 Provider/模型。下游管理员也可以用
+自己的额度，通过经过验证、使用公共 HTTPS 的
 [OpenAI-compatible Provider Profile](docs/specs/openai-compatible-provider-profile.md)
 接入 Provider。无密钥 Profile 只保存 Provider 元数据和环境变量名称，不保存 API
 Key。Provider 只有通过验证后才会激活，付费连接探测还必须显式开启确认开关。
@@ -150,9 +158,10 @@ Profile 配置。
 
 ## 历史证据
 
-> 以下内容仅为审计和复现而保留，**不是当前证据基线**。Qwen、DeepSeek 和
-> StepFun 的维护者付费调用均已禁用；只有在额度恢复且再次明确授权后才能调用。
-> 默认不得运行这些历史付费链路。
+> 以下内容仅为审计和复现而保留，**不是当前证据基线**。Qwen、DeepSeek 因账户
+> 无余额继续禁用。MiniMax 和 StepFun 均已获得订阅调用授权，但每次新运行必须使用
+> 唯一 run ID 并记录准确 Provider/模型；StepFun 证据不得混入只允许 MiniMax 的
+> Task 24 版本化基准。不得把历史付费链路冒充为新运行。
 
 - 2026-08-04，Qwen `qwen3.7-plus` 曾完成无人值守修复，并通过独立的可见测试、
   主机专属隐藏测试和静态检查。生成补丁 SHA-256 为

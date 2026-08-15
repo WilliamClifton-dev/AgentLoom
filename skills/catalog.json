@@ -147,6 +147,50 @@
       "riskLevel": "L0",
       "evaluation": null,
       "lifecycleState": "QUARANTINED"
+    },
+    {
+      "name": "patch-scope-validator",
+      "version": "1.0.1",
+      "skill_type": "team-original",
+      "scenarios": ["patch-scope-validation", "repair-constraint-enforcement"],
+      "input_schema": "schemas/skills/patch-scope-input.schema.json",
+      "output_schema": "schemas/skills/patch-scope-output.schema.json",
+      "invocation_conditions": ["patch-frozen-and-allowed-paths-defined"],
+      "dependencies": [],
+      "failure_modes": [
+        "INVALID_TOOL_PARAMETERS",
+        "PATCH_TOO_LARGE",
+        "PATCH_HASH_MISMATCH",
+        "INVALID_UNIFIED_DIFF",
+        "PATCH_SCOPE_VIOLATION",
+        "TOOL_ACTION_NOT_SUPPORTED"
+      ],
+      "permissions": ["patch.read"],
+      "security_boundary": "L0 read-only patch analysis; no filesystem access",
+      "reuse_value": "Reusable for any governed repair workflow requiring path constraints",
+      "source": {
+        "repository": "https://github.com/WilliamClifton-dev/AgentLoom",
+        "path": "src/agentloom/skills/patch_scope_validator.py",
+        "workspaceSnapshot": "sha256:a036e6defc49907366769df0a1371b296ef4adc06f4d64d5d4f821055ca63797",
+        "license": "Apache-2.0",
+        "contentHash": "sha256:a036e6defc49907366769df0a1371b296ef4adc06f4d64d5d4f821055ca63797"
+      },
+      "compatibleAgents": ["agentloom-verifier", "agentloom-implementer"],
+      "allowedTools": ["patch-scope-validator:patch.validate:scope"],
+      "allowedPaths": ["**"],
+      "riskLevel": "L0",
+      "evaluation": {
+        "upstreamEvidenceRefs": [
+          "source:sha256:a036e6defc49907366769df0a1371b296ef4adc06f4d64d5d4f821055ca63797"
+        ],
+        "agentloomBenchEvidenceRefs": [
+          "test:tests/test_patch_scope_validator.py::test_validate_patch_scope_passed",
+          "test:tests/test_patch_scope_validator.py::test_validate_patch_scope_failed",
+          "test:tests/test_patch_scope_validator.py::test_validate_patch_scope_wildcard_allowed",
+          "test:tests/test_patch_scope_validator.py::test_validate_patch_scope_mixed_violations"
+        ]
+      },
+      "lifecycleState": "PUBLISHED"
     }
   ]
 }

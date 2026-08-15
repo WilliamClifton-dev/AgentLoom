@@ -5,11 +5,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal, cast
 
 from pydantic import Field
 
+from agentloom.benchmark import benchmark_case_fingerprint
 from agentloom.contracts import (
     ContractModel,
     GrantIssuanceRequest,
@@ -18,12 +19,12 @@ from agentloom.contracts import (
     ToolExecutionRequest,
     tool_parameter_digest,
 )
+from agentloom.demo_case import DemoCase, load_demo_case
 from agentloom.docker_sandbox import workspace_tree_digest
 from agentloom.skill_catalog import load_skill_catalog
 from agentloom.storage import Database
 
 _SKILL_NAME = "code-review-and-quality"
-_TARGET_PATH = "tests/test_pagination.py"
 _DOCKER_PROVIDER_ID = "sandboxed-test-runner/docker-sandbox"
 _IMAGE_REF = re.compile(
     r"^(?:sha256:[a-f0-9]{64}|[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64})$"
@@ -48,6 +49,11 @@ class SandboxE2EContext(ContractModel):
         alias="workspaceDigest",
         pattern=r"^[a-f0-9]{64}$",
     )
+    case_id: str = Field(alias="caseId", pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    case_fingerprint: str = Field(
+        alias="caseFingerprint", pattern=r"^[a-f0-9]{64}$"
+    )
+    expected_passes: int = Field(alias="expectedPasses", ge=1, le=1000)
     tasks: dict[Literal["direct", "model"], SandboxE2ETask]
 
 
@@ -69,9 +75,24 @@ def prepare_sandbox_e2e(
     database_url: str,
     workspace: Path,
     skill_catalog: Path,
+    case_root: Path,
 ) -> SandboxE2EContext:
     resolved_workspace = workspace.resolve()
     digest = workspace_tree_digest(resolved_workspace)
+    case = load_demo_case(case_root)
+    working_directory = case.manifest.working_directory
+    resolved_working_directory = (
+        resolved_workspace
+        if working_directory == "."
+        else (resolved_workspace / working_directory).resolve()
+    )
+    if (
+        not resolved_working_directory.is_relative_to(resolved_workspace)
+        or not resolved_working_directory.is_dir()
+    ):
+        raise ValueError("sandbox E2E Case working directory is unavailable")
+    command = _governed_test_command(case)
+    requested_paths = _requested_test_paths(case)
     catalog = load_skill_catalog(skill_catalog.resolve())
     matching = [
         skill
@@ -88,11 +109,11 @@ def prepare_sandbox_e2e(
         raise ValueError("published review Skill does not authorize the Verifier runner")
 
     parameters: dict[str, object] = {
-        "command": ["pytest", "-q", _TARGET_PATH],
-        "workingDirectory": ".",
+        "command": command,
+        "workingDirectory": working_directory,
         "workspaceDigest": digest,
-        "timeoutSeconds": 30,
-        "outputLimitBytes": 65536,
+        "timeoutSeconds": case.manifest.timeout_seconds,
+        "outputLimitBytes": case.manifest.output_limit_bytes,
     }
     parameter_digest = tool_parameter_digest(parameters)
     database = Database(database_url)
@@ -101,13 +122,16 @@ def prepare_sandbox_e2e(
     for task_name in ("direct", "model"):
         task = database.create_task(
             TaskCreate(
-                title=f"Task 16 {task_name} sandbox verification",
+                title=(
+                    f"{case.manifest.title}: {task_name} governed sandbox verification"
+                ),
                 repository_uri=resolved_workspace.as_uri(),
-                issue="Run one governed pytest through the production Docker sandbox.",
+                issue=case.issue,
                 acceptance_criteria=[
-                    "The Verifier ToolCall succeeds only through docker-sandbox."
+                    *case.manifest.acceptance_criteria,
+                    "The Verifier ToolCall succeeds only through docker-sandbox.",
                 ],
-                allowed_paths=[_TARGET_PATH],
+                allowed_paths=requested_paths,
             )
         )
         for status in ("PLANNED", "INVESTIGATING", "IMPLEMENTING", "VERIFYING"):
@@ -131,7 +155,7 @@ def prepare_sandbox_e2e(
             tool_name="test-runner",
             action="process.exec:test",
             parameter_digest=parameter_digest,
-            requested_paths=[_TARGET_PATH],
+            requested_paths=requested_paths,
         )
         tool_request = ToolExecutionRequest(
             task_id=task.task_id,
@@ -150,7 +174,13 @@ def prepare_sandbox_e2e(
             tool_request=tool_request,
             success_marker=f"[{task.task_id}] SANDBOX_TOOL_PASS",
         )
-    return SandboxE2EContext(workspace_digest=digest, tasks=tasks)
+    return SandboxE2EContext(
+        workspace_digest=digest,
+        case_id=case.manifest.case_id,
+        case_fingerprint=benchmark_case_fingerprint(case),
+        expected_passes=len(case.manifest.target_failing_tests),
+        tasks=tasks,
+    )
 
 
 def verify_sandbox_e2e(
@@ -208,15 +238,20 @@ def verify_sandbox_e2e(
         if hashlib.sha256(evidence_bytes).hexdigest() != event.output_digest:
             raise SandboxE2EVerificationError("sandbox Evidence digest does not match ToolCall")
         evidence = evidence_bytes.decode("utf-8")
-        required_lines = (
-            "STATUS: SUCCEEDED\n",
-            "SANDBOX_PROVIDER: docker-sandbox\n",
-            f"IMAGE_REF: {expected_image}\n",
-            f"SNAPSHOT_DIGEST: {context.workspace_digest}\n",
-            "EXIT_CODE: 0\n",
-            "1 passed",
+        evidence_lines = set(evidence.splitlines())
+        required_lines = {
+            "STATUS: SUCCEEDED",
+            "SANDBOX_PROVIDER: docker-sandbox",
+            f"IMAGE_REF: {expected_image}",
+            f"SNAPSHOT_DIGEST: {context.workspace_digest}",
+            "EXIT_CODE: 0",
+        }
+        pass_summary = re.compile(
+            rf"^{context.expected_passes} passed(?: in [^\r\n]+)?$"
         )
-        if any(line not in evidence for line in required_lines):
+        if not required_lines.issubset(evidence_lines) or not any(
+            pass_summary.fullmatch(line) for line in evidence_lines
+        ):
             raise SandboxE2EVerificationError(
                 f"{task_name} Evidence does not prove the expected sandbox result"
             )
@@ -237,6 +272,30 @@ def _write_json(path: Path, model: ContractModel) -> None:
         stream.write("\n")
 
 
+def _governed_test_command(case: DemoCase) -> list[str]:
+    base_length = 3 if case.test_command[:3] == ("python", "-m", "pytest") else 1
+    prefix = list(case.test_command[:base_length])
+    options = [
+        argument
+        for argument in case.test_command[base_length:]
+        if argument.startswith("-")
+    ]
+    return [*prefix, *options, *case.manifest.target_failing_tests]
+
+
+def _requested_test_paths(case: DemoCase) -> list[str]:
+    prefix = (
+        PurePosixPath()
+        if case.manifest.working_directory == "."
+        else PurePosixPath(case.manifest.working_directory)
+    )
+    paths = {
+        (prefix / target.split("::", maxsplit=1)[0]).as_posix()
+        for target in case.manifest.target_failing_tests
+    }
+    return sorted(paths)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Prepare or verify Task 16 fixtures")
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -244,6 +303,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--database-url", required=True)
     prepare.add_argument("--workspace", type=Path, required=True)
     prepare.add_argument("--skill-catalog", type=Path, required=True)
+    prepare.add_argument("--case-root", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
     verify = subcommands.add_parser("verify")
     verify.add_argument("--database-url", required=True)
@@ -262,6 +322,7 @@ def main() -> None:
             database_url=arguments.database_url,
             workspace=arguments.workspace,
             skill_catalog=arguments.skill_catalog,
+            case_root=arguments.case_root,
         )
         _write_json(arguments.output, context)
         return

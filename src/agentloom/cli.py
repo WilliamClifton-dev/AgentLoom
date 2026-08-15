@@ -215,6 +215,7 @@ def verify_live(
                 "provider": result.provider,
                 "model": result.model,
                 "verificationVerdict": result.bundle.verification.verdict,
+                "roleVerificationVerdict": result.role_verification.verdict,
                 "riskVerdict": result.bundle.risk.verdict,
                 "patchSha256": result.bundle.patch.sha256,
                 "artifactsDirectory": str(result.artifacts_dir),

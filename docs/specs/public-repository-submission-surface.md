@@ -11,11 +11,14 @@ competition reviewers and downstream deployers after Tasks 17 and 18.
 - Current live path: Administrator -> Manager -> Investigator -> Verifier ->
   authenticated Higress -> Policy Broker -> immutable Docker pytest sandbox.
 - Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`.
-- Result: exactly one governed `SUCCEEDED` ToolCall.
-- Gate: 283 pytest passed, 3 opt-in Docker tests skipped; Ruff, strict mypy,
+- Result: Task 24 completed all six local/governed cells; Task 17 separately
+  proves exactly one delegated governed `SUCCEEDED` ToolCall.
+- Current-worktree gate: 375 pytest passed, 3 opt-in Docker tests skipped;
+  clean-clone Lite evidence: 339 passed, 0 failed, 3 skipped; Ruff, strict mypy,
   pip-audit, syntax, migration, diff, and secret checks passed.
-- Skill catalog: `code-review-and-quality` is `PUBLISHED`; four upstream Skills
-  are `QUARANTINED`; the original supply-chain audit remains a prototype.
+- Skill catalog: `code-review-and-quality` and team-original
+  `patch-scope-validator` v1.0.1 are `PUBLISHED`; four upstream Skills are
+  `QUARANTINED`; three original-Skill invocations strictly reopen.
 - Human L2 approval is `APPROVED`; PR #1141 remains `OPEN`.
 - P0 package exists; final real recording, public upload, and competition-page
   submission remain Human-owned.

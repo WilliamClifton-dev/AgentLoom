@@ -12,7 +12,11 @@ param(
     [int]$TimeoutSeconds = 1800,
     [ValidateRange(1, 60)]
     [int]$PollSeconds = 10,
-    [string]$CaseRoot = ".\demo\cases\pagination-boundary",
+    [Parameter(Mandatory)][string]$CaseRoot,
+    [ValidateSet("dashscope", "deepseek", "stepfun", "minimax-cn")]
+    [string]$Provider = "minimax-cn",
+    [ValidateSet("qwen3.7-plus", "deepseek-v4-pro", "step-3.7-flash", "MiniMax-M2.5")]
+    [string]$Model = "MiniMax-M2.5",
     [string]$SubmissionPath = "",
     [string]$EvidencePath = "",
     [switch]$Resume,
@@ -21,6 +25,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 $MaxArtifactBytes = 131072
+$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$venvPython = Join-Path $repoRoot ".venv\Scripts\python.exe"
+$providerModels = @{
+    dashscope = "qwen3.7-plus"
+    deepseek = "deepseek-v4-pro"
+    stepfun = "step-3.7-flash"
+    "minimax-cn" = "MiniMax-M2.5"
+}
+if ($providerModels[$Provider] -ne $Model) {
+    throw "Provider and model are not an approved live repair pair"
+}
+if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
+    throw "AgentLoom Python runtime is unavailable"
+}
 
 function Invoke-Docker {
     param([Parameter(Mandatory)][string[]]$Arguments)
@@ -68,7 +86,7 @@ function Send-MatrixText {
     param(
         [Parameter(Mandatory)][string]$RoomId,
         [Parameter(Mandatory)][string]$Text,
-        [Parameter(Mandatory)][string]$MentionUserId,
+        [AllowEmptyString()][string]$MentionUserId = "",
         [Parameter(Mandatory)][string]$AuthToken
     )
 
@@ -77,11 +95,60 @@ function Send-MatrixText {
     $body = @{
         msgtype = "m.text"
         body = $Text
-        "m.mentions" = @{ user_ids = @($MentionUserId) }
     }
-    $null = Invoke-Matrix -Method Put `
+    if (-not [string]::IsNullOrWhiteSpace($MentionUserId)) {
+        $body["m.mentions"] = @{ user_ids = @($MentionUserId) }
+    }
+    $response = Invoke-Matrix -Method Put `
         -Path "/_matrix/client/v3/rooms/$roomSegment/send/m.room.message/$transactionId" `
         -AuthToken $AuthToken -Body $body
+    if ([string]::IsNullOrWhiteSpace([string]$response.event_id)) {
+        throw "Matrix did not return an event ID"
+    }
+    return [pscustomobject]@{
+        eventId = [string]$response.event_id
+        roomId = $RoomId
+        mentionedUserId = $MentionUserId
+    }
+}
+
+function New-CoPawSendCommand {
+    param(
+        [Parameter(Mandatory)][string]$RoomId,
+        [Parameter(Mandatory)][string]$UserId,
+        [Parameter(Mandatory)][string]$Text
+    )
+
+    $textBase64 = [Convert]::ToBase64String(
+        [Text.Encoding]::UTF8.GetBytes($Text)
+    )
+    return @"
+copaw channels send \
+  --agent-id default \
+  --channel matrix \
+  --target-session "$RoomId" \
+  --target-user "$UserId" \
+  --text "`$(printf '%s' '$textBase64' | base64 -d)"
+"@.Trim()
+}
+
+function New-CoPawSendObjectCommand {
+    param(
+        [Parameter(Mandatory)][string]$RoomId,
+        [Parameter(Mandatory)][string]$UserId,
+        [Parameter(Mandatory)]
+        [ValidatePattern("^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$")]
+        [string]$ObjectPath
+    )
+
+    return @"
+copaw channels send \
+  --agent-id default \
+  --channel matrix \
+  --target-session "$RoomId" \
+  --target-user "$UserId" \
+  --text "`$(mc cat '$ObjectPath')"
+"@.Trim()
 }
 
 function Test-ExactMarker {
@@ -229,27 +296,32 @@ function Copy-TaskObject {
 function Stage-LiveRepairCase {
     param(
         [Parameter(Mandatory)][string]$TaskPrefix,
-        [Parameter(Mandatory)][string]$SourceRoot
+        [Parameter(Mandatory)][string]$SourceRoot,
+        [Parameter(Mandatory)]$CaseContext
     )
 
     $resolvedCaseRoot = [IO.Path]::GetFullPath($SourceRoot)
-    $sourceFiles = @(
+    $sourceFiles = @($CaseContext.sourceFiles | ForEach-Object {
         [ordered]@{
-            objectName = "base/lib/__init__.py"
-            sourcePath = Join-Path $resolvedCaseRoot "before/lib/__init__.py"
-        },
-        [ordered]@{
-            objectName = "base/lib/pagination.py"
-            sourcePath = Join-Path $resolvedCaseRoot "before/lib/pagination.py"
-        },
-        [ordered]@{
-            objectName = "base/tests/test_pagination.py"
-            sourcePath = Join-Path $resolvedCaseRoot "before/tests/test_pagination.py"
+            objectName = [string]$_.objectName
+            sourcePath = Join-Path $resolvedCaseRoot (
+                "before/" + [string]$_.sourcePath
+            )
+            sha256 = [string]$_.sha256
+            sizeBytes = [int64]$_.sizeBytes
         }
-    )
+    })
     foreach ($source in $sourceFiles) {
         if (-not (Test-Path -LiteralPath $source.sourcePath -PathType Leaf)) {
             throw "Live repair Case input is missing: $($source.sourcePath)"
+        }
+        $item = Get-Item -LiteralPath $source.sourcePath
+        $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $source.sourcePath).Hash
+        if (
+            [int64]$item.Length -ne $source.sizeBytes -or
+            $actualHash -ne $source.sha256
+        ) {
+            throw "Live repair Case input changed after validation"
         }
     }
 
@@ -257,22 +329,7 @@ function Stage-LiveRepairCase {
     $containerTempRoot = "/tmp/agentloom-stage-$TaskId-$([guid]::NewGuid().ToString('N'))"
     $containerFiles = @()
     try {
-        $spec = @"
-# AgentLoom live repair task $TaskId
-
-Issue: page_count adds an extra page when total_items is an exact multiple of page_size.
-
-Acceptance criteria:
-- Reproduce page_count(20, 10) == 3 before patch.
-- Make page_count(20, 10) == 2.
-- Preserve ValueError for negative total_items or non-positive page_size.
-- Only lib/pagination.py may change.
-- Do not read any other shared task directory.
-- Do not use hidden tests or expected patches; they are not present in this namespace.
-
-Visible command: pytest -q
-Static command: python -m compileall -q lib tests
-"@.Trim()
+        $spec = [string]$CaseContext.spec
         [IO.File]::WriteAllText(
             $specTemp,
             $spec,
@@ -389,7 +446,15 @@ function Save-RunEvidence {
     $eventEvidence = @()
     foreach ($key in @("investigator", "implementer", "verifier")) {
         if ($Markers.ContainsKey($key)) {
-            $eventEvidence += $Markers[$key]
+            $marker = $Markers[$key]
+            $eventEvidence += [ordered]@{
+                key = $marker.key
+                agentName = $marker.agentName
+                sender = $marker.sender
+                eventId = $marker.eventId
+                roomId = $marker.roomId
+                originServerTimestamp = $marker.originServerTimestamp
+            }
         }
     }
     $objectEvidence = @($Objects | ForEach-Object {
@@ -410,8 +475,10 @@ function Save-RunEvidence {
     $evidence = [ordered]@{
         schemaVersion = "agentloom.live-repair-run/v1alpha1"
         taskId = $TaskId
-        provider = "dashscope"
-        model = "qwen3.7-plus"
+        caseId = $caseContext.caseId
+        caseFingerprint = $caseContext.caseFingerprint
+        provider = $Provider
+        model = $Model
         startedAt = $startedAt.ToString("o")
         verifiedAt = [DateTimeOffset]::UtcNow.ToString("o")
         status = $Status
@@ -444,6 +511,80 @@ function Save-RunEvidence {
     }
     return $json
 }
+
+$resolvedCaseRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $CaseRoot))
+if ([IO.Path]::IsPathRooted($CaseRoot)) {
+    $resolvedCaseRoot = [IO.Path]::GetFullPath($CaseRoot)
+}
+if (-not (Test-Path -LiteralPath $resolvedCaseRoot -PathType Container)) {
+    throw "Live repair Case root is unavailable"
+}
+$caseContextPath = Join-Path ([IO.Path]::GetTempPath()) (
+    "agentloom-live-case-" + [Guid]::NewGuid().ToString("N") + ".json"
+)
+try {
+    & $venvPython @(
+        "-m", "agentloom.live_repair", "prepare-case",
+        "--case-root", $resolvedCaseRoot,
+        "--output", $caseContextPath
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Live repair Case validation failed"
+    }
+    $caseContext = Get-Content -Raw -LiteralPath $caseContextPath |
+        ConvertFrom-Json
+}
+finally {
+    if (Test-Path -LiteralPath $caseContextPath -PathType Leaf) {
+        Remove-Item -LiteralPath $caseContextPath -Force
+    }
+}
+
+function Stage-AssignmentObject {
+    param(
+        [Parameter(Mandatory)][string]$TaskPrefix,
+        [Parameter(Mandatory)]
+        [ValidateSet("assignments/implementer.txt", "assignments/verifier.txt")]
+        [string]$ObjectName,
+        [Parameter(Mandatory)][string]$Text
+    )
+
+    $hostTemp = [IO.Path]::GetTempFileName()
+    $containerTemp = "/tmp/agentloom-assignment-$([guid]::NewGuid().ToString('N'))"
+    try {
+        [IO.File]::WriteAllText(
+            $hostTemp,
+            $Text,
+            [Text.UTF8Encoding]::new($false)
+        )
+        $null = Invoke-Docker -Arguments @(
+            "cp", $hostTemp, "$ControllerContainer`:$containerTemp"
+        )
+        $null = Invoke-Docker -Arguments @(
+            "exec", $ControllerContainer, "mc", "cp", $containerTemp,
+            "hiclaw/$TaskPrefix$ObjectName"
+        )
+    }
+    finally {
+        if (Test-Path -LiteralPath $hostTemp -PathType Leaf) {
+            Remove-Item -LiteralPath $hostTemp -Force
+        }
+        try {
+            $null = Invoke-Docker -Arguments @(
+                "exec", $ControllerContainer, "rm", "-f", $containerTemp
+            )
+        }
+        catch {
+        }
+    }
+}
+if (@($caseContext.allowedChangedPaths).Count -ne 1) {
+    throw "The initial live repair runner requires exactly one changed path"
+}
+$changedPath = [string]$caseContext.allowedChangedPaths[0]
+$workingDirectory = [string]$caseContext.workingDirectory
+$testShellCommand = [string]$caseContext.testShellCommand
+$staticCheckShellCommand = [string]$caseContext.staticCheckShellCommand
 
 $manager = Get-HiclawJson -Arguments @("get", "managers", "default")
 $team = Get-HiclawJson -Arguments @("get", "teams", $TeamName)
@@ -523,42 +664,6 @@ if ($Resume) {
         throw "Resume evidence does not contain a valid startedAt"
     }
 }
-$initialObjects = @()
-$expectedInitial = @(
-    "base/lib/__init__.py",
-    "base/lib/pagination.py",
-    "base/tests/test_pagination.py",
-    "spec.md"
-)
-if (-not $Resume) {
-    $initialObjects = Get-TaskObjects -TaskPrefix $taskPrefix
-    if ($initialObjects.Count -eq 0) {
-        Stage-LiveRepairCase -TaskPrefix $taskPrefix -SourceRoot $CaseRoot
-        $initialObjects = Get-TaskObjects -TaskPrefix $taskPrefix
-    }
-    $initialKeys = @($initialObjects | ForEach-Object { [string]$_.key })
-    if ((Compare-Object $initialKeys $expectedInitial).Count -ne 0) {
-        throw "Live repair task namespace is not clean"
-    }
-} else {
-    if ($null -eq $resumeEvidence.inputObjects) {
-        throw "Resume evidence lacks immutable input object fingerprints"
-    }
-    $initialObjects = @($resumeEvidence.inputObjects | ForEach-Object {
-        [pscustomobject]@{
-            key = $_.name
-            size = $_.size
-            etag = $_.etag
-        }
-    })
-}
-$initialInputObjects = @($initialObjects | Where-Object {
-    $expectedInitial -contains [string]$_.key
-})
-if ($initialInputObjects.Count -ne $expectedInitial.Count) {
-    throw "Immutable input object fingerprints are incomplete"
-}
-
 $requirements = @(
     [ordered]@{
         key = "manager-delegated"
@@ -610,48 +715,351 @@ $requirements = @(
     }
 )
 
-$prompt = @"
-$($manager.matrixUserID) [$TaskId] Coordinate one real L1 repair through AgentTeams team $TeamName. Use exactly the existing Team namespace path shared/tasks/$TaskId/. Do not create or use another task ID, taskflow subtask, global-shared path, shared/projects path, or any other shared/tasks directory.
+$remoteTaskRoot = "hiclaw/hiclaw-storage/teams/$TeamName/shared/tasks/$TaskId"
+$investigatorRoot = "/tmp/agentloom-$TaskId-investigator"
+$implementerRoot = "/tmp/agentloom-$TaskId-implementer"
+$verifierRoot = "/tmp/agentloom-$TaskId-verifier"
 
-The namespace contains only spec.md and base/. There is no expected/ directory and no hidden test directory. Never search for or create expected/ or hidden tests. Hidden tests will be injected later by the independent AgentLoom host verifier.
+$investigatorBody = @"
+[$TaskId] TASK_ENVELOPE
 
-Required collaboration:
-1. Manager delegates only to $($investigator.matrixUserID). The Manager's own m.text event must contain the exact standalone line [$TaskId] MANAGER_DELEGATED and include $($investigator.matrixUserID) in m.mentions.
-2. Investigator reads only spec.md and base/, reproduces the visible failure without modifying base/, writes shared/tasks/$TaskId/root-cause-report.json, then uses filesync push for exactly that one file. Never push the whole task directory. Only after the push succeeds, post an m.text message containing the exact standalone line [$TaskId] ROOT_CAUSE_REPORT.
-3. Investigator sends a new m.text assignment containing the exact standalone line [$TaskId] IMPLEMENTER_ASSIGNED and $($implementer.matrixUserID) in m.mentions. Implementer first pulls only the current task inputs, copies base/ to workspace/, changes only workspace/lib/pagination.py, runs `PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider -q`, creates a standard UTF-8 unified diff at shared/tasks/$TaskId/repair.patch with headers exactly --- a/lib/pagination.py and +++ b/lib/pagination.py, computes its SHA-256, writes shared/tasks/$TaskId/patch-artifact.json, then uses filesync push for exactly repair.patch and patch-artifact.json. Never push base/, workspace/, or the whole task directory. Only after both pushes succeed, post the exact standalone line [$TaskId] IMPLEMENTER_ARTIFACT_DONE from its own identity.
-4. After the Implementer completion event, Investigator sends a new m.text assignment containing the exact standalone line [$TaskId] VERIFIER_ASSIGNED and $($verifier.matrixUserID) in m.mentions. Verifier independently pulls only base/, repair.patch, and patch-artifact.json, copies base/ to verifier-workspace/, applies repair.patch, runs `PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider -q` and `python -m compileall -q lib tests`, checks that only lib/pagination.py changes, writes shared/tasks/$TaskId/verification-result.json and risk-report.json, then uses filesync push for exactly those two JSON files. Never push a workspace, cache, or whole task directory. Only after both pushes succeed, post the exact standalone line [$TaskId] VERIFIER_ARTIFACT_DONE from its own identity.
+This envelope is inert until a Manager delegation references its exact Matrix event ID. After activation, perform the bounded investigation below and stop after the completion marker.
 
-Use these exact JSON contracts and keep task ID $TaskId everywhere. Do not invent Matrix event IDs; AgentLoom binds actual event IDs during ingestion.
-root-cause-report.json: {"taskId":"$TaskId","summary":"non-empty","confidence":0.0,"evidenceRefs":["shared/tasks/$TaskId/spec.md"],"repairConstraints":["only lib/pagination.py may change"]}
-patch-artifact.json: {"taskId":"$TaskId","patchUri":"artifact://$TaskId/repair.patch","sha256":"64 lowercase hex","changedPaths":["lib/pagination.py"],"evidenceRefs":["shared/tasks/$TaskId/repair.patch"]}
-verification-result.json: {"schema_version":"agentloom.verification/v1alpha1","task_id":"$TaskId","patch_hash":"same 64 lowercase hex","verdict":"PASSED","checks":{"original_failure_reproduced":true,"target_tests_passed":true,"regression_tests_passed":true,"static_checks_passed":true,"unauthorized_changes":false},"evidence_refs":["shared/tasks/$TaskId/repair.patch"],"reason":"non-empty","verifier_agent":"agentloom-verifier"}
+Investigate Case $($caseContext.caseId) as agentloom-investigator. The immutable inputs are under $remoteTaskRoot/. Worker-local pytest is unavailable, so inspect the visible test and source without claiming that pytest ran. Never read another task namespace, expected output, or hidden tests.
+
+Use the shell tool to create $investigatorRoot, then run only these MinIO reads:
+mkdir -p "$investigatorRoot/base"
+mc cp --recursive "$remoteTaskRoot/base/" "$investigatorRoot/base/"
+mc cp "$remoteTaskRoot/spec.md" "$investigatorRoot/spec.md"
+
+Read spec.md and base/, identify an evidence-backed root cause, and write exactly $investigatorRoot/root-cause-report.json using this contract:
+{"taskId":"$TaskId","summary":"non-empty","confidence":0.0,"evidenceRefs":["shared/tasks/$TaskId/spec.md"],"repairConstraints":["only $changedPath may change"]}
+
+Upload only that file with:
+mc cp "$investigatorRoot/root-cause-report.json" "$remoteTaskRoot/root-cause-report.json"
+
+Only after the upload succeeds, respond in this room with the following exact standalone line and then stop:
+[$TaskId] ROOT_CAUSE_REPORT
+"@.Trim()
+
+$implementerBody = @"
+$($implementer.matrixUserID)
+[$TaskId] IMPLEMENTER_ASSIGNED
+
+Implement the smallest repair as agentloom-implementer. Read only $remoteTaskRoot/spec.md, base/, and root-cause-report.json. Worker-local pytest is unavailable; do not claim visible, regression, or hidden tests ran. You may run the validated static command after editing: $staticCheckShellCommand
+
+Use the shell tool to create $implementerRoot and fetch only the allowed inputs:
+mkdir -p "$implementerRoot/base"
+mc cp --recursive "$remoteTaskRoot/base/" "$implementerRoot/base/"
+mc cp "$remoteTaskRoot/spec.md" "$implementerRoot/spec.md"
+mc cp "$remoteTaskRoot/root-cause-report.json" "$implementerRoot/root-cause-report.json"
+cp -R "$implementerRoot/base" "$implementerRoot/workspace"
+
+In $implementerRoot/workspace, initialize a local Git baseline with `git init -q`, `git add .`, and `git -c user.name=AgentLoom -c user.email=agentloom@example.invalid commit -qm baseline`; change only $changedPath and run $staticCheckShellCommand. Then generate the patch only with these commands:
+git diff --check
+git diff --no-ext-diff -- "$changedPath" > "$implementerRoot/repair.patch"
+test -s "$implementerRoot/repair.patch"
+
+Do not hand-write unified diff hunk headers. Compute the generated patch's lowercase SHA-256 and write $implementerRoot/patch-artifact.json using this contract:
+{"taskId":"$TaskId","patchUri":"artifact://$TaskId/repair.patch","sha256":"64 lowercase hex","changedPaths":["$changedPath"],"evidenceRefs":["shared/tasks/$TaskId/repair.patch"]}
+
+Upload exactly these two files:
+mc cp "$implementerRoot/repair.patch" "$remoteTaskRoot/repair.patch"
+mc cp "$implementerRoot/patch-artifact.json" "$remoteTaskRoot/patch-artifact.json"
+
+Only after both uploads succeed, respond in this Team Room with the following exact standalone line and then stop:
+[$TaskId] IMPLEMENTER_ARTIFACT_DONE
+"@.Trim()
+
+$verifierBody = @"
+$($verifier.matrixUserID)
+[$TaskId] VERIFIER_ASSIGNED
+
+Review the frozen patch independently as agentloom-verifier. Read only $remoteTaskRoot/spec.md, base/, repair.patch, and patch-artifact.json. Worker-local pytest is unavailable. Do not claim visible, regression, or hidden tests ran; those checks belong to the independent AgentLoom host verifier and final governed Docker ToolCall.
+
+Use the shell tool to create $verifierRoot and fetch only those inputs:
+mkdir -p "$verifierRoot/base"
+mc cp --recursive "$remoteTaskRoot/base/" "$verifierRoot/base/"
+mc cp "$remoteTaskRoot/spec.md" "$verifierRoot/spec.md"
+mc cp "$remoteTaskRoot/repair.patch" "$verifierRoot/repair.patch"
+mc cp "$remoteTaskRoot/patch-artifact.json" "$verifierRoot/patch-artifact.json"
+cp -R "$verifierRoot/base" "$verifierRoot/verifier-workspace"
+
+In the clean verifier-workspace, initialize a local Git baseline with `git init -q`, `git add .`, and `git -c user.name=AgentLoom -c user.email=agentloom@example.invalid commit -qm baseline`; use git apply --check before applying $verifierRoot/repair.patch, apply it, verify only $changedPath changed, and run $staticCheckShellCommand. If any available check fails, report failure without the completion marker. Otherwise write these exact bounded outcomes using the patch SHA-256 from patch-artifact.json:
+verification-result.json: {"schema_version":"agentloom.verification/v1alpha1","task_id":"$TaskId","patch_hash":"same 64 lowercase hex","verdict":"UNCERTAIN","checks":{"original_failure_reproduced":false,"target_tests_passed":false,"regression_tests_passed":false,"static_checks_passed":true,"unauthorized_changes":false},"evidence_refs":["shared/tasks/$TaskId/repair.patch"],"reason":"Worker-local pytest is unavailable; static review passed and host verification is required.","verifier_agent":"agentloom-verifier"}
 risk-report.json: {"taskId":"$TaskId","riskLevel":"L1","verdict":"PASSED","findings":[],"evidenceRefs":["shared/tasks/$TaskId/repair.patch"]}
 
-Do not claim hidden-test success. Stop and report failure if any visible or static check fails. Completion markers must be independent trimmed lines and must be sent by the role that owns them. Do not create `.pytest_cache` or `__pycache__` under shared/tasks.
+Upload exactly these two files:
+mc cp "$verifierRoot/verification-result.json" "$remoteTaskRoot/verification-result.json"
+mc cp "$verifierRoot/risk-report.json" "$remoteTaskRoot/risk-report.json"
+
+Only after both uploads succeed, respond in this Team Room with the following exact standalone line and then stop:
+[$TaskId] VERIFIER_ARTIFACT_DONE
+"@.Trim()
+
+$initialObjects = @()
+$expectedInitial = @(
+    @($caseContext.sourceFiles | ForEach-Object { [string]$_.objectName }) +
+    @(
+        "spec.md",
+        "assignments/implementer.txt",
+        "assignments/verifier.txt"
+    )
+)
+if (-not $Resume) {
+    $initialObjects = Get-TaskObjects -TaskPrefix $taskPrefix
+    if ($initialObjects.Count -eq 0) {
+        Stage-LiveRepairCase -TaskPrefix $taskPrefix `
+            -SourceRoot $resolvedCaseRoot -CaseContext $caseContext
+        Stage-AssignmentObject -TaskPrefix $taskPrefix `
+            -ObjectName "assignments/implementer.txt" -Text $implementerBody
+        Stage-AssignmentObject -TaskPrefix $taskPrefix `
+            -ObjectName "assignments/verifier.txt" -Text $verifierBody
+        $initialObjects = Get-TaskObjects -TaskPrefix $taskPrefix
+    }
+    $initialKeys = @($initialObjects | ForEach-Object { [string]$_.key })
+    if ((Compare-Object $initialKeys $expectedInitial).Count -ne 0) {
+        throw "Live repair task namespace is not clean"
+    }
+} else {
+    if ($null -eq $resumeEvidence.inputObjects) {
+        throw "Resume evidence lacks immutable input object fingerprints"
+    }
+    $initialObjects = @($resumeEvidence.inputObjects | ForEach-Object {
+        [pscustomobject]@{
+            key = $_.name
+            size = $_.size
+            etag = $_.etag
+        }
+    })
+}
+$initialInputObjects = @($initialObjects | Where-Object {
+    $expectedInitial -contains [string]$_.key
+})
+if ($initialInputObjects.Count -ne $expectedInitial.Count) {
+    throw "Immutable input object fingerprints are incomplete"
+}
+
+$verifierDispatchCommand = New-CoPawSendObjectCommand `
+    -RoomId $team.teamRoomID `
+    -UserId $verifier.matrixUserID `
+    -ObjectPath "$remoteTaskRoot/assignments/verifier.txt"
+$implementerDispatchCommand = New-CoPawSendObjectCommand `
+    -RoomId $team.teamRoomID `
+    -UserId $implementer.matrixUserID `
+    -ObjectPath "$remoteTaskRoot/assignments/implementer.txt"
+
+$managerDelegationBody = @"
+$($investigator.matrixUserID)
+[$TaskId] MANAGER_DELEGATED
+
+Execute the referenced TASK_ENVELOPE now. The exact envelope event ID is:
+ENVELOPE_EVENT_ID_PLACEHOLDER
+
+Execute the bounded investigation and role handoff in that envelope exactly. Do not perform Implementer or Verifier duties yourself.
 "@.Trim()
 
 $startedAtMilliseconds = $startedAt.ToUnixTimeMilliseconds()
 if (-not $Resume) {
-    Send-MatrixText -RoomId $manager.roomID -Text $prompt `
+    $taskEnvelopeEvent = Send-MatrixText -RoomId $investigator.roomID `
+        -Text $investigatorBody -MentionUserId "" -AuthToken $authToken
+    $managerDelegationBody = $managerDelegationBody.Replace(
+        "ENVELOPE_EVENT_ID_PLACEHOLDER",
+        [string]$taskEnvelopeEvent.eventId
+    )
+}
+$managerDelegationCommand = New-CoPawSendCommand `
+    -RoomId $investigator.roomID `
+    -UserId $investigator.matrixUserID `
+    -Text $managerDelegationBody
+
+$prompt = @"
+$($manager.matrixUserID) [$TaskId] Perform one bounded Manager-to-Investigator delegation for Case $($caseContext.caseId). The task envelope is already staged in the Investigator room. Do not inspect code, create task state, or contact any other Worker.
+
+Use the shell tool exactly once to run this exact CoPaw dispatch command:
+$managerDelegationCommand
+
+After that command succeeds, stop. Do not copy the Investigator result, fabricate any completion marker, or retry with another room, task, or tool.
+"@.Trim()
+
+if (-not $Resume) {
+    $null = Send-MatrixText -RoomId $manager.roomID -Text $prompt `
         -MentionUserId $manager.matrixUserID -AuthToken $authToken
 }
 
-$deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+$runDeadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
 $markers = @{}
-while ([DateTimeOffset]::UtcNow -lt $deadline) {
-    $markers = Find-StrictMarkers -RoomIds $roomIds `
-        -Requirements $requirements -AuthToken $authToken `
-        -StartedAtMilliseconds $startedAtMilliseconds
-    if ($markers.Count -eq $requirements.Count) {
-        break
+
+function Get-StageDeadline {
+    param([ValidateRange(1, 3)][int]$RemainingStages)
+
+    $now = [DateTimeOffset]::UtcNow
+    $remainingSeconds = ($runDeadline - $now).TotalSeconds
+    if ($remainingSeconds -le 0) {
+        return $runDeadline
     }
-    Start-Sleep -Seconds $PollSeconds
+    $stageSeconds = [Math]::Max(
+        1,
+        [Math]::Floor($remainingSeconds / $RemainingStages)
+    )
+    return $now.AddSeconds($stageSeconds)
 }
-if ($markers.Count -ne $requirements.Count) {
-    Save-RunEvidence -Status "TIMEOUT" -Markers $markers `
-        -InputObjects $initialInputObjects
-    throw "Live repair role event collection timed out after $TimeoutSeconds seconds"
+
+function Wait-ForRequiredMarkers {
+    param(
+        [Parameter(Mandatory)][string[]]$RequiredKeys,
+        [Parameter(Mandatory)][DateTimeOffset]$Deadline,
+        [ValidateRange(0, 3600)][int]$ReminderAfterSeconds = 0,
+        [scriptblock]$OnReminder = $null
+    )
+
+    $reminderSent = $false
+    $reminderAt = [DateTimeOffset]::UtcNow.AddSeconds($ReminderAfterSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $Deadline) {
+        $observed = Find-StrictMarkers -RoomIds $roomIds `
+            -Requirements $requirements -AuthToken $authToken `
+            -StartedAtMilliseconds $startedAtMilliseconds
+        foreach ($key in $observed.Keys) {
+            $markers[$key] = $observed[$key]
+        }
+        $missing = @($RequiredKeys | Where-Object { -not $markers.ContainsKey($_) })
+        if ($missing.Count -eq 0) {
+            return
+        }
+        if (
+            -not $reminderSent -and
+            $null -ne $OnReminder -and
+            $ReminderAfterSeconds -gt 0 -and
+            [DateTimeOffset]::UtcNow -ge $reminderAt
+        ) {
+            $null = & $OnReminder
+            $reminderSent = $true
+        }
+        Start-Sleep -Seconds $PollSeconds
+    }
 }
+
+function Stop-IfStageIncomplete {
+    param(
+        [Parameter(Mandatory)][string]$Stage,
+        [Parameter(Mandatory)][string[]]$RequiredMarkerKeys,
+        [Parameter(Mandatory)][string[]]$RequiredObjectNames
+    )
+
+    $objects = Get-TaskObjects -TaskPrefix $taskPrefix
+    $missingMarkers = @($RequiredMarkerKeys | Where-Object {
+        -not $markers.ContainsKey($_)
+    })
+    $keys = @($objects | ForEach-Object { [string]$_.key })
+    $missingObjects = @($RequiredObjectNames | Where-Object { $_ -notin $keys })
+    if ($missingMarkers.Count -ne 0 -or $missingObjects.Count -ne 0) {
+        $status = if ($missingMarkers.Count -ne 0) { "TIMEOUT" } else { "REJECTED" }
+        Save-RunEvidence -Status $status -Markers $markers -Objects $objects `
+            -InputObjects $initialInputObjects
+        throw "Live repair $Stage stage did not produce its required evidence"
+    }
+}
+
+$investigatorCompletionBody = @"
+$($investigator.matrixUserID) [$TaskId] Complete the accepted investigation. Confirm that root-cause-report.json is already uploaded. If it is absent, finish only the bounded investigation from the accepted task envelope and upload it. Then emit this exact standalone marker and stop:
+[$TaskId] ROOT_CAUSE_REPORT
+"@.Trim()
+$investigatorCompletionDispatchCommand = New-CoPawSendCommand `
+    -RoomId $investigator.roomID `
+    -UserId $investigator.matrixUserID `
+    -Text $investigatorCompletionBody
+$investigatorManagerReminder = @"
+$($manager.matrixUserID) [$TaskId] Reactivate only the accepted investigation completion. Use the shell tool exactly once to run this exact CoPaw dispatch command:
+$investigatorCompletionDispatchCommand
+After the command succeeds, stop. Do not inspect code or fabricate the Investigator marker.
+"@.Trim()
+$investigatorReminder = {
+    Send-MatrixText -RoomId $manager.roomID -Text $investigatorManagerReminder `
+        -MentionUserId $manager.matrixUserID -AuthToken $authToken
+}
+Wait-ForRequiredMarkers -RequiredKeys @("manager-delegated", "investigator") `
+    -Deadline (Get-StageDeadline -RemainingStages 3) `
+    -ReminderAfterSeconds 60 -OnReminder $investigatorReminder
+Stop-IfStageIncomplete -Stage "investigation" `
+    -RequiredMarkerKeys @("manager-delegated", "investigator") `
+    -RequiredObjectNames @("root-cause-report.json")
+
+$implementerInvestigatorPrompt = @"
+$($investigator.matrixUserID) [$TaskId] Continue the accepted repair handoff. Run only the exact CoPaw dispatch command below with the shell tool:
+$implementerDispatchCommand
+After the command succeeds, stop. Do not implement the patch yourself.
+"@.Trim()
+$implementerInvestigatorDispatchCommand = New-CoPawSendCommand `
+    -RoomId $investigator.roomID `
+    -UserId $investigator.matrixUserID `
+    -Text $implementerInvestigatorPrompt
+$implementerManagerPrompt = @"
+$($manager.matrixUserID) [$TaskId] Reactivate the accepted repair handoff through the Team Leader. Use the shell tool exactly once to run this exact CoPaw dispatch command:
+$implementerInvestigatorDispatchCommand
+After the command succeeds, stop. Do not investigate or implement the patch yourself.
+"@.Trim()
+if (-not $markers.ContainsKey("implementer-assigned")) {
+    $null = Send-MatrixText -RoomId $manager.roomID -Text $implementerManagerPrompt `
+        -MentionUserId $manager.matrixUserID -AuthToken $authToken
+}
+$implementerReminder = {
+    if (-not $markers.ContainsKey("implementer-assigned")) {
+        return Send-MatrixText -RoomId $manager.roomID `
+            -Text $implementerManagerPrompt `
+            -MentionUserId $manager.matrixUserID -AuthToken $authToken
+    }
+    $body = @"
+$($implementer.matrixUserID) [$TaskId] Implementation reminder. Continue only the accepted bounded assignment. Upload the required repair.patch and patch-artifact.json before emitting this exact standalone marker:
+[$TaskId] IMPLEMENTER_ARTIFACT_DONE
+"@.Trim()
+    Send-MatrixText -RoomId $team.teamRoomID -Text $body `
+        -MentionUserId $implementer.matrixUserID -AuthToken $authToken
+}
+Wait-ForRequiredMarkers -RequiredKeys @(
+    "implementer-assigned", "implementer"
+) -Deadline (Get-StageDeadline -RemainingStages 2) `
+    -ReminderAfterSeconds 60 -OnReminder $implementerReminder
+Stop-IfStageIncomplete -Stage "implementation" `
+    -RequiredMarkerKeys @("implementer-assigned", "implementer") `
+    -RequiredObjectNames @("repair.patch", "patch-artifact.json")
+
+$verifierInvestigatorPrompt = @"
+$($investigator.matrixUserID) [$TaskId] The Implementer artifacts are frozen. Run only the exact CoPaw dispatch command below with the shell tool:
+$verifierDispatchCommand
+After the command succeeds, stop. Do not verify the patch yourself.
+"@.Trim()
+$verifierInvestigatorDispatchCommand = New-CoPawSendCommand `
+    -RoomId $investigator.roomID `
+    -UserId $investigator.matrixUserID `
+    -Text $verifierInvestigatorPrompt
+$verifierManagerPrompt = @"
+$($manager.matrixUserID) [$TaskId] Reactivate the accepted independent review handoff through the Team Leader. Use the shell tool exactly once to run this exact CoPaw dispatch command:
+$verifierInvestigatorDispatchCommand
+After the command succeeds, stop. Do not inspect or verify the patch yourself.
+"@.Trim()
+if (-not $markers.ContainsKey("verifier-assigned")) {
+    $null = Send-MatrixText -RoomId $manager.roomID -Text $verifierManagerPrompt `
+        -MentionUserId $manager.matrixUserID -AuthToken $authToken
+}
+$verifierReminder = {
+    if (-not $markers.ContainsKey("verifier-assigned")) {
+        return Send-MatrixText -RoomId $manager.roomID `
+            -Text $verifierManagerPrompt `
+            -MentionUserId $manager.matrixUserID -AuthToken $authToken
+    }
+    $body = @"
+$($verifier.matrixUserID) [$TaskId] Verification reminder. Continue only the accepted bounded review. Upload verification-result.json and risk-report.json before emitting this exact standalone marker:
+[$TaskId] VERIFIER_ARTIFACT_DONE
+"@.Trim()
+    Send-MatrixText -RoomId $team.teamRoomID -Text $body `
+        -MentionUserId $verifier.matrixUserID -AuthToken $authToken
+}
+Wait-ForRequiredMarkers -RequiredKeys @("verifier-assigned", "verifier") `
+    -Deadline (Get-StageDeadline -RemainingStages 1) `
+    -ReminderAfterSeconds 60 -OnReminder $verifierReminder
+Stop-IfStageIncomplete -Stage "verification" `
+    -RequiredMarkerKeys @("verifier-assigned", "verifier") `
+    -RequiredObjectNames @("verification-result.json", "risk-report.json")
 
 $objects = Get-TaskObjects -TaskPrefix $taskPrefix
 $keys = @($objects | ForEach-Object { [string]$_.key })
@@ -809,8 +1217,8 @@ $patchText = [IO.File]::ReadAllText(
 $submission = [ordered]@{
     schemaVersion = "agentloom.live-repair-submission/v1alpha1"
     taskId = $TaskId
-    provider = "dashscope"
-    model = "qwen3.7-plus"
+    provider = $Provider
+    model = $Model
     coordinationTrace = New-CoordinationTrace -Markers $markers
     roleEvents = @(
         [ordered]@{

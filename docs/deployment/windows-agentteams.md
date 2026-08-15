@@ -34,8 +34,9 @@ continuing.
 
 ## 2. Supply a model credential
 
-Use a masked prompt so the key is not placed in shell history. The current
-repository maintainer permits paid probes only through MiniMax:
+Use a masked prompt so the key is not placed in shell history. MiniMax and
+StepFun are both authorized for new paid probes; this fixed bootstrap example
+uses MiniMax so the versioned Task 24 baseline remains reproducible:
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
@@ -72,10 +73,12 @@ drops the Team's `humanMembers`. It writes the declared member list through the
 embedded Kubernetes API, verifies the persisted response, and stops on any
 mismatch. No manual container patch is required.
 
-The fixed MiniMax bootstrap preserves the historical fixed-provider behavior;
-`-SkipProviderConnectionTest` avoids a paid probe during setup. Qwen, DeepSeek,
-and StepFun paths remain for historical evidence but are not authorized by the
-current maintainer while their quota is unavailable.
+The fixed MiniMax bootstrap preserves the versioned Task 24 provider behavior;
+`-SkipProviderConnectionTest` avoids a paid probe during setup. MiniMax and
+StepFun subscription calls are currently authorized when live Agent behavior is
+required, with separate run IDs and exact Provider/model evidence. Qwen and
+DeepSeek remain unauthorized while their quota is unavailable. StepFun evidence
+must never overwrite or merge into the MiniMax-only Task 24 report.
 
 For another administrator-approved OpenAI-compatible Chat API, copy and edit
 the secret-free example, validate it locally, set the environment variable named

@@ -170,7 +170,7 @@ if (Test-Path -LiteralPath $venvPython -PathType Leaf) {
     $pythonCommand = @($venvPython)
 }
 else {
-    $pythonCommand = Resolve-PythonCommand
+    $pythonCommand = @(Resolve-PythonCommand)
     Assert-Python312 -Command $pythonCommand
     $sourcePython = $pythonCommand[0]
     $sourcePrefix = @($pythonCommand | Select-Object -Skip 1)
@@ -180,9 +180,13 @@ else {
 }
 
 Assert-Python312 -Command @($venvPython)
+Invoke-Checked -FilePath $venvPython -Arguments @(
+    "-m", "pip", "install", "--upgrade", "pip>=26.1.2,<27"
+) -Description "pip security baseline upgrade"
 if (-not $SkipPackageInstall) {
     Invoke-Checked -FilePath $venvPython -Arguments @(
-        "-m", "pip", "install", "-e", $projectRoot
+        "-m", "pip", "install", "--no-cache-dir",
+        "--retries", "10", "--timeout", "60", "-e", $projectRoot
     ) -Description "AgentLoom package installation"
 }
 Push-Location $projectRoot

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import shlex
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
@@ -13,14 +15,15 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from agentloom.benchmark import benchmark_case_fingerprint
 from agentloom.contracts import (
     ContractModel,
     CoordinationTrace,
     RepairArtifactBundle,
     VerificationChecks,
+    VerificationResult,
 )
-from agentloom.demo_case import DemoCase, load_demo_case
+from agentloom.demo_case import DemoCase, demo_case_fingerprint, load_demo_case
+from agentloom.docker_sandbox import workspace_tree_digest
 from agentloom.mock_repair import (
     MockRepairError,
     _changed_paths,
@@ -232,6 +235,7 @@ class LiveRepairResult:
     provider: ProviderName
     model: ModelName
     bundle: RepairArtifactBundle
+    role_verification: VerificationResult
     artifacts_dir: Path
 
 
@@ -348,16 +352,56 @@ class LiveRepairVerifier:
             static_checks_passed=True,
             unauthorized_changes=False,
         )
-        if submission.bundle.verification.verdict != "PASSED":
-            raise LiveRepairError("Verifier Agent did not return a PASSED verdict")
-        if submission.bundle.verification.checks != local_checks:
+        role_verification = submission.bundle.verification
+        worker_review_checks = VerificationChecks(
+            original_failure_reproduced=False,
+            target_tests_passed=False,
+            regression_tests_passed=False,
+            static_checks_passed=True,
+            unauthorized_changes=False,
+        )
+        if role_verification.verdict == "UNCERTAIN":
+            if role_verification.checks != worker_review_checks:
+                raise LiveRepairError(
+                    "UNCERTAIN Verifier Agent checks must describe the bounded "
+                    "Worker review"
+                )
+        elif role_verification.verdict == "PASSED":
+            if role_verification.checks != local_checks:
+                raise LiveRepairError(
+                    "PASSED Verifier Agent checks do not match independent "
+                    "local verification"
+                )
+        else:
             raise LiveRepairError(
-                "Verifier Agent checks do not match independent local verification"
+                "Verifier Agent rejected the patch before host verification"
             )
         if submission.bundle.risk.risk_level != "L1":
             raise LiveRepairError("initial live repair E2E accepts only L1 patches")
         if submission.bundle.risk.verdict != "PASSED":
             raise LiveRepairError("Verifier Agent risk verdict is not PASSED")
+
+        host_verification = VerificationResult(
+            task_id=submission.task_id,
+            patch_hash=submission.bundle.patch.sha256,
+            verdict="PASSED",
+            checks=local_checks,
+            evidence_refs=[
+                *role_verification.evidence_refs,
+                f"artifact://{submission.task_id}/test-results.txt",
+            ],
+            reason=(
+                "Independent host verification reproduced the original failure "
+                "and passed visible, hidden, and static checks."
+            ),
+            verifier_agent="agentloom-host-verifier",
+        )
+        verified_bundle = RepairArtifactBundle(
+            root_cause=submission.bundle.root_cause,
+            patch=submission.bundle.patch,
+            verification=host_verification,
+            risk=submission.bundle.risk,
+        )
 
         test_results_path = artifacts / "test-results.txt"
         test_results_path.write_text(
@@ -368,9 +412,10 @@ class LiveRepairVerifier:
         _write_model(artifacts / "root-cause-report.json", submission.bundle.root_cause)
         _write_model(artifacts / "patch-artifact.json", submission.bundle.patch)
         _write_model(
-            artifacts / "verification-result.json",
-            submission.bundle.verification,
+            artifacts / "agent-verification-result.json",
+            role_verification,
         )
+        _write_model(artifacts / "verification-result.json", host_verification)
         _write_model(artifacts / "risk-report.json", submission.bundle.risk)
         _write_evidence(
             path=artifacts / "live-repair-evidence.json",
@@ -378,12 +423,15 @@ class LiveRepairVerifier:
             case=self._case,
             submission_path=submission_path,
             test_results_path=test_results_path,
+            verified_workspace=verifier_workspace,
+            host_verification=host_verification,
         )
         return LiveRepairResult(
             task_id=submission.task_id,
             provider=submission.provider,
             model=submission.model,
-            bundle=submission.bundle,
+            bundle=verified_bundle,
+            role_verification=role_verification,
             artifacts_dir=artifacts,
         )
 
@@ -439,7 +487,7 @@ def prepare_live_repair_case_context(case_root: Path) -> LiveRepairCaseContext:
     )
     return LiveRepairCaseContext(
         case_id=case.manifest.case_id,
-        case_fingerprint=benchmark_case_fingerprint(case),
+        case_fingerprint=demo_case_fingerprint(case),
         title=case.manifest.title,
         issue=case.issue,
         acceptance_criteria=case.manifest.acceptance_criteria,
@@ -515,25 +563,55 @@ def _safe_patch_path(value: str) -> str:
 
 
 def _apply_patch(workspace: Path, patch_path: Path, case: DemoCase) -> None:
-    for arguments in (
-        ("git", "apply", "--check", "--whitespace=error-all", str(patch_path)),
-        ("git", "apply", "--whitespace=error-all", str(patch_path)),
-    ):
+    git_metadata = workspace / ".git"
+    if git_metadata.exists() or git_metadata.is_symlink():
+        raise LiveRepairError("live repair workspace contains Git metadata")
+    try:
         try:
-            result = subprocess.run(
-                arguments,
+            initialized = subprocess.run(
+                ("git", "init", "--quiet"),
                 cwd=workspace,
                 capture_output=True,
                 timeout=case.manifest.timeout_seconds,
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise LiveRepairError("git apply could not verify the submitted patch") from exc
-        output_size = len(result.stdout) + len(result.stderr)
+            raise LiveRepairError("git could not isolate the repair workspace") from exc
+        output_size = len(initialized.stdout) + len(initialized.stderr)
         if output_size > case.manifest.output_limit_bytes:
-            raise LiveRepairError("git apply output exceeded the case limit")
-        if result.returncode != 0:
-            raise LiveRepairError("git apply rejected the submitted patch")
+            raise LiveRepairError("git init output exceeded the case limit")
+        if initialized.returncode != 0:
+            raise LiveRepairError("git could not isolate the repair workspace")
+
+        for arguments in (
+            ("git", "apply", "--check", "--whitespace=error-all", str(patch_path)),
+            ("git", "apply", "--whitespace=error-all", str(patch_path)),
+        ):
+            try:
+                result = subprocess.run(
+                    arguments,
+                    cwd=workspace,
+                    capture_output=True,
+                    timeout=case.manifest.timeout_seconds,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise LiveRepairError(
+                    "git apply could not verify the submitted patch"
+                ) from exc
+            output_size = len(result.stdout) + len(result.stderr)
+            if output_size > case.manifest.output_limit_bytes:
+                raise LiveRepairError("git apply output exceeded the case limit")
+            if result.returncode != 0:
+                raise LiveRepairError("git apply rejected the submitted patch")
+    finally:
+        if git_metadata.exists() or git_metadata.is_symlink():
+            try:
+                shutil.rmtree(git_metadata)
+            except OSError as exc:
+                raise LiveRepairError(
+                    "temporary Git metadata could not be removed"
+                ) from exc
 
 
 def _write_evidence(
@@ -543,18 +621,24 @@ def _write_evidence(
     case: DemoCase,
     submission_path: Path,
     test_results_path: Path,
+    verified_workspace: Path,
+    host_verification: VerificationResult,
 ) -> None:
     evidence = {
         "schemaVersion": "agentloom.live-repair-evidence/v1alpha1",
         "status": "PASS",
         "taskId": submission.task_id,
         "caseId": case.manifest.case_id,
+        "caseFingerprint": demo_case_fingerprint(case),
         "caseSnapshotSha256": case.provenance.snapshot_sha256,
         "provider": submission.provider,
         "model": submission.model,
         "submissionSha256": _file_hash(submission_path),
         "patchSha256": submission.bundle.patch.sha256,
         "testResultsSha256": _file_hash(test_results_path),
+        "verifiedWorkspaceDigest": workspace_tree_digest(verified_workspace),
+        "agentVerificationVerdict": submission.bundle.verification.verdict,
+        "hostVerificationVerdict": host_verification.verdict,
         "roleEvents": [
             event.model_dump(mode="json", by_alias=True)
             for event in submission.role_events
@@ -576,3 +660,31 @@ def _write_evidence(
         encoding="utf-8",
         newline="\n",
     )
+
+
+def _write_case_context(path: Path, context: LiveRepairCaseContext) -> None:
+    resolved = path.resolve()
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    with resolved.open("x", encoding="utf-8", newline="\n") as stream:
+        stream.write(context.model_dump_json(by_alias=True, indent=2))
+        stream.write("\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Prepare live repair Case inputs")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    prepare = subcommands.add_parser("prepare-case")
+    prepare.add_argument("--case-root", required=True, type=Path)
+    prepare.add_argument("--output", required=True, type=Path)
+    arguments = parser.parse_args()
+    try:
+        context = prepare_live_repair_case_context(arguments.case_root)
+        _write_case_context(arguments.output, context)
+    except (OSError, RuntimeError, ValueError, UnicodeError) as exc:
+        print(f"live repair Case preparation failed: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
