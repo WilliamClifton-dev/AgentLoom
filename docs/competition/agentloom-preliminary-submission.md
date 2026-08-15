@@ -6,7 +6,7 @@
 >
 > 项目：AgentLoom：多智能体 Skill 治理与可验证修复平台
 >
-> 材料状态：P0 PDF、官方模板 PPTX、19 页 PDF 和提交 ZIP 已生成并完成本地验收；最终真人录屏已公开并完成匿名播放验证，比赛页面提交仍为 Human checkpoint
+> 材料状态：P0 PDF、官方模板 PPTX、19 页 PDF 和提交 ZIP 已生成并完成本地验收；最终真人录屏与 `v0.1.0` Release 已公开验证，比赛页面提交仍为 Human checkpoint
 >
 > 依据：赛事参赛手册、官方 19 页 PPT 模板、当前仓库及本地可验证证据
 
@@ -167,7 +167,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 - 工程检查：全量 pytest、Ruff、strict mypy、pip-audit 全通过。
 - 安全：L0-L3、短时参数绑定 Grant、路径/工具白名单、Human 审批、密钥脱敏。
 - 可观测：Task/Step/Agent/Skill/Grant/ToolCall/Artifact/Verdict 全链路 ID。
-- 当前缺口：`v0.1.0` tag/Release 和比赛页面提交待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
+- 当前缺口：比赛页面提交待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
 
 ### 第 14 页：章节页 - 开放与开源
 
@@ -190,7 +190,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 三列展示：
 
 - 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、Task 24 两模式 6/6、真人 L2 审批、375 passed / 3 skipped (opt-in Docker)、TUI、检测/授权/回滚，以及团队原创 `patch-scope-validator` 的三次严格可重开调用。
-- 提交前：公开 Demo 与仓库已验证；待创建固定 tag/Release，并完成比赛页面最终确认。
+- 提交前：公开 Demo、仓库和固定 tag/Release 已验证；待完成比赛页面最终确认。
 - 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
 主要风险：模型波动、AgentTeams 版本变化、第三方 Skill 漂移、Demo 环境复杂、范围过大。每项风险都配固定版本、回放证据、降级方案和非目标约束。
@@ -333,13 +333,13 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - 团队原创 `patch-scope-validator` v1.0.1 已评测并发布，三次 Policy Broker -> ToolProvider 调用可按完整身份闭包严格重开。
 - 2026-08-16 冻结后的 public main 门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff、敏感信息门禁和最新公开 GitHub Actions CI 通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
 - 2026-08-16 最终真人 Demo 已公开：时长 309.000021 秒、1920x1080、H.264/AAC，SHA-256 为 `778766E648EC230D4A2C224FFE5D0AF09914B97736158F0ECF5FCBE3ADA14550`。公开播放器已在无登录态的隔离 Chromium 中通过桌面与 320px 移动端验证：HTTP 200、媒体 `readyState=4`、无横向溢出、无控制台或页面错误。
+- 2026-08-16 annotated tag `v0.1.0` 与正式 GitHub Release 已公开：tag 精确指向 `7f96b232dbe5c2294028d53c4fbc0a619dad0fad`；Release 非草稿、非预发布，视频资产的大小和 SHA-256 已通过未认证 GitHub API 与匿名 Range 请求复核。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
 
-1. 确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
-2. 创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
-3. 在比赛页面填写已验证的公开 Demo 链接，上传材料并完成提交确认。
+1. 提交前再次确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
+2. 在比赛页面填写已验证的公开 Demo 链接，上传材料并完成提交确认。
 
 ### 10.3 不应写成已完成
 
@@ -363,4 +363,5 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - [x] 所有“已完成”能力都有代码、测试、Trace、哈希或截图支撑。
 - [x] 未认证 GitHub API 已确认仓库 public、默认分支为 `main`，并可公开访问[当前提交历史](https://github.com/WilliamClifton-dev/AgentLoom/commits/main)；最新 GitHub Actions CI 已通过。
 - [x] Demo 链接已在无登录态的隔离 Chromium 中验证可访问和播放：<https://williamclifton-dev.github.io/AgentLoom/demo.html>。
+- [x] Annotated `v0.1.0` tag、正式 GitHub Release、tag 目标 SHA 和 Demo 资产已通过未认证 API/HTTP 复核。
 - [x] ZIP 可正常解压，8/8 成员哈希与源文件一致；PPTX/PDF 可打开并完成渲染与隐私检查。
