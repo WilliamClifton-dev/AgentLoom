@@ -6,7 +6,7 @@
 >
 > 项目：AgentLoom：多智能体 Skill 治理与可验证修复平台
 >
-> 材料状态：P0 PDF、官方模板 PPTX、19 页 PDF 和提交 ZIP 已生成并完成本地验收；最终真人录屏、公开上传和比赛页面提交仍为 Human checkpoint
+> 材料状态：P0 PDF、官方模板 PPTX、19 页 PDF 和提交 ZIP 已生成并完成本地验收；最终真人录屏已公开并完成匿名播放验证，比赛页面提交仍为 Human checkpoint
 >
 > 依据：赛事参赛手册、官方 19 页 PPT 模板、当前仓库及本地可验证证据
 
@@ -17,7 +17,7 @@
 | 阶段 | 初赛 | 当前页面已经选中，无需修改 |
 | 作品名称（必填） | `AgentLoom：多智能体 Skill 治理与可验证修复平台` | 不只写 AgentLoom，副标题直接说明作品价值 |
 | 代码仓库 | `https://github.com/WilliamClifton-dev/AgentLoom` | 仓库已设为公开；正式提交前仍需确认默认分支包含最终提交并可在未登录状态访问 |
-| Demo 链接 | 暂时留空 | 该字段在当前页面没有必填星号。最终录屏上传后再填写公开视频链接；不要填 `localhost` 或本机文件路径 |
+| Demo 链接 | `https://williamclifton-dev.github.io/AgentLoom/demo.html` | 已在无登录态的隔离 Chromium 中完成桌面和 320px 移动端播放验证；不要替换为 `localhost`、本机文件路径或 Release 附件下载链接 |
 | 作品附件（必填） | `AgentLoom-初赛提交包.zip` | PPT 完成并导出 PDF 后再制作 ZIP；不要现在上传半成品。单文件不超过 1200 MB，本赛段累计不超过 3600 MB |
 | 赛题（必填） | `赛题三：软件研发全流程协同` | AgentLoom 的主闭环是软件缺陷调查、修复、验证和治理，不应选零人工运维或智能客服 |
 | 个人职务或身份 | `独立开发者（多智能体系统 / Agent Infra）` | 独立参赛，不虚构产品、算法、测试等其他成员 |
@@ -40,9 +40,9 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 ## 2. 500 字以内作品简介
 
-以下正文共 **496 个字符（Python `len()`）**，可直接使用：
+以下正文共 **499 个字符（Python `len()`）**，可直接使用：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 375 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏和提交待完成。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 375 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏已公开，提交待完成。
 
 ## 3. 一句话定位与价值
 
@@ -167,7 +167,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 - 工程检查：全量 pytest、Ruff、strict mypy、pip-audit 全通过。
 - 安全：L0-L3、短时参数绑定 Grant、路径/工具白名单、Human 审批、密钥脱敏。
 - 可观测：Task/Step/Agent/Skill/Grant/ToolCall/Artifact/Verdict 全链路 ID。
-- 当前缺口：最终真人录屏、公开上传和比赛页面提交待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
+- 当前缺口：`v0.1.0` tag/Release 和比赛页面提交待完成；AgentTeams 上游缺陷修复 PR 已提交，仍在等待维护者审核，不声称已合并。
 
 ### 第 14 页：章节页 - 开放与开源
 
@@ -190,7 +190,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 三列展示：
 
 - 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、Task 24 两模式 6/6、真人 L2 审批、375 passed / 3 skipped (opt-in Docker)、TUI、检测/授权/回滚，以及团队原创 `patch-scope-validator` 的三次严格可重开调用。
-- 提交前：演示录屏、公开视频访问检查、公开仓库和比赛页面最终确认。
+- 提交前：公开 Demo 与仓库已验证；待创建固定 tag/Release，并完成比赛页面最终确认。
 - 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
 主要风险：模型波动、AgentTeams 版本变化、第三方 Skill 漂移、Demo 环境复杂、范围过大。每项风险都配固定版本、回放证据、降级方案和非目标约束。
@@ -332,21 +332,21 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - Task 24 三案例在本地确定性与 MiniMax 治理模式下全部通过，最终报告严格重开为 `6 PASSED / 0 NOT_RUN`。
 - 团队原创 `patch-scope-validator` v1.0.1 已评测并发布，三次 Policy Broker -> ToolProvider 调用可按完整身份闭包严格重开。
 - 2026-08-16 冻结后的 public main 门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff、敏感信息门禁和最新公开 GitHub Actions CI 通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
+- 2026-08-16 最终真人 Demo 已公开：时长 309.000021 秒、1920x1080、H.264/AAC，SHA-256 为 `778766E648EC230D4A2C224FFE5D0AF09914B97736158F0ECF5FCBE3ADA14550`。公开播放器已在无登录态的隔离 Chromium 中通过桌面与 320px 移动端验证：HTTP 200、媒体 `readyState=4`、无横向溢出、无控制台或页面错误。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
 
-1. 制作最终演示录屏并上传，获得可公开访问的 Demo 链接。
-2. 确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
-3. 创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
-4. 确认 GitHub 仓库与公开视频对评委可访问，然后完成比赛页面上传和提交确认。
+1. 确认 AgentTeams PR #1141 的公开状态表述准确，只写“已提交/待审核”，除非上游实际合并。
+2. 创建提交用 tag/release，并再次检查默认分支、附件和演示材料的一致性。
+3. 在比赛页面填写已验证的公开 Demo 链接，上传材料并完成提交确认。
 
 ### 10.3 不应写成已完成
 
 - AgentTeams 上游 PR #1141 已真实创建但尚未合并；AgentLoom 尚未把自动修复结果写入真实业务仓库的 Issue/PR。
 - `addyosmani/agent-skills` 五个样本中，`code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`；其余四个仍为 `QUARANTINED`，不能写成全部发布。
 - 当前团队原创成果是 `patch-scope-validator` v1.0.1；不得把未交付构想列为第二个已发布原创 Skill。
-- 比赛录屏尚未完成。
+- 比赛页面尚未提交；第二台主机上的 Full/Docker 复现也尚未完成。
 - 第二业务场景、真实云 Skill、RAG、模型训练和生产级多租户均不是初赛已交付能力。
 
 ## 11. 最终提交检查表
@@ -362,5 +362,5 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - [x] 开源范围、许可证、第三方来源、模型/API 和数据边界已披露。
 - [x] 所有“已完成”能力都有代码、测试、Trace、哈希或截图支撑。
 - [x] 未认证 GitHub API 已确认仓库 public、默认分支为 `main`，并可公开访问[当前提交历史](https://github.com/WilliamClifton-dev/AgentLoom/commits/main)；最新 GitHub Actions CI 已通过。
-- [ ] Demo 链接若填写，必须公网可访问；无链接则留空，不填本地地址。
+- [x] Demo 链接已在无登录态的隔离 Chromium 中验证可访问和播放：<https://williamclifton-dev.github.io/AgentLoom/demo.html>。
 - [x] ZIP 可正常解压，8/8 成员哈希与源文件一致；PPTX/PDF 可打开并完成渲染与隐私检查。

@@ -2,6 +2,10 @@
 
 逐镜头口播内容见 [AgentLoom 初赛演示口播稿](demo-narration-script.zh-CN.md)。
 
+> 完成状态（2026-08-16）：最终真人 Demo 已录制、完成帧审计并公开。
+> [公开播放器](https://williamclifton-dev.github.io/AgentLoom/demo.html) 已在无登录态
+> 的隔离 Chromium 中通过桌面和 320px 移动端播放验证。
+
 ## 目标
 
 用现有可验证证据说明 AgentLoom 不是“把问题丢给模型再搬运答案”，而是在
@@ -100,8 +104,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 Evidence。明确当前边界：尚未把 AgentLoom 自动修复结果写入真实业务仓库；
 `code-review-and-quality` 已有匹配 Eval 并为 `PUBLISHED`，其余四个上游 Skill
 仍为 `QUARANTINED`；团队原创 `patch-scope-validator` v1.0.1 也为 `PUBLISHED`，
-目录总状态为 `2 PUBLISHED / 4 QUARANTINED`。提交包已生成，最终录屏、上传和
-页面提交仍待 Human 完成。
+目录总状态为 `2 PUBLISHED / 4 QUARANTINED`。提交包和最终录屏均已完成，公开
+播放器已经匿名验证；比赛页面提交仍待 Human 完成。
 
 ## 禁止出现在画面中的信息
 
