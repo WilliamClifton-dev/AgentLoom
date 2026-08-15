@@ -29,7 +29,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 - AgentTeams `v1.1.2` 健康状态为 `PASS`。
 - Manager、Team、3 个 Worker 和 Human 均可用。
-- 当前工作树门禁为 `375 passed / 3 skipped`；Task 25 clean-clone Lite 证据为
+- 冻结后的 public main 门禁为 `375 passed / 3 skipped`；Task 25 clean-clone
+  Lite 证据为
   `339 passed / 0 failed / 3 skipped`，两者不得混写。
 - Task 17 脱敏摘要中的 provider/model 为 `minimax-cn` / `MiniMax-M2.5`。
 - Task 17 数据库结果为且仅为一个 `SUCCEEDED` ToolCall。
@@ -87,7 +88,9 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 展示 GitHub Actions 和
 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)：
 
-- AgentLoom 本地质量门禁为 323 项 pytest 通过、2 项 TUI 测试失败（非阻塞）、3 项显式启用的 Docker live tests 默认跳过、Ruff 和 strict mypy 通过。
+- AgentLoom 冻结提交门禁为 375 项 pytest 通过、3 项显式启用的 Docker live
+  tests 默认跳过；Ruff、strict mypy、依赖审计、构建、安装 smoke 和最新公开
+  GitHub Actions CI 均通过。
 - PR 修复 AgentTeams 更新 Team 时未持久化 `humanMembers` 的缺陷。
 - PR 状态只说“已提交、等待维护者审核”，不要说已经合并。
 
@@ -96,7 +99,9 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 回到主流程总结：Issue -> 调查 -> 受控修复 -> 独立验证 -> 审批/回滚 ->
 Evidence。明确当前边界：尚未把 AgentLoom 自动修复结果写入真实业务仓库；
 `code-review-and-quality` 已有匹配 Eval 并为 `PUBLISHED`，其余四个上游 Skill
-仍为 `QUARANTINED`；提交包已生成，最终录屏、上传和页面提交仍待 Human 完成。
+仍为 `QUARANTINED`；团队原创 `patch-scope-validator` v1.0.1 也为 `PUBLISHED`，
+目录总状态为 `2 PUBLISHED / 4 QUARANTINED`。提交包已生成，最终录屏、上传和
+页面提交仍待 Human 完成。
 
 ## 禁止出现在画面中的信息
 

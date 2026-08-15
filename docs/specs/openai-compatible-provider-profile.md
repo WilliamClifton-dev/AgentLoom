@@ -6,8 +6,10 @@ Let an AgentLoom deployer configure an administrator-approved OpenAI-compatible
 model for AgentTeams without editing repository scripts. A reusable JSON Profile
 defines non-secret provider metadata; the API key remains in a named host
 environment variable. The current repository maintainer authorizes MiniMax and
-StepFun subscription calls; the frozen Task 24 evidence remains MiniMax-only.
-Qwen and DeepSeek remain unauthorized while their quota is unavailable.
+StepFun subscription calls selected by task fit. The accepted Task 24 report is
+immutable historical MiniMax evidence, not a future Provider restriction; every
+new live run binds its actual Provider/model and a new run ID. Qwen and DeepSeek
+remain unauthorized while their quota is unavailable.
 
 ## Tech stack
 

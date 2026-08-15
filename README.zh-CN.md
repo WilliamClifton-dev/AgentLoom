@@ -12,12 +12,12 @@
 AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、可审计的能力。
 参赛场景从生产风格的修复任务开始，以经过独立验证、可回放的证据结束。
 
-> **当前证据基线（2026-08-15）：** AgentTeams `v1.1.2` 使用
+> **当前证据基线（2026-08-16）：** AgentTeams `v1.1.2` 使用
 > `minimax-cn / MiniMax-M2.5` 完成了 `Administrator -> Manager -> Investigator
 > -> Verifier -> 已认证 Higress -> Policy Broker -> 不可变 Docker pytest 沙箱`
 > 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。clean-clone Lite
-> 门禁为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，当前工作树
-> 门禁为 **375 passed / 3 skipped**；Task 24 两模式基准为
+> 门禁为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，冻结后的
+> public main 门禁为 **375 passed / 3 skipped**，最新公开 GitHub Actions CI 已通过；Task 24 两模式基准为
 > **6 PASSED / 0 NOT_RUN**。Skill 目录状态为 **2 PUBLISHED / 4 QUARANTINED**；
 > 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
 > Human L2 审批为 `APPROVED`，上游 PR
@@ -33,7 +33,7 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
 - 当前结果：Task 24 三案例两模式矩阵 6/6 完成；Task 17 另行证明一个成功
   ToolCall 经过 Higress、Policy Broker 和全新 Docker 沙箱的完整治理链路
-- 当前工作树门禁：375 passed / 3 skipped（可选 Docker）；clean-clone Lite
+- 冻结提交门禁：375 passed / 3 skipped（可选 Docker）；clean-clone Lite
   证据：339 passed / 0 failed / 3 skipped；Ruff、strict mypy、pip-audit、
   语法、迁移、Diff 和密钥检查通过
 - Skill 状态：`code-review-and-quality`（上游）和 `patch-scope-validator`（团队原创）
@@ -126,7 +126,8 @@ Provider Profile 验证只证明配置结构正确。配置、连接测试和严
 - HMAC 签名 Grant：绑定有效期、Consumer、审批、参数并防重放；Broker 重启后仍
   持久化已消费 nonce 摘要
 - 失败关闭的检测流水线和确定性 L1 Skill 检查
-- 具有来源锁定、严格 Schema 和发布/隔离状态的 Skill 目录：一个已发布，四个隔离
+- 具有来源锁定、严格 Schema 和发布/隔离状态的 Skill 目录：一个上游 Skill 和一个
+  团队原创 Skill 已发布，另外四个上游 Skill 隔离
 - FastAPI 任务 API、乐观状态迁移、追加式因果事件及可逆 SQLite/Alembic 持久化
 - 位于 Higress 身份认证和白名单之后的 Streamable HTTP Policy Broker
 - 带请求/结果摘要和本地 Evidence 的受治理 ToolCall 事件

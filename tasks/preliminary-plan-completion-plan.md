@@ -14,7 +14,8 @@
    recording remains Human-owned.
 6. Task 26: implement/evaluate one team-original Skill and prove at least three
    real Skill calls in the main task. MiniMax or StepFun may be used if a model
-   is required, but the frozen Task 24 benchmark remains MiniMax-only.
+   is required; the accepted Task 24 report remains immutable MiniMax history,
+   and any new diagnostic uses a separate run ID with exact Provider binding.
 7. Task 27: perform a requirement-by-requirement design, package, repository,
    release, and submission audit; check only directly proven items.
 8. Human checkpoint: publish repository/recording, verify URLs, freeze commit,

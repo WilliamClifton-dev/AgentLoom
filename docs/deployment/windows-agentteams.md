@@ -77,8 +77,9 @@ The fixed MiniMax bootstrap preserves the versioned Task 24 provider behavior;
 `-SkipProviderConnectionTest` avoids a paid probe during setup. MiniMax and
 StepFun subscription calls are currently authorized when live Agent behavior is
 required, with separate run IDs and exact Provider/model evidence. Qwen and
-DeepSeek remain unauthorized while their quota is unavailable. StepFun evidence
-must never overwrite or merge into the MiniMax-only Task 24 report.
+DeepSeek remain unauthorized while their quota is unavailable. The accepted
+Task 24 report remains immutable MiniMax history; future MiniMax or StepFun
+diagnostics use new run IDs and must never overwrite that report.
 
 For another administrator-approved OpenAI-compatible Chat API, copy and edit
 the secret-free example, validate it locally, set the environment variable named

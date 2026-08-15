@@ -1710,7 +1710,7 @@ agentloom/
 - **决策日期**：2026-08-14
 - **背景**：ADR-020 决策时，维护者只允许 MiniMax 产生新的付费探测；ADR-023 后续将维护者授权扩展为 MiniMax 与 StepFun。AgentLoom 的其他部署者仍拥有不同 Provider、模型和配额。把维护者费用政策写成产品模型白名单，会迫使下游修改脚本；直接接受 endpoint 和密钥参数又会扩大 SSRF、密钥泄露和意外付费风险。
 - **决定**：增加 `agentloom.provider-profile/v1alpha1` 的无密钥 JSON 契约，允许管理员选择公开 HTTPS 的 OpenAI-compatible Chat API。Profile 的 `providerId` 必须使用 `custom-` 命名空间，密钥仅按受限名称从进程、用户或机器环境读取；未知字段、非公共 IP literal、userinfo、query、fragment、越界生成参数和非 AgentTeams 容器均失败关闭。CoPaw 类型固定为 `OpenAIChatModel`。Profile 校验不读取密钥、不访问 Docker、不调用模型；配置默认也不探测，只有显式开关可以产生付费连接测试。bootstrap 先验证 Profile、再派生模型 ID、部署资源，最后配置 Provider。
-- **政策边界**：ADR-023 约束本仓库维护者的新付费运行；Task 24 仍固定为 MiniMax-only，但其他独立运行可按场景选择 MiniMax 或 StepFun。该政策不能限制下游管理员使用自己的 Provider 和配额；反过来，下游 Profile 也不授权维护者调用该 Provider。比赛 live-repair/live-rollback 的证据 allowlist 暂不泛化；新模型只有设计 Profile 指纹与证据契约并通过严格 E2E 后，才能成为对应比赛证据。
+- **政策边界**：ADR-023 约束本仓库维护者的新付费运行；已接受的 Task 24 报告是不可改写的 MiniMax 历史证据，而不是未来 Provider 限制。新的诊断运行可按场景选择 MiniMax 或 StepFun，但必须使用独立 run ID 并绑定实际 Provider/model，不能覆盖既有报告。该政策不能限制下游管理员使用自己的 Provider 和配额；反过来，下游 Profile 也不授权维护者调用该 Provider。比赛 live-repair/live-rollback 的证据 allowlist 暂不泛化；新模型只有设计 Profile 指纹与证据契约并通过严格 E2E 后，才能成为对应比赛证据。
 - **替代方案**：要求每个 Provider fork 脚本；接受任意 endpoint/key 命令行参数；删除比赛证据的固定 Provider/model allowlist；立即建设通用模型插件 Registry。
 - **代价**：部署者需要维护一个版本化 Profile 并自行验证模型能力，公开 DNS 名称仍需要部署网络层的出站控制来抵御 DNS rebinding；换取无脚本修改的常见 Provider 接入、清晰密钥边界和默认零模型调用。非 OpenAI 协议、私网 gateway 和新 CoPaw 类型需要新的 Adapter 或后续 Profile 版本。
 

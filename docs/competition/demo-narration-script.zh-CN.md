@@ -105,8 +105,9 @@ Provider、模型、Docker 镜像和哈希；随后在 TUI 中展示任务状态
 > Human 身份，字段变化就必须重新审批。这里展示的是独立 Human 身份完成的真实
 > 批准证据。
 >
-> 工程侧，项目通过 323 项 pytest，2 项 TUI 测试失败（非阻塞，不影响核心治理链路），
-> 默认门禁跳过 3 项需显式启用的 Docker live tests；Ruff、strict mypy 和依赖审计也通过。
+> 工程侧，冻结提交通过 375 项 pytest，默认门禁跳过 3 项需显式启用的 Docker
+> live tests；Ruff、strict mypy、依赖审计、构建和安装 smoke 也通过，最新公开
+> GitHub Actions CI 全绿。
 > 我还定位并修复了 AgentTeams 更新 Team 时没有持久化 `humanMembers` 的缺陷，
 > 已提交上游 PR #1141，目前仍在等待维护者审核。
 
@@ -121,7 +122,9 @@ Provider、模型、Docker 镜像和哈希；随后在 TUI 中展示任务状态
 > “团队能不能证明谁在什么权限下，用哪一版 Skill 做了什么，以及结果是否可信”。
 > 当前版本尚未默认向真实业务仓库写入 PR。五个上游 Skill 中，
 > `code-review-and-quality` 已有匹配 Eval 并为 `PUBLISHED`，其余四个仍为
-> `QUARANTINED`。这些边界都已在公开仓库中明确说明。谢谢。
+> `QUARANTINED`；团队原创 `patch-scope-validator` v1.0.1 也已发布，三次治理
+> 调用可严格重开，所以目录总状态是 `2 PUBLISHED / 4 QUARANTINED`。这些边界
+> 都已在公开仓库中明确说明。谢谢。
 
 ## 录制结束
 
@@ -138,5 +141,5 @@ Provider、模型、Docker 镜像和哈希；随后在 TUI 中展示任务状态
 - 上游 PR #1141 是已提交、等待审核，不能说已经合并。
 - 当前 Task 17 只使用 MiniMax；Qwen、DeepSeek 和 StepFun 均未调用。StepFun 只可作为历史回滚/L2 证据说明。
 - 当前没有默认向真实业务仓库自动提交 PR。
-- 五个上游 Skill 中仅 `code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`；其余四个仍是 `QUARANTINED`，不能说已经全部发布。
+- 五个上游 Skill 中仅 `code-review-and-quality` 已完成 Eval 并为 `PUBLISHED`；其余四个仍是 `QUARANTINED`。团队原创 `patch-scope-validator` v1.0.1 另行为 `PUBLISHED`，不能把“上游样本”与“目录总数”混写。
 - 项目是初赛 MVP，不能宣称已经生产就绪。

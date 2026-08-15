@@ -331,7 +331,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - 发现并修复 AgentTeams v1.1.2 更新 Team 时未持久化 `humanMembers` 的上游缺陷，回归测试已通过，修复已提交 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)，当前等待维护者审核。
 - Task 24 三案例在本地确定性与 MiniMax 治理模式下全部通过，最终报告严格重开为 `6 PASSED / 0 NOT_RUN`。
 - 团队原创 `patch-scope-validator` v1.0.1 已评测并发布，三次 Policy Broker -> ToolProvider 调用可按完整身份闭包严格重开。
-- 2026-08-15 当前工作树门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff 和敏感信息门禁通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
+- 2026-08-16 冻结后的 public main 门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff、敏感信息门禁和最新公开 GitHub Actions CI 通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
@@ -361,6 +361,6 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - [x] 正常、失败、审批、拒绝/超时、回滚和审计分支均有说明。
 - [x] 开源范围、许可证、第三方来源、模型/API 和数据边界已披露。
 - [x] 所有“已完成”能力都有代码、测试、Trace、哈希或截图支撑。
-- [ ] 未认证 GitHub API 已确认仓库 public 且默认分支为 `main`；仍需冻结、提交并 push 当前最终版本后复核其公开 commit URL。
+- [x] 未认证 GitHub API 已确认仓库 public、默认分支为 `main`，并可公开访问[当前提交历史](https://github.com/WilliamClifton-dev/AgentLoom/commits/main)；最新 GitHub Actions CI 已通过。
 - [ ] Demo 链接若填写，必须公网可访问；无链接则留空，不填本地地址。
 - [x] ZIP 可正常解压，8/8 成员哈希与源文件一致；PPTX/PDF 可打开并完成渲染与隐私检查。

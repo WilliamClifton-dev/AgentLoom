@@ -17,13 +17,15 @@ boundaries or substituting local artifacts for Human/external actions.
 | Competition video and clean Docker one-command reproduction | Clean-clone Lite one-command evidence passed; Full/Docker on a second clean host and the real recording remain Human-owned delivery checkpoints | Partial | Task 25 + Human checkpoint |
 | SQLite upgrade/downgrade, route rollback, complete migration rehearsal | Task 21 proves the deterministic five-step Alembic cycle and replay; Task 22 proves the real Provider factory sequence and byte-equivalent route rollback without executing a tool | Complete | Tasks 21-22 |
 | Real GitHub PR / optional cloud Skill, Nacos, or centralized observability | Real upstream PR #1141 exists and remains open. The design explicitly rejects forced cloud/Nacos/observability integration without a necessary, verifiable use case | Engineering criterion satisfied; publication state still open | Task 27 audit |
-| Final artifact, repository, recording, upload, tag, and competition submission | The refreshed eight-entry P0 ZIP reopens and matches its source files; unauthenticated GitHub API confirms the repository is public on `main`; the final dirty-worktree changes are not frozen/pushed, and the real video URL, tag/Release, and page submission are not proven | Human/external incomplete | Task 27 + Human checkpoint |
+| Final artifact, repository, recording, upload, tag, and competition submission | The refreshed eight-entry P0 ZIP reopens and matches its source files; the audited candidate is on public `main` and its latest GitHub Actions CI passed; the real video URL, tag/Release, and page submission are not proven | Human/external incomplete | Tasks 27-28 + Human checkpoint |
 
 ## Boundaries
 
 - Always preserve AgentTeams `v1.1.2`, fail-closed policy, replayable evidence,
-  Provider/Consumer scope, and the MiniMax/StepFun authorization in ADR-023;
-  Task 24 remains MiniMax-only.
+  Provider/Consumer scope, and the MiniMax/StepFun authorization in ADR-023.
+  The accepted Task 24 report remains immutable MiniMax evidence, while future
+  diagnostics may use either authorized Provider with a new run ID and exact
+  Provider/model binding.
 - Always use deterministic, model-free verification unless a task explicitly
   requires live Agent output.
 - Never call Qwen or DeepSeek; use MiniMax or StepFun only for explicit live

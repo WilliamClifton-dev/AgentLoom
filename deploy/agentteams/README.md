@@ -330,9 +330,9 @@ the previously configured Qwen route:
 The historical `deepseek-v4-pro` variant also remains disabled until quota is
 restored and its use is explicitly reauthorized.
 
-The following StepFun deployment path is historical and currently disabled. If
-it is explicitly authorized in a future provider decision, deploy the resources
-first and activate the direct provider last:
+The StepFun deployment path is currently authorized for task-fit live runs. Use
+a new run ID, bind `stepfun / step-3.7-flash` in the evidence, deploy resources
+first, and activate the direct provider last:
 
 ```powershell
 .\deploy\agentteams\deploy.ps1 `

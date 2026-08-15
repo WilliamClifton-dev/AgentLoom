@@ -13,12 +13,13 @@ AgentLoom turns third-party Agent Skills into reviewable, authorized, testable,
 and auditable capabilities. Its competition scenario starts with a production-style
 repair task and ends with independently verified, replayable evidence.
 
-> **Current evidence baseline (2026-08-15):** AgentTeams `v1.1.2` completed the
+> **Current evidence baseline (2026-08-16):** AgentTeams `v1.1.2` completed the
 > `Administrator -> Manager -> Investigator -> Verifier -> authenticated Higress
 > -> Policy Broker -> immutable Docker pytest sandbox` path with
 > `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
 > A clean-clone Lite gate is **339 passed / 0 failed / 3 skipped (opt-in Docker
-> tests)**; the current worktree gate is **375 passed / 3 skipped**. The
+> tests)**; the frozen public-main gate is **375 passed / 3 skipped**, and the
+> latest public GitHub Actions CI passed. The
 > versioned Task 24 benchmark is **6 PASSED / 0 NOT_RUN**. The Skill catalog is
 > **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
 > has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
@@ -35,7 +36,7 @@ repair task and ends with independently verified, replayable evidence.
 - Current result: the three-case, two-mode Task 24 matrix completed 6/6 cells;
   Task 17 separately proves one delegated ToolCall through Higress, the Policy
   Broker, and a fresh Docker sandbox
-- Current worktree gate: 375 passed / 3 skipped (opt-in Docker); clean-clone
+- Frozen commit gate: 375 passed / 3 skipped (opt-in Docker); clean-clone
   Lite evidence: 339 passed / 0 failed / 3 skipped; Ruff, strict mypy,
   pip-audit, syntax, migration, diff, and secret checks passed
 - Skill status: `code-review-and-quality` (upstream) and `patch-scope-validator`
@@ -177,8 +178,9 @@ Worker, or Provider Profile configuration.
 > current evidence baseline**. Qwen and DeepSeek remain disabled because their
 > accounts have no balance. MiniMax and StepFun are authorized subscription
 > Providers, but every new run must use a unique run ID and exact Provider/model
-> evidence; StepFun evidence must not be merged into the MiniMax-only Task 24
-> versioned benchmark. Do not replay historical paid paths as if they were new.
+> evidence. The accepted Task 24 report remains immutable MiniMax history; a
+> future MiniMax or StepFun diagnostic must never overwrite it. Do not replay
+> historical paid paths as if they were new.
 
 - On 2026-08-04, Qwen `qwen3.7-plus` completed an unattended repair that passed
   independent visible, host-only hidden, and static checks. The generated patch
