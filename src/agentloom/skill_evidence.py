@@ -25,7 +25,7 @@ from agentloom.contracts import (
 )
 from agentloom.policy import InMemoryNonceStore, SkillGrantAuthorizer
 from agentloom.policy_mcp import TOOL_EXECUTE_TOOL, create_policy_broker_mcp
-from agentloom.skill_catalog import load_skill_catalog
+from agentloom.skill_catalog import canonical_skill_source_digest, load_skill_catalog
 from agentloom.skill_invocations import ImmutableSkillInvocationWriter
 from agentloom.skills.patch_scope_validator import PatchScopeValidatorProvider
 
@@ -316,7 +316,7 @@ def _verify_workspace_skill_source(catalog_path: Path, source_path: str) -> str:
     except ValueError as exc:
         raise SkillEvidenceError("Skill source snapshot escapes the repository") from exc
     encoded = _read_evidence_bytes(resolved, "Skill source snapshot")
-    return f"sha256:{_sha256_bytes(encoded)}"
+    return canonical_skill_source_digest(encoded)
 
 
 def verify_patch_scope_evidence_bundle(

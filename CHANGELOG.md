@@ -43,6 +43,11 @@ The project follows [Semantic Versioning](https://semver.org/).
   allowlisted `mc cp` transport contract, with independent host and governed
   Docker verification rather than unproved Worker-local pytest claims.
 
+### Fixed
+
+- Team-original Skill source digests now canonicalize Git CRLF checkouts to LF,
+  so immutable workspace snapshots reopen identically on Windows and Linux.
+
 ### Security
 
 - Worker identity is enforced by Higress allowlists; Manager remains MCP-free.

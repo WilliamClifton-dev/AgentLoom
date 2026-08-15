@@ -2,10 +2,20 @@ import json
 from hashlib import sha256
 from pathlib import Path
 
-from agentloom.skill_catalog import load_skill_catalog, load_skill_provider
+from agentloom.skill_catalog import (
+    canonical_skill_source_digest,
+    load_skill_catalog,
+    load_skill_provider,
+)
 
 
-def test_upstream_catalog_is_pinned_and_schema_complete() -> None:
+def test_upstream_catalog_is_pinned_schema_complete_and_eol_stable() -> None:
+    lf_source = b'print("agentloom")\nprint("skill")\n'
+    crlf_source = lf_source.replace(b"\n", b"\r\n")
+    expected = f"sha256:{sha256(lf_source).hexdigest()}"
+
+    assert canonical_skill_source_digest(lf_source) == expected
+    assert canonical_skill_source_digest(crlf_source) == expected
     repository_root = Path(__file__).parents[1]
     catalog = load_skill_catalog(repository_root / "skills" / "catalog.json")
 
@@ -47,8 +57,8 @@ def test_upstream_catalog_is_pinned_and_schema_complete() -> None:
         assert manifest.source.commit is None
         assert manifest.source.workspace_snapshot == manifest.source.content_hash
         source_path = repository_root / manifest.source.path
-        assert manifest.source.content_hash == (
-            f"sha256:{sha256(source_path.read_bytes()).hexdigest()}"
+        assert manifest.source.content_hash == canonical_skill_source_digest(
+            source_path.read_bytes()
         )
         assert manifest.compatible_agents
         assert manifest.allowed_tools

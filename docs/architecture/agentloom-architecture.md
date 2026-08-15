@@ -1752,6 +1752,16 @@ agentloom/
 - **代价**：目录、交付材料和审计报告需要同时区分历史 v1.0.0 与当前 v1.0.1；换取可审计的版本语义、失败关闭的解析和证据边界，以及可重复验证的供应链升级路径。
 - **验证**：v1.0.1 源 SHA-256 为 `a036e6defc49907366769df0a1371b296ef4adc06f4d64d5d4f821055ca63797`；三次调用 bundle 为 `artifacts/skills/patch-scope-validator-20260815-233912/skill-invocation-bundle.json`，SHA-256 为 `CC14F2180918DB332B35D4C1E043B5B2D5F241A51CE134151A35ACCE1CC863C5`，已严格重开。Task 27 最终门禁收集 378 项，结果为 `375 passed / 3 skipped`。
 
+### ADR-025：工作区 Skill 源码摘要使用 LF 规范形式
+
+- **状态**：Accepted
+- **决策日期**：2026-08-16
+- **背景**：同机 clean clone Full 复现暴露出跨平台摘要漂移：Git blob 与已发布 `workspaceSnapshot` 使用 LF，但 Windows 的全局 `core.autocrlf=true` 将相同源码检出为 CRLF。原证据重开逻辑直接哈希工作区字节，因此相同 Git 内容在 Windows 得到不同 SHA-256，并使目录与 Skill evidence 门禁失败。
+- **决定**：团队原创文本 Skill 的源码摘要在 SHA-256 前只将 `CRLF` 规范为 `LF`；目录校验与证据重开必须共用同一摘要函数。路径必须仍位于仓库内、不得为符号链接、读取大小仍受既有限制。孤立 `CR`、其他字节变化和语义变化不规范化，仍产生不同摘要。该变更恢复 Git 文本规范化语义，不改变 `patch-scope-validator` v1.0.1 的 LF 规范内容或既有 `a036e6...` 摘要，因此不发布虚假的新 SkillVersion，也不改写历史 bundle。
+- **替代方案**：只在维护者机器关闭 `core.autocrlf`；新增 `.gitattributes` 并依赖所有工具遵守检出配置；把当前 Windows CRLF 摘要写回目录并使 Linux 失配；接受 LF 与 CRLF 为不同 SkillVersion。
+- **代价**：内容摘要契约需要明确“规范文本字节”而非任意工作区原始字节；换取 Windows/Linux clean clone 的同一供应链身份。未来若支持二进制 Skill，必须为其声明不执行行尾规范化的独立内容类型，不能复用该文本规则。
+- **验证**：回归测试对同一源码的 LF/CRLF 字节要求得到相同摘要；原始 clean clone 失败必须在新 commit 的全新 clone 中重新执行，不能覆盖失败证据或把同机运行声明为第二主机复现。
+
 ## 23. 主要风险与缓解
 
 | 风险 | 影响 | 缓解措施 |
