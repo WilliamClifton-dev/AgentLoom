@@ -247,7 +247,7 @@ Evidence（可回放记录）
 - **运行时：** 必须使用 AgentTeams v1.1.2
 - **Agent 数量：** 3 个业务 Agent（Investigator、Implementer、Verifier）
 - **Skill：** 必选项，当前 1 PUBLISHED / 4 QUARANTINED
-- **证据基线：** 283 passed / 3 opt-in Docker tests skipped
+- **证据基线：** 323 passed / 2 failed (TUI tests, 非阻塞) / 3 skipped (opt-in Docker tests)
 - **开源：** Apache-2.0，依赖披露见 `THIRD_PARTY.md`
 
 详细架构设计见 `docs/architecture/agentloom-architecture.md`。

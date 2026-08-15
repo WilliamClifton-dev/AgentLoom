@@ -13,15 +13,15 @@ AgentLoom turns third-party Agent Skills into reviewable, authorized, testable,
 and auditable capabilities. Its competition scenario starts with a production-style
 repair task and ends with independently verified, replayable evidence.
 
-> **Current evidence baseline (2026-08-14):** AgentTeams `v1.1.2` completed the
+> **Current evidence baseline (2026-08-15):** AgentTeams `v1.1.2` completed the
 > `Administrator -> Manager -> Investigator -> Verifier -> authenticated Higress
 > -> Policy Broker -> immutable Docker pytest sandbox` path with
 > `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
-> The repository gate is **283 passed / 3 opt-in Docker tests skipped**. The Skill
-> catalog is **1 PUBLISHED / 4 QUARANTINED**; the original supply-chain audit is
-> still a prototype. Human L2 approval is `APPROVED`, and upstream PR
-> [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) remains `OPEN`.
-> The deterministic P0 package is complete; the real recording, public upload,
+> The repository gate is **323 passed / 2 failed (TUI tests, non-blocking) / 3 skipped
+> (opt-in Docker tests)**. The Skill catalog is **1 PUBLISHED / 4 QUARANTINED**; the
+> original supply-chain audit is still a prototype. Human L2 approval is `APPROVED`,
+> and upstream PR [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) remains
+> `OPEN`. The deterministic P0 package is complete; the real recording, public upload,
 > and competition-page submission remain Human-owned checkpoints.
 
 ## Competition Evidence
@@ -32,8 +32,9 @@ repair task and ends with independently verified, replayable evidence.
 - Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`
 - Current result: one governed successful ToolCall through Higress, the Policy
   Broker, and a fresh Docker sandbox
-- Quality gate: 283 pytest tests passed; 3 opt-in Docker tests skipped; Ruff,
-  strict mypy, pip-audit, syntax, migration, diff, and secret checks passed
+- Quality gate: 323 passed / 2 failed (TUI tests, non-blocking) / 3 skipped
+  (opt-in Docker); Ruff, strict mypy, pip-audit, syntax, migration, diff, and
+  secret checks passed
 - Skill status: `code-review-and-quality` is `PUBLISHED`; four upstream Skills
   are `QUARANTINED`
 - Submission status: P0 artifact package complete; recording, upload, and final

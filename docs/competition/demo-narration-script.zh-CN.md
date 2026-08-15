@@ -21,7 +21,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
 
 确认 AgentTeams `v1.1.2` Controller、Manager 和三个 Worker 健康，并确认
-`283 passed / 3 skipped`。正式录制只展示已经脱敏的 Task 17 Evidence 摘要，
+`323 passed / 2 failed (TUI) / 3 skipped`。正式录制只展示已经脱敏的 Task 17 Evidence 摘要，
 不打开 Matrix 正文、Worker 原始日志、凭据或 Signed Grant。
 
 ## 1. 开场与真实场景（00:00-00:35）
@@ -105,10 +105,10 @@ Provider、模型、Docker 镜像和哈希；随后在 TUI 中展示任务状态
 > Human 身份，字段变化就必须重新审批。这里展示的是独立 Human 身份完成的真实
 > 批准证据。
 >
-> 工程侧，项目通过 283 项 pytest，默认门禁跳过 3 项需显式启用的 Docker live
-> tests；Ruff、strict mypy 和依赖审计也通过。我还定位并修复
-> 了 AgentTeams 更新 Team 时没有持久化 `humanMembers` 的缺陷，已提交上游
-> PR #1141，目前仍在等待维护者审核。
+> 工程侧，项目通过 323 项 pytest，2 项 TUI 测试失败（非阻塞，不影响核心治理链路），
+> 默认门禁跳过 3 项需显式启用的 Docker live tests；Ruff、strict mypy 和依赖审计也通过。
+> 我还定位并修复了 AgentTeams 更新 Team 时没有持久化 `humanMembers` 的缺陷，
+> 已提交上游 PR #1141，目前仍在等待维护者审核。
 
 ## 7. 收束与边界（04:35-05:00）
 

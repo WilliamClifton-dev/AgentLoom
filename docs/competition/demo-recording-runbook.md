@@ -29,7 +29,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 - AgentTeams `v1.1.2` 健康状态为 `PASS`。
 - Manager、Team、3 个 Worker 和 Human 均可用。
-- 本地门禁为 `283 passed / 3 skipped`。
+- 本地门禁为 `323 passed / 2 failed (TUI) / 3 skipped`。
 - Task 17 脱敏摘要中的 provider/model 为 `minimax-cn` / `MiniMax-M2.5`。
 - Task 17 数据库结果为且仅为一个 `SUCCEEDED` ToolCall。
 - 不打开 Matrix 正文、Worker 原始日志、凭据、Signed Grant 或本机绝对路径。
@@ -86,7 +86,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 展示 GitHub Actions 和
 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)：
 
-- AgentLoom 本地质量门禁为 283 项 pytest 通过、3 项显式启用的 Docker live tests 默认跳过、Ruff 和 strict mypy 通过。
+- AgentLoom 本地质量门禁为 323 项 pytest 通过、2 项 TUI 测试失败（非阻塞）、3 项显式启用的 Docker live tests 默认跳过、Ruff 和 strict mypy 通过。
 - PR 修复 AgentTeams 更新 Team 时未持久化 `humanMembers` 的缺陷。
 - PR 状态只说“已提交、等待维护者审核”，不要说已经合并。
 

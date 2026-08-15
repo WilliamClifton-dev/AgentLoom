@@ -54,8 +54,9 @@ checkpoint when no real recording is available. They cannot be simulated.
 - MiniMax `minimax-cn / MiniMax-M2.5` is the only model Provider in that run.
 - Exactly one governed Verifier ToolCall succeeded through
   `sandboxed-test-runner/docker-sandbox`.
-- Full quality gate: 283 passed, 3 skipped; Ruff, strict mypy, pip-audit,
-  PowerShell/Bash syntax, Alembic single head, diff, and secret scans passed.
+- Full quality gate: 323 passed, 2 failed (TUI tests, non-blocking), 3 skipped; 
+  Ruff, strict mypy, pip-audit, PowerShell/Bash syntax, Alembic single head, 
+  diff, and secret scans passed.
 - Human L2 approval was independently verified as `APPROVED`.
 - `code-review-and-quality` is `PUBLISHED` with matching source and AgentLoom
   Bench evidence; the other four upstream Skills remain `QUARANTINED`. The

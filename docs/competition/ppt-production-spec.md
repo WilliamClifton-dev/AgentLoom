@@ -9,7 +9,7 @@
 2. 人把任务交给 Manager，Manager 建立阶段计划，Investigator、Implementer、Verifier 沿既有链路以结构化交接完成闭环。
 3. AgentLoom 原创价值是 Skill Registry、Policy Broker、三层检测、Evidence、
    Human 审批和回滚治理。
-4. MiniMax 真实委派、Higress / Policy Broker 授权、Docker 独立验证、唯一 ToolCall、真人 L2 审批和 283 passed / 3 skipped 均有证据。
+4. MiniMax 真实委派、Higress / Policy Broker 授权、Docker 独立验证、唯一 ToolCall、真人 L2 审批和 323 passed / 2 failed (TUI) / 3 skipped 均有证据。
 5. 第三方来源、当前缺口和未完成功能均诚实披露。
 
 ## 2. AI 开始前必须获得的输入
@@ -93,7 +93,7 @@
 | 1 | 核心痛点 | 来源不清、权限不可控、效果不可证、失败不可回退 | `4 项痛点` |
 | 2 | 整体方案 | AgentTeams Manager + 三业务 Agent 结构化交接 + Skill Registry + Policy Broker MCP + 三层检测 | `治理控制面` |
 | 3 | 主流程 | Issue -> Manager 规划 -> Investigator -> Implementer -> Verifier -> 审批/回滚 -> Evidence | `7 步闭环` |
-| 4 | 已验证成果 | MiniMax 真实委派、Higress / Policy Broker、Docker 独立验证、真人 L2 审批 | `283 passed / 3 skipped` |
+| 4 | 已验证成果 | MiniMax 真实委派、Higress / Policy Broker、Docker 独立验证、真人 L2 审批 | `323 passed / 2 failed (TUI) / 3 skipped` |
 | 5 | 差异化定位 | 不是通用 Coding Agent，而是可迁移的 Skill 治理控制面 | `可复用` |
 
 - 禁止：`生产环境就绪`、`全自动创建 PR`。
@@ -214,7 +214,7 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 
 | 列 | 标题 | 可见要点 | 大数字/标签 |
 | --- | --- | --- | --- |
-| 1 | 真实运行与工程检查 | AgentTeams v1.1.2；MiniMax 真实委派；Higress / Policy Broker；Docker 独立验证；Ruff；strict mypy | `283 passed / 3 skipped` |
+| 1 | 真实运行与工程检查 | AgentTeams v1.1.2；MiniMax 真实委派；Higress / Policy Broker；Docker 独立验证；Ruff；strict mypy | `323 passed / 2 failed (TUI) / 3 skipped` |
 | 2 | 安全与可观测 | L0-L3；短时参数绑定 Grant；路径/工具白名单；Human 审批；八类实体 ID | `L0-L3` |
 | 3 | 诚实边界与贡献 | 真人 L2 已验证；PR #1141 已提交待审核；最终录屏待完成；未向真实业务仓库自动写 PR | `#1141 OPEN` |
 
@@ -251,7 +251,7 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 
 | 列 | 内容 |
 | --- | --- |
-| 已完成 | AgentTeams 部署；三 Agent 真实委派；MiniMax + Docker 治理 E2E；真人 L2；TUI；检测/授权/回滚；283 passed / 3 skipped；PPT/PDF 与提交包 |
+| 已完成 | AgentTeams 部署；三 Agent 真实委派；MiniMax + Docker 治理 E2E；真人 L2；TUI；检测/授权/回滚；323 passed / 2 failed (TUI) / 3 skipped；PPT/PDF 与提交包 |
 | 提交前 | 公开录屏；无痕访问检查；比赛页面提交；release/tag |
 | 复赛候选 | 自动修复接入真实业务 Issue/PR；更多 Skill Eval；第二场景；OTLP；可选云 Skill |
 
@@ -273,7 +273,7 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 - 身份：`独立开发者（多智能体系统 / Agent Infra）`
 - 职能：需求与赛题对齐、架构、AgentTeams 集成、后端 API、TUI、测试、安全、
   文档、Demo。
-- 可验证原则：`以 Git 提交、283 passed / 3 skipped 和运行 Evidence 说明成果。`
+- 可验证原则：`以 Git 提交、323 passed / 2 failed (TUI) / 3 skipped 和运行 Evidence 说明成果。`
 - 明确：不虚构企业客户、论文、奖项或额外成员。
 
 ### 模板结束页（若存在）
@@ -319,7 +319,7 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 - [ ] AgentTeams 在架构、流程和证据页均为真实运行时。
 - [ ] Manager 与三个业务 Agent 的边界准确。
 - [ ] 五个上游 Skill 状态准确：`code-review-and-quality` 为 `PUBLISHED`，其余四个为 `QUARANTINED`；来源和许可证清楚。
-- [ ] 283 passed / 3 skipped、真人 L2、MiniMax Task 17 链路、PR #1141 OPEN 状态均为最新事实。
+- [ ] 323 passed / 2 failed (TUI) / 3 skipped、真人 L2、MiniMax Task 17 链路、PR #1141 OPEN 状态均为最新事实。
 - [ ] 没有 `146 tests`、`生产就绪`、`PR 已合并`、`Skill 已发布`等过期表述。
 - [ ] 所有真实系统截图均来自提供素材，未生成假截图。
 - [ ] 所有公开终端/TUI 截图使用 `-PublicOutput`，路径为 `<redacted>`。

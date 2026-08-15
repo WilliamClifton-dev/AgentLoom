@@ -42,7 +42,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 以下正文共 **497 个字符（Python `len()`）**，可直接使用：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散的问题。Human 将带失败测试和白名单的 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，全程生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成委派，MiniMax 驱动唯一受治理 ToolCall；质量门禁为 283 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创治理控制面，依赖保留许可证、固定版本与哈希；5 个上游 Skill 中 1 个已评测发布、4 个仍隔离，录屏和最终提交尚未完成。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散的问题。Human 将带失败测试和白名单的 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，全程生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成委派，MiniMax 驱动唯一受治理 ToolCall；质量门禁为 323 passed / 2 failed (TUI) / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创治理控制面，依赖保留许可证、固定版本与哈希；5 个上游 Skill 中 1 个已评测发布、4 个仍隔离，录屏和最终提交尚未完成。
 
 ## 3. 一句话定位与价值
 
@@ -79,7 +79,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 - 痛点：第三方 Skill 来源不清、权限不可控、效果不可证、失败不可回退。
 - 方案：AgentTeams Manager + 三业务 Agent 结构化交接 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
 - 主流程：Issue -> Manager 规划 -> Investigator 调查 -> Implementer 受控修复 -> Verifier 独立验证 -> 审批/回滚 -> Evidence 报告。
-- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 单模型链路、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与全量质量门禁。
+- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 单模型链路、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与全量质量门禁（323 passed / 2 failed (TUI) / 3 skipped）。
 - 差异化：不是通用 Coding Agent，而是跨场景可复用的 Skill 治理控制面。
 
 ### 第 3 页：目录
@@ -189,7 +189,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 三列展示：
 
-- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、真人 L2 审批、283 passed / 3 skipped、TUI、检测/授权/回滚、PPT/PDF 与提交包一致性审计。
+- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、真人 L2 审批、323 passed / 2 failed (TUI, 非阻塞) / 3 skipped (Docker)、TUI、检测/授权/回滚、PPT/PDF 与提交包一致性审计。
 - 提交前：演示录屏、公开视频访问检查、公开仓库和比赛页面最终确认。
 - 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
@@ -329,7 +329,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - L2 Human 审批的 Prepare/Collect 和严格事件校验脚本已实现。
 - 真人 L2 审批 E2E：Manager 发起精确绑定的 `github-pr-v1` 请求，`agentloom-developer` 以独立 Matrix 身份批准，采集结果为 `APPROVED`；见 [L2 审批与上游贡献证据](l2-approval-and-upstream-contribution-evidence.md)。
 - 发现并修复 AgentTeams v1.1.2 更新 Team 时未持久化 `humanMembers` 的上游缺陷，回归测试已通过，修复已提交 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)，当前等待维护者审核。
-- 2026-08-14 本次复核：283 项 pytest 通过，3 项显式启用的 Docker live tests 在默认门禁中跳过；Ruff、strict mypy、pip-audit、语法、迁移、diff 和敏感信息门禁通过。
+- 2026-08-15 本次复核：323 项 pytest 通过，2 项 TUI 测试失败（非阻塞，不影响核心治理链路），3 项显式启用的 Docker live tests 在默认门禁中跳过；Ruff、strict mypy、pip-audit、语法、迁移、diff 和敏感信息门禁通过。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐

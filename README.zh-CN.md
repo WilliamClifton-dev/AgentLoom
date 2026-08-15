@@ -12,13 +12,13 @@
 AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、可审计的能力。
 参赛场景从生产风格的修复任务开始，以经过独立验证、可回放的证据结束。
 
-> **当前证据基线（2026-08-14）：** AgentTeams `v1.1.2` 使用
+> **当前证据基线（2026-08-15）：** AgentTeams `v1.1.2` 使用
 > `minimax-cn / MiniMax-M2.5` 完成了 `Administrator -> Manager -> Investigator
 > -> Verifier -> 已认证 Higress -> Policy Broker -> 不可变 Docker pytest 沙箱`
 > 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。仓库门禁为
-> **283 passed / 3 个可选 Docker 测试 skipped**。Skill 目录状态为
-> **1 PUBLISHED / 4 QUARANTINED**；原始供应链审计仍是原型。Human L2 审批
-> 为 `APPROVED`，上游 PR
+> **323 passed / 2 failed（TUI 测试，非阻塞）/ 3 skipped（可选 Docker 测试）**。
+> Skill 目录状态为 **1 PUBLISHED / 4 QUARANTINED**；原始供应链审计仍是原型。
+> Human L2 审批为 `APPROVED`，上游 PR
 > [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) 仍为 `OPEN`。
 > 确定性的 P0 提交包已经完成；真实录制、公开上传和竞赛页面提交仍是
 > Human 负责的待办检查点。
@@ -31,8 +31,8 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
 - 当前结果：一个成功 ToolCall 经过 Higress、Policy Broker 和全新 Docker
   沙箱的完整治理链路
-- 质量门禁：283 个 pytest 测试通过，3 个可选 Docker 测试跳过；Ruff、
-  strict mypy、pip-audit、语法、迁移、Diff 和密钥检查通过
+- 质量门禁：323 passed / 2 failed（TUI 测试，非阻塞）/ 3 skipped（可选 Docker）；
+  Ruff、strict mypy、pip-audit、语法、迁移、Diff 和密钥检查通过
 - Skill 状态：`code-review-and-quality` 为 `PUBLISHED`，另外四个上游 Skill
   为 `QUARANTINED`
 - 提交状态：P0 产物包完成；录制、上传和最终提交待完成
