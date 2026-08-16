@@ -20,6 +20,18 @@ jobs:
           cache: pip
       - name: Install
         run: python -m pip install -e ".[dev]"
+      - name: Build immutable Docker sandbox image
+        shell: pwsh
+        run: |
+          $imagePath = Join-Path $env:RUNNER_TEMP "agentloom-sandbox-image.txt"
+          ./deploy/sandbox/build-runner.ps1 -OutputPath $imagePath
+          $imageId = (Get-Content -LiteralPath $imagePath -Raw).Trim()
+          if ($imageId -notmatch "^sha256:[a-f0-9]{64}$") {
+            throw "Sandbox build did not produce an immutable image ID"
+          }
+          Add-Content -LiteralPath $env:GITHUB_ENV `
+            -Value "AGENTLOOM_TEST_SANDBOX_IMAGE=$imageId" `
+            -Encoding utf8
       - name: Test
         run: python -m pytest
       - name: Lint
