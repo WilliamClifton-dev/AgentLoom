@@ -174,7 +174,8 @@ def test_competition_demo_defaults_to_replay_and_guards_paid_live_run() -> None:
     assert "QWEN_API_KEY" not in script
     assert "DEEPSEEK_API_KEY" not in script
     assert "<video" in player
-    assert "AgentLoom-.Demo-b21bd90.mp4" in player
+    assert "AgentLoom-v0.1.0-demo-final.mp4" in player
+    assert "AgentLoom-.Demo-b21bd90.mp4" not in player
     assert 'poster="assets/agentloom-demo-poster.jpg"' in player
     assert "<script" not in player
     assert (ROOT / "docs" / "assets" / "agentloom-demo-poster.jpg").is_file()
