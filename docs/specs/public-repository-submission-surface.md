@@ -2,8 +2,9 @@
 
 ## Purpose
 
-Make `README.md` and `README.zh-CN.md` a truthful, concise entry point for
-competition reviewers and downstream deployers after Tasks 17 and 18.
+Make the Chinese-default `README.md` and English `README.en.md` truthful,
+concise entry points for competition reviewers and downstream deployers after
+Tasks 17 and 18.
 
 ## Current facts
 
