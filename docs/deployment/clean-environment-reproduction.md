@@ -84,4 +84,5 @@ Windows/Docker 主机上运行后，才能声明跨主机 Full 部署复现成�
 - Full 缺少 Docker、容器或 Provider 环境变量：补齐前置条件后重试；脚本不会降级成
   Lite 并声称 Full 成功。
 
-真实 Demo 录屏、公开上传和竞赛页面提交仍由 Human 完成，不属于该脚本的自动化范围。
+真实 Demo 录屏与公开上传已经完成并验证。竞赛页面提交仍由 Human 完成，不属于该
+脚本的自动化范围；第二台清洁 Windows/Docker 主机的 Full 运行仍需独立执行。

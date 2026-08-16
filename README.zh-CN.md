@@ -22,8 +22,10 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 > 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
 > Human L2 审批为 `APPROVED`，上游 PR
 > [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) 仍为 `OPEN`。
-> 确定性的 P0 提交包已经完成；真实录制、公开上传和竞赛页面提交仍是
-> Human 负责的待办检查点。
+> 真人录制、匿名公开播放和正式 `v0.1.0` Release 均已验证。最终八项 P0
+> 提交包已完成审计，SHA-256 为
+> `174e64ee0b2866133c0341539fbc7d1b0b45750094bf77b12dcddd486de29726`；
+> 目前只有竞赛页面提交仍是 Human 负责的检查点。
 
 ## 参赛证据
 
@@ -39,9 +41,11 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - Skill 状态：`code-review-and-quality`（上游）和 `patch-scope-validator`（团队原创）
   为 `PUBLISHED`，另外四个上游 Skill 为 `QUARANTINED`；三次原创 Skill
   调用均可按完整身份闭包重开
-- 提交状态：P0 产物包完成；录制、上传和最终提交待完成
+- 提交状态：P0 提交包、公开 Demo 和 `v0.1.0` Release 已完成；竞赛页面提交待完成
 
 当前证据和提交声明索引见[初赛提交记录](docs/competition/agentloom-preliminary-submission.md)。
+最终包的精确文件清单与哈希见[公开提交包 manifest](docs/competition/submission-package-manifest.json)，
+Human 操作步骤见[赛事提交操作清单](docs/competition/submission-operator-checklist.zh-CN.md)。
 
 ## 架构
 
@@ -179,10 +183,10 @@ Profile 配置。
 
 ## 后续路线图
 
-1. 使用已验证证据录制真实公开 Demo，上传并验证公开链接，完成竞赛页面提交。
-2. 发布仓库 Release/Tag，并验证公开仓库访问。
+1. 完成竞赛页面提交并保留平台回执。
+2. 在第二台清洁 Windows/Docker 主机验证 Full bootstrap，并发布兼容性记录。
 3. 评测四个处于隔离状态的上游 Skill；只有通过 Skill Eval 和来源门禁后才发布。
-4. 在更多干净 Windows 机器验证 Full bootstrap，并发布部署兼容性矩阵。
+4. 将受治理修复结果接入一个受控的真实 Issue/PR 工作流。
 
 ## 开源与来源
 

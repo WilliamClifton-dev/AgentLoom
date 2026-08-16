@@ -24,8 +24,10 @@ repair task and ends with independently verified, replayable evidence.
 > **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
 > has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
 > and upstream PR [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) remains
-> `OPEN`. The deterministic P0 package is complete; the real recording, public upload,
-> and competition-page submission remain Human-owned checkpoints.
+> `OPEN`. The real recording, anonymous public playback, and formal `v0.1.0`
+> Release are verified. The audited eight-entry P0 package is complete with
+> SHA-256 `174e64ee0b2866133c0341539fbc7d1b0b45750094bf77b12dcddd486de29726`;
+> only competition-page submission remains a Human-owned checkpoint.
 
 ## Competition Evidence
 
@@ -42,11 +44,15 @@ repair task and ends with independently verified, replayable evidence.
 - Skill status: `code-review-and-quality` (upstream) and `patch-scope-validator`
   (team-original) are `PUBLISHED`; four upstream Skills are `QUARANTINED`; three
   original-Skill invocation bundles reopen with full identity closure
-- Submission status: P0 artifact package complete; recording, upload, and final
-  submission pending
+- Submission status: P0 package, public Demo, and `v0.1.0` Release complete;
+  competition-page submission pending
 
 The current evidence and submission claims are indexed in the
 [preliminary submission record](docs/competition/agentloom-preliminary-submission.md).
+The exact package inventory and hashes are in the
+[public submission manifest](docs/competition/submission-package-manifest.json),
+and the human-only platform steps are in the
+[submission operator checklist](docs/competition/submission-operator-checklist.zh-CN.md).
 
 ## Architecture
 
@@ -200,13 +206,12 @@ Worker, or Provider Profile configuration.
 
 ## Remaining Roadmap
 
-1. Record the real public competition demo from verified evidence, upload it,
-   validate the public link, and complete the competition-page submission.
-2. Publish a repository release/tag and verify public repository access.
+1. Complete the competition-page submission and retain the platform receipt.
+2. Validate Full bootstrap on a second clean Windows/Docker host and publish a
+   deployment compatibility record.
 3. Evaluate the four quarantined upstream Skills; publish only those that pass
    the Skill Eval and provenance gates.
-4. Validate Full bootstrap on additional clean Windows machines and publish a
-   deployment compatibility matrix.
+4. Connect the governed repair result to a controlled real Issue/PR workflow.
 
 ## Provenance
 

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "agentloom.submission-package/v1alpha1",
+  "createdDate": "2026-08-16",
+  "package": "AgentLoom-初赛提交包.zip",
+  "releaseAsset": "AgentLoom-v0.1.0-preliminary-submission.zip",
+  "members": {
+    "01-AgentLoom-作品简介.pdf": "d6b2fdcfdc8d9bdd3c1b353c25c5bf527f39a92d7c335a8111d40915c3305fbc",
+    "02-AgentLoom-初赛方案.pptx": "2d7eb92012a1693f25e1c7b1bbaebff4134443eee806bfed2db7905b25bb3ffb",
+    "03-AgentLoom-初赛方案.pdf": "f550d026b1dd421cc0a0a903f103e056d8bb9e4aa9a26ae8cf24a9ff7cfc1b80",
+    "04-Agent-Identity清单.pdf": "e093c349e8f81638a8d9f975279bca5cf1557450a26093671a856186bda575c9",
+    "05-核心Skill清单.pdf": "2ea8d935236039584d668e78398868a578f869e1422a309f16a88cdfacfba7be",
+    "06-开源与第三方依赖说明.pdf": "91cddb1cd9769aaf0fa6afae04eb8e452b0869286644099fc9d603e6af69e6e0",
+    "07-L2审批与回滚证据.pdf": "1ce11a23067f3dbeb7a3074106b9d7538ce2bc2d37ee490a5693225788e97390",
+    "README.txt": "435bf0c5d7ca1c129a8c410f78909c0c3ee7df0038a8997f92be818c7ccc5a97"
+  },
+  "packageSha256": "174e64ee0b2866133c0341539fbc7d1b0b45750094bf77b12dcddd486de29726",
+  "verification": {
+    "result": "PASS",
+    "zipMemberCount": 8,
+    "pptSlides": 19,
+    "pptSourceNotes": 19,
+    "deckPdfPages": 19,
+    "stalePhraseFindings": 0,
+    "privatePathFindings": 0,
+    "credentialPatternFindings": 0
+  },
+  "demoUrl": "https://williamclifton-dev.github.io/AgentLoom/demo.html",
+  "releaseUrl": "https://github.com/WilliamClifton-dev/AgentLoom/releases/tag/v0.1.0",
+  "releaseAssetUrl": "https://github.com/WilliamClifton-dev/AgentLoom/releases/download/v0.1.0/AgentLoom-v0.1.0-preliminary-submission.zip",
+  "tagTargetCommit": "7f96b232dbe5c2294028d53c4fbc0a619dad0fad",
+  "competitionPageSubmission": "PENDING_HUMAN",
+  "secondHostFullReproduction": "PENDING_EXTERNAL"
+}

@@ -64,9 +64,9 @@ The project follows [Semantic Versioning](https://semver.org/).
 ### Known limitations
 
 - Upstream PR #1141 remains open.
-- The eight-entry P0 package is complete; public video upload, the annotated
-  release tag/GitHub Release, and competition-page submission remain delivery
-  checkpoints.
+- The public Demo, annotated `v0.1.0` tag, GitHub Release, and audited
+  eight-entry P0 package are complete; competition-page submission remains a
+  Human-owned checkpoint.
 - Full bootstrap still needs validation on a second clean Windows/Docker host;
   successful Lite reproduction does not prove that external checkpoint.
 

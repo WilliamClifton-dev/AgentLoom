@@ -20,8 +20,9 @@ competition reviewers and downstream deployers after Tasks 17 and 18.
   `patch-scope-validator` v1.0.1 are `PUBLISHED`; four upstream Skills are
   `QUARANTINED`; three original-Skill invocations strictly reopen.
 - Human L2 approval is `APPROVED`; PR #1141 remains `OPEN`.
-- P0 package exists; final real recording, public upload, and competition-page
-  submission remain Human-owned.
+- The final P0 package, real recording, anonymous public playback, annotated
+  tag, and formal Release are verified. Competition-page submission remains
+  Human-owned; second-host Full reproduction remains a separate checkpoint.
 
 ## Structure
 
@@ -53,4 +54,5 @@ limits, or repair workflows.
   outside an explicitly quoted historical record.
 - Model-free commands make no paid calls; paid probes require explicit opt-in.
 - Relative links resolve in the worktree.
-- Human checkpoints remain incomplete.
+- Completed publication facts and the remaining Human/external checkpoints are
+  distinguished explicitly.

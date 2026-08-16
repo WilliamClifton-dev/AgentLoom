@@ -18,7 +18,7 @@
 | 作品名称（必填） | `AgentLoom：多智能体 Skill 治理与可验证修复平台` | 不只写 AgentLoom，副标题直接说明作品价值 |
 | 代码仓库 | `https://github.com/WilliamClifton-dev/AgentLoom` | 仓库已设为公开；正式提交前仍需确认默认分支包含最终提交并可在未登录状态访问 |
 | Demo 链接 | `https://williamclifton-dev.github.io/AgentLoom/demo.html` | 已在无登录态的隔离 Chromium 中完成桌面和 320px 移动端播放验证；不要替换为 `localhost`、本机文件路径或 Release 附件下载链接 |
-| 作品附件（必填） | `AgentLoom-初赛提交包.zip` | PPT 完成并导出 PDF 后再制作 ZIP；不要现在上传半成品。单文件不超过 1200 MB，本赛段累计不超过 3600 MB |
+| 作品附件（必填） | `AgentLoom-初赛提交包.zip` | 最终八项 ZIP 已审计，SHA-256 为 `174E64EE0B2866133C0341539FBC7D1B0B45750094BF77B12DCDDD486DE29726`；只上传与公开 manifest 同字节的文件。单文件不超过 1200 MB，本赛段累计不超过 3600 MB |
 | 赛题（必填） | `赛题三：软件研发全流程协同` | AgentLoom 的主闭环是软件缺陷调查、修复、验证和治理，不应选零人工运维或智能客服 |
 | 个人职务或身份 | `独立开发者（多智能体系统 / Agent Infra）` | 独立参赛，不虚构产品、算法、测试等其他成员 |
 
@@ -334,6 +334,7 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - 2026-08-16 冻结后的 public main 门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff、敏感信息门禁和最新公开 GitHub Actions CI 通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
 - 2026-08-16 最终真人 Demo 已公开：时长 309.000021 秒、1920x1080、H.264/AAC，SHA-256 为 `778766E648EC230D4A2C224FFE5D0AF09914B97736158F0ECF5FCBE3ADA14550`。公开播放器已在无登录态的隔离 Chromium 中通过桌面与 320px 移动端验证：HTTP 200、媒体 `readyState=4`、无横向溢出、无控制台或页面错误。
 - 2026-08-16 annotated tag `v0.1.0` 与正式 GitHub Release 已公开：tag 精确指向 `7f96b232dbe5c2294028d53c4fbc0a619dad0fad`；Release 非草稿、非预发布，视频资产的大小和 SHA-256 已通过未认证 GitHub API 与匿名 Range 请求复核。
+- 2026-08-16 最终八项提交 ZIP 已重新审计并生成[公开 manifest](submission-package-manifest.json)：包 SHA-256 为 `174E64EE0B2866133C0341539FBC7D1B0B45750094BF77B12DCDDD486DE29726`，8/8 成员哈希、19 页 PPT/PDF、19/19 来源注记、过时陈述、私有路径和凭据门禁均通过。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐
@@ -365,3 +366,4 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - [x] Demo 链接已在无登录态的隔离 Chromium 中验证可访问和播放：<https://williamclifton-dev.github.io/AgentLoom/demo.html>。
 - [x] Annotated `v0.1.0` tag、正式 GitHub Release、tag 目标 SHA 和 Demo 资产已通过未认证 API/HTTP 复核。
 - [x] ZIP 可正常解压，8/8 成员哈希与源文件一致；PPTX/PDF 可打开并完成渲染与隐私检查。
+- [ ] 参赛者本人在比赛页面上传最终 ZIP、确认提交并保留平台回执。

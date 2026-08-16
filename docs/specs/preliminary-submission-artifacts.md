@@ -42,8 +42,9 @@ Use this precedence order when facts conflict:
    `README.txt`; no code tree, credentials, raw Matrix export, signed Grant,
    Worker logs, cache, or private absolute path.
 
-The public Demo link and final human-recorded video remain an external human
-checkpoint when no real recording is available. They cannot be simulated.
+The final human-recorded video and public Demo have now been verified. They were
+external Human checkpoints and could not be simulated; competition-page
+submission remains a separate Human-owned action.
 
 ## Presentation content baseline
 
@@ -63,8 +64,9 @@ checkpoint when no real recording is available. They cannot be simulated.
   are `PUBLISHED`; the other four upstream Skills remain `QUARANTINED`. Three
   original-Skill calls strictly reopen with SkillVersion, Agent, Grant,
   ToolCall, and Evidence closure.
-- AgentTeams PR #1141 is `OPEN`; final recording and submission upload are not
-  complete; the project is an MVP, not production-ready.
+- AgentTeams PR #1141 is `OPEN`; final recording and public Demo upload are
+  complete, while competition-page submission is not; the project is an MVP,
+  not production-ready.
 
 ## Presentation fidelity and evidence rules
 
@@ -94,5 +96,6 @@ checkpoint when no real recording is available. They cannot be simulated.
   extracted SHA-256 values match the originals.
 - Source files, final files, and ZIP members pass the high-confidence secret and
   private-path scan.
-- Documentation and checklist state match the actual deliverables. Human-only
-  video/upload checkpoints remain unchecked until completed by a human.
+- Documentation and checklist state match the actual deliverables. Completed
+  video/publication checkpoints are checked only from direct evidence, while
+  competition-page submission remains unchecked until completed by a human.

@@ -251,8 +251,8 @@ Sandbox + Test Runner + MinIO + SQLite + Evidence Report
 
 | 列 | 内容 |
 | --- | --- |
-| 已完成 | AgentTeams 部署；三 Agent 真实委派；MiniMax + Docker 治理 E2E；Task 24 两模式 6/6；真人 L2；TUI；检测/授权/回滚；375 passed / 3 skipped；原创 Skill 三次调用 |
-| 提交前 | 公开录屏；无痕访问检查；比赛页面提交；release/tag |
+| 已完成 | AgentTeams 部署；三 Agent 真实委派；MiniMax + Docker 治理 E2E；Task 24 两模式 6/6；真人 L2；TUI；检测/授权/回滚；375 passed / 3 skipped；原创 Skill 三次调用；公开录屏与无痕访问；release/tag |
+| 提交前 | 比赛页面提交与确认 |
 | 复赛候选 | 自动修复接入真实业务 Issue/PR；更多 Skill Eval；第二场景；OTLP；可选云 Skill |
 
 - 底部风险条：模型波动、AgentTeams 版本变化、第三方 Skill 漂移、Demo 环境
