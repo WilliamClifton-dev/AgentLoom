@@ -31,6 +31,9 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Public-main CI now builds a content-pinned Docker sandbox image before pytest,
+  so the three sandbox isolation and cleanup tests run in the required gate
+  instead of remaining opt-in skips.
 - The Skill catalog now publishes `code-review-and-quality` and team-original
   `patch-scope-validator` v1.0.1; the other four imported upstream Skills remain
   quarantined.

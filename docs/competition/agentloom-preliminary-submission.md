@@ -18,7 +18,7 @@
 | 作品名称（必填） | `AgentLoom：多智能体 Skill 治理与可验证修复平台` | 不只写 AgentLoom，副标题直接说明作品价值 |
 | 代码仓库 | `https://github.com/WilliamClifton-dev/AgentLoom` | 仓库已设为公开；正式提交前仍需确认默认分支包含最终提交并可在未登录状态访问 |
 | Demo 链接 | `https://williamclifton-dev.github.io/AgentLoom/demo.html` | 已在无登录态的隔离 Chromium 中完成桌面和 320px 移动端播放验证；不要替换为 `localhost`、本机文件路径或 Release 附件下载链接 |
-| 作品附件（必填） | `AgentLoom-初赛提交包.zip` | 最终八项 ZIP 已审计，SHA-256 为 `174E64EE0B2866133C0341539FBC7D1B0B45750094BF77B12DCDDD486DE29726`；只上传与公开 manifest 同字节的文件。单文件不超过 1200 MB，本赛段累计不超过 3600 MB |
+| 作品附件（必填） | `AgentLoom-初赛提交包.zip` | 最终八项 ZIP 已审计，SHA-256 为 `0C5DFEB0BA6665609A14129A76CC1C239AED882A17E930C144AA5D3B88F6C306`；只上传与公开 manifest 同字节的文件。单文件不超过 1200 MB，本赛段累计不超过 3600 MB |
 | 赛题（必填） | `赛题三：软件研发全流程协同` | AgentLoom 的主闭环是软件缺陷调查、修复、验证和治理，不应选零人工运维或智能客服 |
 | 个人职务或身份 | `独立开发者（多智能体系统 / Agent Infra）` | 独立参赛，不虚构产品、算法、测试等其他成员 |
 
@@ -42,7 +42,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 
 以下正文共 **499 个字符（Python `len()`）**，可直接使用：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 375 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏已公开，提交待完成。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 379 passed / 0 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏已公开，提交待完成。
 
 ## 3. 一句话定位与价值
 
@@ -79,7 +79,7 @@ ZIP 中不放 API Key、`.env`、Human 密码、访问令牌、个人绝对路�
 - 痛点：第三方 Skill 来源不清、权限不可控、效果不可证、失败不可回退。
 - 方案：AgentTeams Manager + 三业务 Agent 结构化交接 + SkillOps 生命周期 + MCP Policy Broker + 独立验证。
 - 主流程：Issue -> Manager 规划 -> Investigator 调查 -> Implementer 受控修复 -> Verifier 独立验证 -> 审批/回滚 -> Evidence 报告。
-- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 三案例治理链路、Task 24 两模式 6/6、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与当前全量质量门禁（375 passed / 3 skipped）。
+- 已验证：AgentTeams v1.1.2 真实委派、MiniMax 三案例治理链路、Task 24 两模式 6/6、Higress / Policy Broker 授权、Docker 独立验证、真人 L2 审批与当前全量质量门禁（379 passed / 0 skipped）。
 - 差异化：不是通用 Coding Agent，而是跨场景可复用的 Skill 治理控制面。
 
 ### 第 3 页：目录
@@ -189,7 +189,7 @@ Sandbox / Test Runner / MinIO / SQLite / Evidence Report
 
 三列展示：
 
-- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、Task 24 两模式 6/6、真人 L2 审批、375 passed / 3 skipped (opt-in Docker)、TUI、检测/授权/回滚，以及团队原创 `patch-scope-validator` 的三次严格可重开调用。
+- 已完成：AgentTeams 部署、三 Agent 真实委派、MiniMax + Docker 治理 E2E、Task 24 两模式 6/6、真人 L2 审批、379 passed / 0 skipped（public main Docker CI）、TUI、检测/授权/回滚，以及团队原创 `patch-scope-validator` 的三次严格可重开调用。
 - 提交前：公开 Demo、仓库和固定 tag/Release 已验证；待完成比赛页面最终确认。
 - 复赛候选：将 AgentLoom 的修复结果接入真实业务仓库 Issue/PR、更多 Skill Eval、第二业务场景、OTLP 后端、可选云 Skill。
 
@@ -331,10 +331,10 @@ L2 审批必须绑定 `approvalId`、版本、任务/Grant ID、Agent、Skill、
 - 发现并修复 AgentTeams v1.1.2 更新 Team 时未持久化 `humanMembers` 的上游缺陷，回归测试已通过，修复已提交 [AgentTeams PR #1141](https://github.com/agentscope-ai/AgentTeams/pull/1141)，当前等待维护者审核。
 - Task 24 三案例在本地确定性与 MiniMax 治理模式下全部通过，最终报告严格重开为 `6 PASSED / 0 NOT_RUN`。
 - 团队原创 `patch-scope-validator` v1.0.1 已评测并发布，三次 Policy Broker -> ToolProvider 调用可按完整身份闭包严格重开。
-- 2026-08-16 冻结后的 public main 门禁：375 passed / 3 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff、敏感信息门禁和最新公开 GitHub Actions CI 通过。Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
+- 2026-08-16 当前 public main Docker CI 门禁：379 passed / 0 skipped；Ruff、strict mypy、pip-audit、语法、迁移、diff、敏感信息门禁和最新公开 GitHub Actions CI 通过。冻结 `v0.1.0` 门禁为 375 passed / 3 skipped；Task 25 的独立 clean-clone Lite 证据为 339 passed / 0 failed / 3 skipped。
 - 2026-08-16 最终真人 Demo 已公开：时长 309.000021 秒、1920x1080、H.264/AAC，SHA-256 为 `778766E648EC230D4A2C224FFE5D0AF09914B97736158F0ECF5FCBE3ADA14550`。公开播放器已在无登录态的隔离 Chromium 中通过桌面与 320px 移动端验证：HTTP 200、媒体 `readyState=4`、无横向溢出、无控制台或页面错误。
 - 2026-08-16 annotated tag `v0.1.0` 与正式 GitHub Release 已公开：tag 精确指向 `7f96b232dbe5c2294028d53c4fbc0a619dad0fad`；Release 非草稿、非预发布，视频资产的大小和 SHA-256 已通过未认证 GitHub API 与匿名 Range 请求复核。
-- 2026-08-16 最终八项提交 ZIP 已重新审计并生成[公开 manifest](submission-package-manifest.json)：包 SHA-256 为 `174E64EE0B2866133C0341539FBC7D1B0B45750094BF77B12DCDDD486DE29726`，8/8 成员哈希、19 页 PPT/PDF、19/19 来源注记、过时陈述、私有路径和凭据门禁均通过。
+- 2026-08-16 最终八项提交 ZIP 已重新审计并生成[公开 manifest](submission-package-manifest.json)：包 SHA-256 为 `0C5DFEB0BA6665609A14129A76CC1C239AED882A17E930C144AA5D3B88F6C306`，8/8 成员哈希、19 页 PPT/PDF、19/19 来源注记、过时陈述、私有路径和凭据门禁均通过。
 - Apache-2.0、第三方披露和上游 provenance 基础已具备。
 
 ### 10.2 提交前必须补齐

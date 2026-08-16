@@ -7,7 +7,7 @@
 - 本地文件名：`AgentLoom-初赛提交包.zip`
 - GitHub Release 附件：
   [`AgentLoom-v0.1.0-preliminary-submission.zip`](https://github.com/WilliamClifton-dev/AgentLoom/releases/download/v0.1.0/AgentLoom-v0.1.0-preliminary-submission.zip)
-- SHA-256：`174E64EE0B2866133C0341539FBC7D1B0B45750094BF77B12DCDDD486DE29726`
+- SHA-256：`0C5DFEB0BA6665609A14129A76CC1C239AED882A17E930C144AA5D3B88F6C306`
 - ZIP 成员：8 个
 - 精确成员哈希：[submission-package-manifest.json](submission-package-manifest.json)
 
@@ -32,7 +32,7 @@
 
 作品简介（Python `len` 为 499，满足不超过 500 字符）：
 
-> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 375 passed / 3 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏已公开，提交待完成。
+> AgentLoom 是基于 AgentTeams 的多智能体 Skill 治理平台，解决第三方 Skill 来源不清、权限失控、自测不可信和证据分散。Human 将 Issue 交给 Manager，由 Investigator 定位根因、Implementer 受控修复、Verifier 在独立 Docker 沙箱裁决。Policy Broker 通过 MCP 绑定 Agent 身份、工具、路径、参数、时效和短时 Grant，Higress 强制认证，L2 操作由 Human 审批，生成可回放 Evidence。已在 AgentTeams v1.1.2 上完成 MiniMax 三案例治理链路，Task 24 两模式 6/6 通过，门禁为 379 passed / 0 skipped。创新点是用 Skill 生命周期治理、独立验证和 Evidence 闸门约束第三方工作流，而非通用编码 Agent。项目以 Apache-2.0 开源原创控制面；上游与团队原创 Skill 各 1 个发布，原创 Skill 3 次治理调用可严格重开，4 个上游 Skill 隔离，录屏已公开，提交待完成。
 
 ## 提交前核对
 

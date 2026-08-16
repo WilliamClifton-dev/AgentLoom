@@ -4,16 +4,16 @@
   "package": "AgentLoom-初赛提交包.zip",
   "releaseAsset": "AgentLoom-v0.1.0-preliminary-submission.zip",
   "members": {
-    "01-AgentLoom-作品简介.pdf": "d6b2fdcfdc8d9bdd3c1b353c25c5bf527f39a92d7c335a8111d40915c3305fbc",
-    "02-AgentLoom-初赛方案.pptx": "2d7eb92012a1693f25e1c7b1bbaebff4134443eee806bfed2db7905b25bb3ffb",
-    "03-AgentLoom-初赛方案.pdf": "f550d026b1dd421cc0a0a903f103e056d8bb9e4aa9a26ae8cf24a9ff7cfc1b80",
-    "04-Agent-Identity清单.pdf": "e093c349e8f81638a8d9f975279bca5cf1557450a26093671a856186bda575c9",
-    "05-核心Skill清单.pdf": "2ea8d935236039584d668e78398868a578f869e1422a309f16a88cdfacfba7be",
+    "01-AgentLoom-作品简介.pdf": "1481ef3ae55e180beb024840f12558ea4a3a98eafe717b6df416386f2719f990",
+    "02-AgentLoom-初赛方案.pptx": "d107570b08b42b3ee6fe195244f20555bcda1f9825301020f44871ef166c284c",
+    "03-AgentLoom-初赛方案.pdf": "9d04d7635c40891ce70cf2f80186a967e75457399dfe029210c8b8ff1768a524",
+    "04-Agent-Identity清单.pdf": "1ec958a02458167ff576bacf06a715ad713ac7ccdcd82a2e4fc9d763050f47ca",
+    "05-核心Skill清单.pdf": "cc499cb6a45bd96b0adba7ee75574e91a94539daa0eccf9df70916782db2eebe",
     "06-开源与第三方依赖说明.pdf": "91cddb1cd9769aaf0fa6afae04eb8e452b0869286644099fc9d603e6af69e6e0",
-    "07-L2审批与回滚证据.pdf": "1ce11a23067f3dbeb7a3074106b9d7538ce2bc2d37ee490a5693225788e97390",
-    "README.txt": "435bf0c5d7ca1c129a8c410f78909c0c3ee7df0038a8997f92be818c7ccc5a97"
+    "07-L2审批与回滚证据.pdf": "aabf3e5084b1af6d94d97a1f0d32945eb1114637ef6536e6dc2a5b33d14c7f83",
+    "README.txt": "7939cae0d7357f4261ded326ec394dd2ebe17b71897a7ae04c692e00cc230b19"
   },
-  "packageSha256": "174e64ee0b2866133c0341539fbc7d1b0b45750094bf77b12dcddd486de29726",
+  "packageSha256": "0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306",
   "verification": {
     "result": "PASS",
     "zipMemberCount": 8,

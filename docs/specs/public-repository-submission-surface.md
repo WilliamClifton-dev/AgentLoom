@@ -13,9 +13,11 @@ competition reviewers and downstream deployers after Tasks 17 and 18.
 - Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`.
 - Result: Task 24 completed all six local/governed cells; Task 17 separately
   proves exactly one delegated governed `SUCCEEDED` ToolCall.
-- Current-worktree gate: 375 pytest passed, 3 opt-in Docker tests skipped;
-  clean-clone Lite evidence: 339 passed, 0 failed, 3 skipped; Ruff, strict mypy,
-  pip-audit, syntax, migration, diff, and secret checks passed.
+- Current public-main gate: 379 pytest passed, 0 skipped, with the immutable
+  Docker sandbox tests enabled. The frozen `v0.1.0` gate is 375 passed with
+  3 opt-in Docker tests skipped; clean-clone Lite evidence is 339 passed,
+  0 failed, 3 skipped. Ruff, strict mypy, pip-audit, syntax, migration, diff,
+  and secret checks passed.
 - Skill catalog: `code-review-and-quality` and team-original
   `patch-scope-validator` v1.0.1 are `PUBLISHED`; four upstream Skills are
   `QUARANTINED`; three original-Skill invocations strictly reopen.

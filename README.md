@@ -17,16 +17,17 @@ repair task and ends with independently verified, replayable evidence.
 > `Administrator -> Manager -> Investigator -> Verifier -> authenticated Higress
 > -> Policy Broker -> immutable Docker pytest sandbox` path with
 > `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
-> A clean-clone Lite gate is **339 passed / 0 failed / 3 skipped (opt-in Docker
-> tests)**; the frozen public-main gate is **375 passed / 3 skipped**, and the
-> latest public GitHub Actions CI passed. The
+> Historical clean-clone Lite evidence is **339 passed / 0 failed / 3 skipped
+> (opt-in Docker tests)**; the frozen `v0.1.0` gate is **375 passed / 3 skipped**.
+> The current public-main GitHub Actions gate builds the immutable sandbox image
+> and passes **379 tests / 0 skipped**. The
 > versioned Task 24 benchmark is **6 PASSED / 0 NOT_RUN**. The Skill catalog is
 > **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
 > has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
 > and upstream PR [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) remains
 > `OPEN`. The real recording, anonymous public playback, and formal `v0.1.0`
 > Release are verified. The audited eight-entry P0 package is complete with
-> SHA-256 `174e64ee0b2866133c0341539fbc7d1b0b45750094bf77b12dcddd486de29726`;
+> SHA-256 `0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306`;
 > only competition-page submission remains a Human-owned checkpoint.
 
 ## Competition Evidence
@@ -38,9 +39,10 @@ repair task and ends with independently verified, replayable evidence.
 - Current result: the three-case, two-mode Task 24 matrix completed 6/6 cells;
   Task 17 separately proves one delegated ToolCall through Higress, the Policy
   Broker, and a fresh Docker sandbox
-- Frozen commit gate: 375 passed / 3 skipped (opt-in Docker); clean-clone
-  Lite evidence: 339 passed / 0 failed / 3 skipped; Ruff, strict mypy,
-  pip-audit, syntax, migration, diff, and secret checks passed
+- Current public-main gate: 379 passed / 0 skipped with the immutable Docker
+  sandbox tests enabled; frozen `v0.1.0` gate: 375 passed / 3 skipped;
+  clean-clone Lite evidence: 339 passed / 0 failed / 3 skipped; Ruff, strict
+  mypy, pip-audit, syntax, migration, diff, and secret checks passed
 - Skill status: `code-review-and-quality` (upstream) and `patch-scope-validator`
   (team-original) are `PUBLISHED`; four upstream Skills are `QUARANTINED`; three
   original-Skill invocation bundles reopen with full identity closure

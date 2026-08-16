@@ -15,16 +15,17 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 > **当前证据基线（2026-08-16）：** AgentTeams `v1.1.2` 使用
 > `minimax-cn / MiniMax-M2.5` 完成了 `Administrator -> Manager -> Investigator
 > -> Verifier -> 已认证 Higress -> Policy Broker -> 不可变 Docker pytest 沙箱`
-> 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。clean-clone Lite
-> 门禁为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，冻结后的
-> public main 门禁为 **375 passed / 3 skipped**，最新公开 GitHub Actions CI 已通过；Task 24 两模式基准为
+> 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。历史 clean-clone
+> Lite 证据为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，冻结
+> `v0.1.0` 门禁为 **375 passed / 3 skipped**。当前 public main 的 GitHub Actions
+> 会构建不可变沙箱镜像，门禁为 **379 passed / 0 skipped**；Task 24 两模式基准为
 > **6 PASSED / 0 NOT_RUN**。Skill 目录状态为 **2 PUBLISHED / 4 QUARANTINED**；
 > 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
 > Human L2 审批为 `APPROVED`，上游 PR
 > [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) 仍为 `OPEN`。
 > 真人录制、匿名公开播放和正式 `v0.1.0` Release 均已验证。最终八项 P0
 > 提交包已完成审计，SHA-256 为
-> `174e64ee0b2866133c0341539fbc7d1b0b45750094bf77b12dcddd486de29726`；
+> `0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306`；
 > 目前只有竞赛页面提交仍是 Human 负责的检查点。
 
 ## 参赛证据
@@ -35,9 +36,10 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 - 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
 - 当前结果：Task 24 三案例两模式矩阵 6/6 完成；Task 17 另行证明一个成功
   ToolCall 经过 Higress、Policy Broker 和全新 Docker 沙箱的完整治理链路
-- 冻结提交门禁：375 passed / 3 skipped（可选 Docker）；clean-clone Lite
-  证据：339 passed / 0 failed / 3 skipped；Ruff、strict mypy、pip-audit、
-  语法、迁移、Diff 和密钥检查通过
+- 当前 public main 门禁：启用不可变 Docker 沙箱测试后 379 passed / 0 skipped；
+  冻结 `v0.1.0` 门禁：375 passed / 3 skipped；clean-clone Lite 证据：
+  339 passed / 0 failed / 3 skipped；Ruff、strict mypy、pip-audit、语法、
+  迁移、Diff 和密钥检查通过
 - Skill 状态：`code-review-and-quality`（上游）和 `patch-scope-validator`（团队原创）
   为 `PUBLISHED`，另外四个上游 Skill 为 `QUARANTINED`；三次原创 Skill
   调用均可按完整身份闭包重开
