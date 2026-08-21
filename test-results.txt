@@ -1,0 +1,83 @@
+﻿========================================================================
+AgentLoom test snapshot
+Generated:    2026-08-21 18:28:39 +08:00
+Generator:    scripts/refresh-test-results.ps1
+Source:       D:\Projects\Agent-Infra\.venv\Scripts\python.exe -m pytest -v --tb=line
+Exit code:    0
+
+Counts parsed from this run:
+  - collected: 379
+  - passed:    376
+  - skipped:   3
+  - failed:    0
+
+Interpretation:
+  - Local Windows checkout without a live Docker daemon: typically 376
+    passed / 3 skipped / 0 failed. The 3 skipped tests live in
+    tests/test_docker_sandbox_live.py and need a Docker daemon.
+  - Public-main CI builds an immutable sandbox image and exports
+    AGENTLOOM_TEST_SANDBOX_IMAGE, so all 379 tests run: 379 passed /
+    0 skipped / 0 failed.
+  - Timing, platform, and pytest versions are normalized so that two
+    runs that produce the same evidence are byte-identical. Only a
+    genuine change in pass/skip/fail results or per-test outcomes
+    changes this file.
+  - Treat this file as a point-in-time snapshot. The authoritative
+    number is the current pytest exit status on the working tree or
+    in CI. The CI workflow runs this script and fails the PR if the
+    committed test-results.txt drifts from the regenerated one.
+========================================================================
+============================= test session starts =============================
+platform normalized -- Python normalized, pytest-normalized, pluggy-normalized
+rootdir: D:\Projects\Agent-Infra
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 379 items
+
+tests\test_agentteams_deployment.py .................................    [  8%]
+tests\test_approvals.py .....                                            [ 10%]
+tests\test_approvals_api.py ..                                           [ 10%]
+tests\test_benchmark.py .........                                        [ 12%]
+tests\test_capabilities.py ....                                          [ 13%]
+tests\test_ci_workflow.py .                                              [ 14%]
+tests\test_cli.py ...........                                            [ 17%]
+tests\test_contracts.py ...............................                  [ 25%]
+tests\test_demo_case.py ................                                 [ 29%]
+tests\test_deployment_entrypoints.py .........                           [ 31%]
+tests\test_detection.py .....                                            [ 33%]
+tests\test_docker_sandbox.py .............                               [ 36%]
+tests\test_docker_sandbox_live.py sss                                    [ 37%]
+tests\test_grant_issuer.py ........                                      [ 39%]
+tests\test_internal_policy_api.py ..                                     [ 40%]
+tests\test_l2_approval.py ...............                                [ 44%]
+tests\test_live_evidence.py .......                                      [ 45%]
+tests\test_live_repair.py ...............                                [ 49%]
+tests\test_live_rollback.py .......                                      [ 51%]
+tests\test_local_test_runner.py ......                                   [ 53%]
+tests\test_migration_rehearsal.py ....                                   [ 54%]
+tests\test_migrations.py ..                                              [ 54%]
+tests\test_mock_artifact_e2e.py ..                                       [ 55%]
+tests\test_mock_repair.py ..........                                     [ 58%]
+tests\test_namespace_bridge.py ...............                           [ 62%]
+tests\test_nonce_store.py .                                              [ 62%]
+tests\test_patch_scope_provider.py .......                               [ 64%]
+tests\test_patch_scope_validator.py ................                     [ 68%]
+tests\test_policy_broker.py ..................                           [ 73%]
+tests\test_policy_tool_e2e.py ..............                             [ 76%]
+tests\test_provider_profile.py ..............                            [ 80%]
+tests\test_route_rehearsal.py ......                                     [ 82%]
+tests\test_sandbox_contracts.py ........                                 [ 84%]
+tests\test_sandbox_e2e.py .......                                        [ 86%]
+tests\test_sandbox_test_runner.py ......                                 [ 87%]
+tests\test_skill_catalog.py ...                                          [ 88%]
+tests\test_skill_evidence.py .....                                       [ 89%]
+tests\test_skill_invocations.py ....                                     [ 90%]
+tests\test_task_state.py ..                                              [ 91%]
+tests\test_tasks_api.py ........                                         [ 93%]
+tests\test_tool_events.py ...                                            [ 94%]
+tests\test_tui.py .............                                          [ 97%]
+tests\test_workflow.py .........                                         [100%]
+
+================= 376 passed, 3 skipped ==================

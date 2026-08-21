@@ -34,6 +34,17 @@ jobs:
             -Encoding utf8
       - name: Test
         run: python -m pytest
+      - name: Refresh and verify test-results.txt
+        shell: pwsh
+        run: |
+          ./scripts/refresh-test-results.ps1
+          if (git diff --exit-code -- test-results.txt) {
+            Write-Host "test-results.txt matches current gate"
+            exit 0
+          }
+          Write-Error "test-results.txt is out of date. Run ./scripts/refresh-test-results.ps1 locally and commit the result."
+          Write-Error "If this is a PR, the author must regenerate; if this is a main push, the previous gate had drift that was caught here."
+          exit 1
       - name: Lint
         run: ruff check .
       - name: Type check
