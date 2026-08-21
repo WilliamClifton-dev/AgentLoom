@@ -81,6 +81,25 @@ The project follows [Semantic Versioning](https://semver.org/).
   always match the public-main gate. Ruff gains glob excludes for
   PowerShell and YAML files so the new workflow and script are not
   parsed as Python.
+
+- Split `src/agentloom/contracts.py` (1331 lines) into a 10-module
+  `agentloom.contracts` package: `_base`, `identity`, `skill`, `tool`,
+  `evidence`, `grant`, `risk`, `repair`, `approval`, `task`. The original
+  file becomes a backward-compat re-export shim so every
+  `from agentloom.contracts import X` call site keeps working. Cross-module
+  forward references (e.g. `TaskEvidenceBundle.detections:
+  list[TaskDetectionRecord]`) are resolved by a single
+  `model_rebuild(_types_namespace=vars(sys.modules[__name__]))` pass at the
+  bottom of `__init__.py`, which uses the full contracts package
+  namespace. Pydantic annotations, the `from __future__ import annotations`
+  header, and the `__all__` surface are preserved; the only public-name
+  addition is `TASK_EVENT_SCHEMA_VERSION`, `TASK_EVENT_TYPE`,
+  `TOOL_CALL_EVENT_SCHEMA_VERSION`, `TOOL_CALL_EVENT_TYPE`, and
+  `SKILL_INVOCATION_SCHEMA_VERSION`, which were already imported by callers
+  but had previously been missing from the re-export. Ruff, strict mypy,
+  and the full pytest run remain green (376 passed / 3 skipped / 0 failed
+  locally; CI: 379 / 0 / 0 with the Docker sandbox image).
+
 - Verified the fail-closed contract of `tool_provider_from_env`:
   missing `AGENTLOOM_SANDBOX_BACKEND`, `local-development` without
   `AGENTLOOM_ALLOW_HOST_TEST_EXECUTION=true`, and bogus backend values
