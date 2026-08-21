@@ -37,8 +37,13 @@ jobs:
       - name: Refresh and verify test-results.txt
         shell: pwsh
         run: |
+          # PowerShell treats 0 as `$false` and non-zero as `$true`, so the
+          # naive `if (git diff --exit-code ...)` form is inverted. Use
+          # $LASTEXITCODE explicitly. `git diff --exit-code` returns 0 when
+          # there is no diff and 1 when there is.
           ./scripts/refresh-test-results.ps1
-          if (git diff --exit-code -- test-results.txt) {
+          git diff --exit-code -- test-results.txt
+          if ($LASTEXITCODE -eq 0) {
             Write-Host "test-results.txt matches current gate"
             exit 0
           }
