@@ -29,7 +29,7 @@ nodes_in_order: list[tuple[int, int, ast.AST]] = []
 for node in tree.body:
     nodes_in_order.append((node.lineno, node.end_lineno or node.lineno, node))
 
-class_starts_sorted = sorted(((n.lineno, n.name) for n in tree.body if isinstance(n, ast.ClassDef)))
+class_starts_sorted = sorted((n.lineno, n.name) for n in tree.body if isinstance(n, ast.ClassDef))
 
 def owner_of(start_line: int) -> str:
     # First class whose lineno > start_line
@@ -203,6 +203,7 @@ public_names: dict[str, list[str]] = {}
 # Accumulate bodies per target file. Header is emitted only on the first write.
 file_bodies: dict[str, str] = {t: "" for t in set(assignment.values()) if t != "_base.py"}
 import re
+
 for cls_name, target in assignment.items():
     if cls_name == "ContractModel":
         continue
@@ -295,11 +296,11 @@ for _cls in (
     "RepairArtifactBundle", "DetectionReport", "TaskDetectionRecord",
     "ToolCallEventRecord", "SandboxExecutionRequest", "SandboxExecutionResult",
 ):
-    init.append(f"_ns = vars(sys.modules[__name__])")
-    init.append(f"try:")
+    init.append("_ns = vars(sys.modules[__name__])")
+    init.append("try:")
     init.append(f"    {_cls}.model_rebuild(_types_namespace=_ns)")
-    init.append(f"except (NameError, AttributeError):")
-    init.append(f"    pass")
+    init.append("except (NameError, AttributeError):")
+    init.append("    pass")
 (PKG / "__init__.py").write_text("\n".join(init), encoding="utf-8", newline="\n")
 
 shim = '''"""Backward-compat re-export shim.

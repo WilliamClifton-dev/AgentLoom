@@ -65,7 +65,6 @@ BUILTINS = {
     "DemoCase", "demo_case_fingerprint", "load_demo_case", "workspace_tree_digest",
     "MockRepairError", "_changed_paths", "_combine_results", "_file_hash",
     "_run_case_command", "_target_command", "_test_results", "_write_model",
-    "dataclass",
 }
 
 # Collect all imported names (so we don't try to re-import them).
