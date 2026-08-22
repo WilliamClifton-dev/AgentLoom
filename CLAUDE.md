@@ -269,7 +269,7 @@ Evidence（可回放记录）
 - **Skill：** 必选项，当前 2 PUBLISHED / 4 QUARANTINED
   - `code-review-and-quality` (上游)
   - `patch-scope-validator` v1.0.1 (团队原创)
-- **证据基线：** 339 passed / 0 failed / 3 skipped (opt-in Docker tests)
+- **证据基线：** local Lite `376 passed / 3 skipped / 0 failed`（3 个 skip 是 `tests/test_docker_sandbox_live.py` 的 live 沙箱用例，需要 Docker 守护进程）；public-main GitHub Actions 门禁 `379 passed / 0 skipped`（构建不可变沙箱镜像 `AGENTLOOM_TEST_SANDBOX_IMAGE` 后跑同一组用例）。`test-results.txt` 由 `scripts/refresh-test-results.ps1` 维护，CI `Refresh and verify test-results.txt` 步骤会在 drift 时让 PR 红。
 - **开源：** Apache-2.0，依赖披露见 `THIRD_PARTY.md`
 
 ## 常见问题排查
