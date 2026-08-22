@@ -110,6 +110,30 @@ The project follows [Semantic Versioning](https://semver.org/).
   `rejects_partial_tool_configuration`,
   `rejects_unknown_mcp_transport`) pass on the current working tree.
 
+
+- Documented the entry and exit criteria every imported Skill must
+  satisfy to move between the `SkillLifecycleState` values
+  (`DISCOVERED`, `QUARANTINED`, `SCANNED`, `EVALUATING`, `APPROVED`,
+  `PUBLISHED`, `DEPRECATED`, `BLOCKED`, `REJECTED`) in
+  `docs/skills/quarantine-evaluation-criteria.md`. Each of the four
+  upstream Skills currently in `QUARANTINED`
+  (`debugging-and-error-recovery`, `test-driven-development`,
+  `security-and-hardening`, `using-agent-skills`) now has its source
+  provenance, RiskLevel, allowed tools, and the pytest fixtures it
+  must produce on the public-main gate documented in one place, with
+  a state-machine diagram and a re-evaluation trigger list that
+  explains when a `PUBLISHED` Skill must return to `QUARANTINED`.
+- Final P1 splits: `agentloom.live_repair` is now a 7-module package
+  (`_types`, `models`, `result`, `verifier`, `case`, `cli`,
+  `__main__`) and `agentloom.live_rollback` is now a 3-module package
+  (`models`, `operations`, `__init__`). The original `.py` files are
+  9-line re-export shims; every `from agentloom.live_repair import X`
+  and `from agentloom.live_rollback import X` call site keeps working
+  without churn. The `python -m agentloom.live_repair prepare-case`
+  CLI keeps working through the new `__main__.py`. Ruff, strict mypy,
+  and the full pytest run remain green: 376 passed / 3 skipped / 0
+  failed locally; CI: 379 / 0 / 0 with the Docker sandbox image.
+
 ## [0.1.0-rc.1] - 2026-08-09
 
 ### Added
