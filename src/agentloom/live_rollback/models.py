@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import hmac
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Literal
