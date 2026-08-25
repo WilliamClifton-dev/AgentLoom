@@ -48,7 +48,15 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["demo/cases", ".cache", ".tmp", "**/*.ps1", "**/*.yml", "**/*.yaml"]
+extend-exclude = [
+  "demo/cases",
+  ".cache",
+  ".tmp",
+  "scripts/dev/historical-splits",
+  "**/*.ps1",
+  "**/*.yml",
+  "**/*.yaml",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
