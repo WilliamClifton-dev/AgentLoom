@@ -55,7 +55,7 @@ submission remains a separate Human-owned action.
 - MiniMax `minimax-cn / MiniMax-M2.5` is the only model Provider in that run.
 - Exactly one governed Verifier ToolCall succeeded through
   `sandboxed-test-runner/docker-sandbox`.
-- Current public-main quality gate: 379 passed, 0 skipped, with the immutable
+- Current public-main quality gate: 380 passed, 0 skipped, with the immutable
   Docker sandbox tests enabled; frozen `v0.1.0` evidence: 375 passed,
   3 opt-in Docker tests skipped; clean-clone Lite evidence: 339 passed,
   0 failed, 3 skipped;

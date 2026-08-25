@@ -14,7 +14,7 @@ Tasks 17 and 18.
 - Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`.
 - Result: Task 24 completed all six local/governed cells; Task 17 separately
   proves exactly one delegated governed `SUCCEEDED` ToolCall.
-- Current public-main gate: 379 pytest passed, 0 skipped, with the immutable
+- Current public-main gate: 380 pytest passed, 0 skipped, with the immutable
   Docker sandbox tests enabled. The frozen `v0.1.0` gate is 375 passed with
   3 opt-in Docker tests skipped; clean-clone Lite evidence is 339 passed,
   0 failed, 3 skipped. Ruff, strict mypy, pip-audit, syntax, migration, diff,

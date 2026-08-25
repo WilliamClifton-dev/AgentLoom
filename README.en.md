@@ -21,8 +21,8 @@ runtime boundary.
 > `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
 > Historical clean-clone Lite evidence is **339 passed / 0 failed / 3 skipped
 > (opt-in Docker tests)**; the frozen `v0.1.0` gate is **375 passed / 3 skipped**.
-> The latest recorded public-main GitHub Actions gate built the immutable sandbox
-> image and passed **379 tests / 0 skipped**; the current worktree collects 380 tests. The
+> The latest public-main GitHub Actions gate built the immutable sandbox
+> image and passed **380 tests / 0 skipped**; the current worktree collects 380 tests. The
 > versioned Task 24 benchmark is **6 PASSED / 0 NOT_RUN**. The Skill catalog is
 > **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
 > has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
@@ -50,7 +50,7 @@ runtime boundary.
 - Paid evidence Provider: `minimax-cn / MiniMax-M2.5`
 - Task 24 completed the three-case, two-mode matrix 6/6; Task 17 proves one
   complete governed ToolCall path
-- Latest recorded public-main gate: 379 passed / 0 skipped with the immutable Docker
+- Latest public-main gate: 380 passed / 0 skipped with the immutable Docker
   sandbox tests enabled; frozen `v0.1.0` gate: 375 passed / 3 skipped;
   current local Lite snapshot: 377 passed / 3 skipped / 0 failed (380 collected);
   Ruff, strict

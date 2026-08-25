@@ -19,7 +19,7 @@ AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提
 > 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。历史 clean-clone
 > Lite 证据为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，冻结
 > `v0.1.0` 门禁为 **375 passed / 3 skipped**。当前 public main 的 GitHub Actions
-> 会构建不可变沙箱镜像；最近一次公开 Full 证据为 **379 passed / 0 skipped**，当前工作树
+> 会构建不可变沙箱镜像；最新 Full 证据为 **380 passed / 0 skipped**，当前工作树
 > 收集 380 项测试；Task 24 两模式基准为
 > **6 PASSED / 0 NOT_RUN**。Skill 目录状态为 **2 PUBLISHED / 4 QUARANTINED**；
 > 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
@@ -42,7 +42,7 @@ AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提
 
 - 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
 - Task 24 三案例两模式矩阵完成 6/6；Task 17 证明一条完整受治理 ToolCall 链路
-- 最近一次 public main Full 门禁：启用不可变 Docker 沙箱测试后 379 passed / 0 skipped；
+- 最新 public main Full 门禁：启用不可变 Docker 沙箱测试后 380 passed / 0 skipped；
   冻结 `v0.1.0` 门禁：375 passed / 3 skipped；当前本地 Lite 快照：
   377 passed / 3 skipped / 0 failed（当前工作树共收集 380 项）；Ruff、strict mypy、pip-audit 通过
 - Skill 状态：`code-review-and-quality` 与团队原创 `patch-scope-validator` v1.0.1

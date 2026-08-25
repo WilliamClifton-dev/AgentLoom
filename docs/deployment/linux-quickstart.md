@@ -45,8 +45,7 @@ or a remote daemon via `DOCKER_HOST`), the same three tests pass and
 the current tree is expected to reach `380 passed / 0 skipped / 0 failed`. The CI
 gate in `.github/workflows/ci.yml` already builds the immutable sandbox
 image and exports `AGENTLOOM_TEST_SANDBOX_IMAGE` to exercise those
-three tests; the latest recorded public-main run reported 379/0/0 before
-the current test-count snapshot.
+three tests; the latest public-main run reports 380/0/0 for the current tree.
 
 To opt in on Linux, install Docker Engine ≥ 24.0, ensure the user is
 in the `docker` group, and run `.venv/bin/pytest -q` again. No extra

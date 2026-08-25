@@ -269,7 +269,7 @@ Evidence（可回放记录）
 - **Skill：** 必选项，当前 2 PUBLISHED / 4 QUARANTINED
   - `code-review-and-quality` (上游)
   - `patch-scope-validator` v1.0.1 (团队原创)
-- **证据基线：** 当前本地 Lite `377 passed / 3 skipped / 0 failed`（共收集 380 项；3 个 skip 是 `tests/test_docker_sandbox_live.py` 的 live 沙箱用例，需要 Docker 守护进程）；最近一次 public-main GitHub Actions 门禁为 `379 passed / 0 skipped`（构建不可变沙箱镜像 `AGENTLOOM_TEST_SANDBOX_IMAGE` 后跑同一组用例）。`test-results.txt` 是提交的本地 Lite 快照；CI 将 Docker Full 快照写入 runner 临时目录，不与 Lite 快照做 drift 比较。
+- **证据基线：** 当前本地 Lite `377 passed / 3 skipped / 0 failed`（共收集 380 项；3 个 skip 是 `tests/test_docker_sandbox_live.py` 的 live 沙箱用例，需要 Docker 守护进程）；最新 public-main GitHub Actions 门禁为 `380 passed / 0 skipped`（构建不可变沙箱镜像 `AGENTLOOM_TEST_SANDBOX_IMAGE` 后跑同一组用例）。`test-results.txt` 是提交的本地 Lite 快照；CI 将 Docker Full 快照写入 runner 临时目录，不与 Lite 快照做 drift 比较。
 - **开源：** Apache-2.0，依赖披露见 `THIRD_PARTY.md`
 
 ## 常见问题排查

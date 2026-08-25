@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: |
           # The committed snapshot is the local Lite baseline. CI has Docker
-          # enabled, so its 379/0 result belongs in a runner-local artifact.
+          # enabled, so its 380/0 result belongs in a runner-local artifact.
           $fullSnapshot = Join-Path $env:RUNNER_TEMP "agentloom-full-test-results.txt"
           $ciPython = (Get-Command python -ErrorAction Stop).Source
           ./scripts/refresh-test-results.ps1 -VenvPython $ciPython -OutputPath $fullSnapshot

@@ -13,7 +13,7 @@ not.
   (`2aa4d04`) and are listed in `git log --oneline 2aa4d04..HEAD`.
 - Product direction: Agent Tool Policy Gateway prototype; AgentTeams `v1.1.2`
   is the reference integration.
-- Latest recorded public-main gate: `379 passed / 0 skipped` with Docker tests
+- Latest public-main gate: `380 passed / 0 skipped` with Docker tests
   enabled.
 - Current worktree Lite gate: `377 passed / 3 skipped / 0 failed` from 380
   collected tests. The 3 skips are
