@@ -22,14 +22,14 @@ full reasoning. The three points in short:
 2. The Skill evidence schemas carry their own digest; adding
    cosign to the submission flow would duplicate the trust
    anchor for the same artifact.
-3. The "third party" already exists in the form of GitHub
-   Releases with a published SHA-256. The release page is the
-   trust anchor; the package bytes bind to it via the SHA-256 in
-   the release body.
+3. GitHub Releases provides a public artifact-integrity reference:
+   the package bytes can be compared with the SHA-256 in the release
+   body. This does not constitute a signature or maintainer-identity
+   attestation.
 
 ## What this means in practice
 
-- The third-party trust anchor for `v0.1.0` (and every future
+- The artifact-integrity reference for `v0.1.0` (and every future
   release) is **GitHub Releases + SHA-256**. See
   `docs/security/signing-submission.md` for the verifier flow.
 - `deploy/signing/sign-submission-package.ps1` remains in the
@@ -50,7 +50,7 @@ enough that deleting it is a no-op for the project's users.
 
 ## What replaces it (if anything)
 
-Nothing. The default third-party verification flow lives in
+Nothing. The default artifact-integrity verification flow lives in
 `docs/security/signing-submission.md`. An operator with a
 genuine sigstore requirement can wrap the GitHub-Releases flow
 in their own tooling; they do not need a script in this

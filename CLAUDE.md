@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-AgentLoom 是一个面向多 Agent 软件修复的治理型、证据优先 SkillOps 平台，构建于 AgentTeams 之上。它将第三方 Agent Skill 转化为可审查、可授权、可测试、可审计的能力。
+AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提供身份绑定、Grant、策略约束、防重放和 Evidence 审计。AgentTeams 软件修复链路是已验证的参考集成，不是 Gateway 的核心运行时前提。
 
 **核心特性：**
-- 基于 AgentTeams v1.1.2 的多 Agent 协同（Investigator、Implementer、Verifier）
+- AgentTeams v1.1.2 参考集成（Investigator、Implementer、Verifier）
 - Policy Broker：HMAC 签名的 Grant、防重放、审批流程
 - Docker 沙箱：隔离的 pytest 执行环境（禁网、只读工作区）
 - Skill 生命周期管理：来源锁定、发布/隔离状态、版本控制
@@ -269,7 +269,7 @@ Evidence（可回放记录）
 - **Skill：** 必选项，当前 2 PUBLISHED / 4 QUARANTINED
   - `code-review-and-quality` (上游)
   - `patch-scope-validator` v1.0.1 (团队原创)
-- **证据基线：** local Lite `376 passed / 3 skipped / 0 failed`（3 个 skip 是 `tests/test_docker_sandbox_live.py` 的 live 沙箱用例，需要 Docker 守护进程）；public-main GitHub Actions 门禁 `379 passed / 0 skipped`（构建不可变沙箱镜像 `AGENTLOOM_TEST_SANDBOX_IMAGE` 后跑同一组用例）。`test-results.txt` 由 `scripts/refresh-test-results.ps1` 维护，CI `Refresh and verify test-results.txt` 步骤会在 drift 时让 PR 红。
+- **证据基线：** 当前本地 Lite `377 passed / 3 skipped / 0 failed`（共收集 380 项；3 个 skip 是 `tests/test_docker_sandbox_live.py` 的 live 沙箱用例，需要 Docker 守护进程）；最近一次 public-main GitHub Actions 门禁为 `379 passed / 0 skipped`（构建不可变沙箱镜像 `AGENTLOOM_TEST_SANDBOX_IMAGE` 后跑同一组用例）。`test-results.txt` 是提交的本地 Lite 快照；CI 将 Docker Full 快照写入 runner 临时目录，不与 Lite 快照做 drift 比较。
 - **开源：** Apache-2.0，依赖披露见 `THIRD_PARTY.md`
 
 ## 常见问题排查

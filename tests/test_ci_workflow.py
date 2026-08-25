@@ -28,5 +28,7 @@ def test_ci_keeps_local_lite_snapshot_separate_from_docker_full_snapshot() -> No
 
     assert "- name: Verify Full test snapshot" in workflow
     verify_step = workflow[workflow.index("- name: Verify Full test snapshot") :]
+    assert "Get-Command python" in verify_step
+    assert "-VenvPython $ciPython" in verify_step
     assert "-OutputPath $fullSnapshot" in verify_step
     assert "git diff --exit-code -- test-results.txt" not in verify_step

@@ -1,9 +1,10 @@
 # Second-Host Full Bootstrap
 
 > Status: **script path documented, first execution pending**. The
-> public-main gate in `.github/workflows/ci.yml` already builds the
-> immutable Docker sandbox image and runs the Full pytest job on
-> `ubuntu-latest`. The P3 follow-up here is the **operator-side**
+> public-main gate in `.github/workflows/ci.yml` builds the
+> immutable Docker sandbox image and runs the repository pytest gate
+> on `ubuntu-latest`; it does **not** start AgentTeams. The P3
+> follow-up here is the **operator-side**
 > reproduction on a second Windows + Docker host, which proves the
 > Full mode is not tied to the maintainer's primary machine.
 
@@ -48,7 +49,7 @@ A second-host bootstrap of the Full gate catches:
 ```powershell
 git clone https://github.com/WilliamClifton-dev/AgentLoom
 cd AgentLoom
-git checkout v0.1.0   # or the tag under review
+git checkout main     # or the exact tag under review
 ```
 
 ### 3. Bootstrap the Lite gate
@@ -62,9 +63,11 @@ python -m venv .venv
 .venv\Scripts\pip-audit.exe
 ```
 
-The local Lite gate is **376 passed / 3 skipped / 0 failed**. The
+The current-main local Lite gate is **377 passed / 3 skipped / 0 failed**
+(380 tests collected).
+The frozen `v0.1.0` tag historically recorded 375 passed / 3 skipped. The
 3 skips are the `test_docker_sandbox_live.py` cases that need the
-local Docker daemon; with Docker Desktop running they become 379
+local Docker daemon; with Docker Desktop running they are expected to become 380
 passed / 0 skipped / 0 failed.
 
 ### 4. Build the Full bootstrap
@@ -80,12 +83,14 @@ PowerShell-only and depends on:
 - `deploy/agentteams/configure-policy-broker-gateway.sh` (Higress
   Console side; the only Linux-friendly shim in the directory)
 
-The second-host operator runs the same sequence:
+Start the upstream cluster first, then let the AgentLoom bootstrap
+perform deployment and provider activation. Do not run `deploy.ps1`
+or the provider configuration script a second time:
 
 ```powershell
-pwsh -File scripts/bootstrap.ps1 -Profile full
-pwsh -File deploy/agentteams/deploy.ps1
-pwsh -File deploy/agentteams/configure-minimax-provider.ps1 `
+hiclaw cluster start
+pwsh -File scripts/bootstrap.ps1 -Profile full `
+    -Provider minimax `
     -Model "MiniMax-M2.5"
 pwsh -File deploy/agentteams/run-live-repair.ps1 `
     -TaskId 'AL-SECONDHOST-01' `
@@ -113,14 +118,11 @@ The expected fields are:
   "python": "3.12.7",
   "docker": "Docker Desktop 4.32.0",
   "hiclaw": "v1.1.2",
-  "test_counts": {
-    "lite_passed": 376,
-    "lite_skipped": 3,
-    "full_passed": 379,
-    "full_skipped": 0
-  },
+  "lite_gate": "377 passed / 3 skipped / 0 failed",
+  "docker_sandbox_gate": "380 passed / 0 skipped / 0 failed",
+  "agentteams_run": "PASSED or FAILED with redacted evidence",
   "evidence_digest": "sha256:...",
-  "rekor_entry": "https://rekor.sigstore.dev/?logIndex=..."
+  "release_asset_sha256": "sha256:..."
 }
 ```
 

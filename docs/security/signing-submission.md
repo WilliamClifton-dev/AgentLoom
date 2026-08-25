@@ -3,16 +3,17 @@
 > Status: **live since `v0.1.0`**. The submission ZIP is published at
 > <https://github.com/WilliamClifton-dev/AgentLoom/releases/tag/v0.1.0>
 > with its SHA-256 in the release body. The verification flow below
-> is the third-party trust anchor for the package. The optional
+> is the public artifact-integrity reference for the package. The optional
 > `deploy/signing/sign-submission-package.ps1` cosign wrapper is
 > **deprecated**; see the "Why not cosign" section.
 
 This document explains how a reviewer can confirm that the
-`AgentLoom v0.1.0` submission package they downloaded is the
-package the maintainer shipped, and that the maintainer is who
-they claim to be.
+`AgentLoom v0.1.0` submission package they downloaded matches the
+artifact digest published on the corresponding GitHub Release.
+This flow verifies artifact integrity and release-page provenance;
+it does not independently prove the maintainer's cryptographic identity.
 
-## The third-party trust anchor: GitHub Releases + SHA-256
+## Release asset integrity: GitHub Releases + SHA-256
 
 The AgentLoom `v0.1.0` package is published as a GitHub Release
 asset at
@@ -25,28 +26,20 @@ Submission ZIP SHA-256:
   0C5DFEB0BA6665609A14129A76CC1C239AED882A17E930C144AA5D3B88F6C306
 ```
 
-The "third party" in the Active goal's P3 wording is GitHub. The
-trust chain is:
+The actual trust statement is narrower:
 
-1. **The maintainer** signs the Git tag for `v0.1.0` with a key
-   enrolled on their GitHub account. The git-tag signature is
-   preserved in the repository as `git tag -v v0.1.0` can attest.
-2. **GitHub Actions** builds the package from the signed tag
-   (`.github/workflows/release.yml` / the `build` step in
-   `ci.yml`), then attaches the artifact to the release.
-3. **GitHub Releases** is the public host of the release page; the
-   TLS certificate chain proves the page was served by GitHub, and
-   the page content is what the maintainer authored.
-4. **A reviewer** fetches the page over HTTPS, copies the SHA-256
-   out of the release body, computes the SHA-256 of the downloaded
-   ZIP, and compares the two. Mismatch = tampering.
+1. **GitHub Releases** hosts the pinned release page and asset over
+   HTTPS.
+2. **The release body** contains a SHA-256 written by the maintainer
+   for the published ZIP.
+3. **A reviewer** downloads the pinned asset, computes its SHA-256,
+   and compares it with the release-body value. A mismatch means the
+   downloaded bytes are not the bytes identified by that release record.
 
-This is the same trust model the Python Package Index (PyPI) uses
-for `pip install`: the project publishes a digest, the index serves
-it, the user verifies. It is **not** the same as a code-signing
-certificate chain, but it is the model the AgentLoom architecture
-already commits to in the `ToolCallEventRecord` / `EvidenceRecord`
-schemas: "evidence + self-attested digest + reproducible replay".
+The `v0.1.0` Git tag is annotated but is not cryptographically signed,
+and this repository does not claim that the public CI workflow generated
+or uploaded the historical Release asset. The digest is an integrity
+check, not a code-signing certificate chain or identity attestation.
 
 ## Verify the package
 
@@ -55,31 +48,20 @@ URL performs the following checks. None of them require any
 toolchain beyond `curl`, `shasum`, and a POSIX shell.
 
 ```bash
-# 1. Pull the release page from GitHub over TLS. The pinned tag
-#    path makes the URL a stable identifier you can re-verify.
-curl -fsSL https://github.com/WilliamClifton-dev/AgentLoom/releases/tag/v0.1.0 \
-    -o /tmp/agentloom-v0.1.0.html
+# 1. Download the pinned release asset.
+curl -fL \
+  -o AgentLoom-v0.1.0-preliminary-submission.zip \
+  https://github.com/WilliamClifton-dev/AgentLoom/releases/download/v0.1.0/AgentLoom-v0.1.0-preliminary-submission.zip
 
-# 2. Extract the published SHA-256. The release body uses the
-#    canonical "Submission ZIP SHA-256:" line. Adjust the awk
-#    pattern if GitHub's release-page HTML changes between visits.
-grep -A1 'Submission ZIP SHA-256' /tmp/agentloom-v0.1.0.html \
-    | tail -n1 \
-    | tr -d '[:space:]' \
-    > /tmp/agentloom-v0.1.0.expected.sha256
-
-# 3. Download the actual ZIP from the same release page.
-curl -fsSLO "$(grep -oE 'https://[^"]+\\.zip' /tmp/agentloom-v0.1.0.html | head -n1)"
-
-# 4. Compute the digest and compare. A non-zero exit means
-#    the package was modified in transit or the wrong artifact
-#    was downloaded.
-shasum -a 256 -c /tmp/agentloom-v0.1.0.expected.sha256
+# 2. Set EXPECTED_SHA256 to the value shown on the pinned release page.
+EXPECTED_SHA256=0C5DFEB0BA6665609A14129A76CC1C239AED882A17E930C144AA5D3B88F6C306
+ACTUAL_SHA256=$(shasum -a 256 AgentLoom-v0.1.0-preliminary-submission.zip | awk '{print toupper($1)}')
+test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
+echo "SHA-256 verified: $ACTUAL_SHA256"
 ```
 
-A successful `shasum -c` produces `OK`. A failure produces
-`FAILED: <reason>` and a non-zero exit. Do not run the package
-on a failure.
+A mismatch makes `test` return non-zero. Do not extract or run the
+package after a mismatch.
 
 A reviewer who wants to additionally cross-check the build can
 run the Lite gate on the unzipped contents:
@@ -95,9 +77,10 @@ python3.12 -m venv .venv
 .venv/bin/pip-audit
 ```
 
-A clean run produces the same `376 passed / 3 skipped / 0 failed`
-count the maintainer observed at publish time. Any drift is a
-regression in the package, not in the maintainer's record.
+The frozen `v0.1.0` package historically recorded `375 passed / 3 skipped`.
+The current `main` checkout may contain additional tests; record the actual
+count when re-running the gate instead of treating the historical number as
+a release invariant.
 
 ## When to re-verify
 
@@ -138,13 +121,11 @@ revisited and the cosign path was rejected. The reasons:
    trust anchor for the same artifact, doubling the surface area
    the operator has to maintain without strengthening the
    primary anchor.
-3. **The "third party" already exists.** GitHub Releases with a
-   published SHA-256 is functionally a third-party-signed
-   package: GitHub is the third party that vouches for the
-   release page over TLS, and the SHA-256 in the release body
-   binds the artifact bytes to the maintainer's identity (via
-   the signed git tag). The PyPI model and the Rust crates.io
-   model both rely on this same pattern.
+3. **The current requirement is artifact integrity, not identity
+   attestation.** GitHub Releases provides a stable public location
+   for the page and asset, while the published SHA-256 lets reviewers
+   detect byte changes. It must not be described as a signed package
+   or as proof of maintainer identity.
 
 For operators who still want a sigstore path — for example to
 satisfy an internal corporate requirement — the

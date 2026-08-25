@@ -6,19 +6,21 @@
 
 简体中文 | [English](README.en.md)
 
-面向多 Agent 软件修复的治理型、证据优先 SkillOps 平台，构建于
-[AgentTeams](https://github.com/agentscope-ai/AgentTeams) 之上。
+AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提供身份绑定、
+短时单次 Grant、参数与路径限制、审批、防重放和可回放 Evidence。
 
-AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、可审计的能力。
-参赛场景从生产风格的修复任务开始，以经过独立验证、可回放的证据结束。
+项目最初以 [AgentTeams](https://github.com/agentscope-ai/AgentTeams) 软件修复场景
+验证这条控制链路；AgentTeams、Higress、Matrix 和 MinIO 是参考集成，不是 Gateway
+核心运行时的产品边界。
 
-> **当前证据基线（2026-08-16）：** AgentTeams `v1.1.2` 使用
+> **验证基线（2026-08-25）：** AgentTeams `v1.1.2` 使用
 > `minimax-cn / MiniMax-M2.5` 完成了 `Administrator -> Manager -> Investigator
 > -> Verifier -> 已认证 Higress -> Policy Broker -> 不可变 Docker pytest 沙箱`
 > 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。历史 clean-clone
 > Lite 证据为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，冻结
 > `v0.1.0` 门禁为 **375 passed / 3 skipped**。当前 public main 的 GitHub Actions
-> 会构建不可变沙箱镜像，门禁为 **379 passed / 0 skipped**；Task 24 两模式基准为
+> 会构建不可变沙箱镜像；最近一次公开 Full 证据为 **379 passed / 0 skipped**，当前工作树
+> 收集 380 项测试；Task 24 两模式基准为
 > **6 PASSED / 0 NOT_RUN**。Skill 目录状态为 **2 PUBLISHED / 4 QUARANTINED**；
 > 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
 > Human L2 审批为 `APPROVED`，上游 PR
@@ -26,49 +28,45 @@ AgentLoom 将第三方 Agent Skill 转化为可审查、可授权、可测试、
 > 真人录制、匿名公开播放和正式 `v0.1.0` Release 均已验证。最终八项 P0
 > 提交包已完成审计，SHA-256 为
 > `0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306`；
-> 目前只有竞赛页面提交仍是 Human 负责的检查点。
+> 项目当前冻结为可复现的简历版原型，不再以竞赛页面或新的 AgentTeams 功能为开发目标。
 
-## 参赛证据
+## 项目定位
 
-- 赛道：Agent Infra
-- 方向：软件研发全流程协同
-- 运行时：AgentTeams/HiClaw `v1.1.2`
+- 问题：Agent 可以调用工具，但默认缺少可验证的身份、权限和结果边界
+- 核心：Policy Broker、SkillExecutionGrant、ToolProvider、Docker Sandbox、Evidence
+- 参考集成：AgentTeams/HiClaw `v1.1.2`、Higress Streamable HTTP、Matrix 和 MinIO
+- 关键验证：合法调用成功，越权路径、参数篡改、身份不匹配和 Grant 重放被拒绝
+- 产品边界：不做代码审查产品，不做 Agent 编排器，不替代 OpenCodeReview 或 AgentTeams
+
+## 验证证据
+
 - 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
-- 当前结果：Task 24 三案例两模式矩阵 6/6 完成；Task 17 另行证明一个成功
-  ToolCall 经过 Higress、Policy Broker 和全新 Docker 沙箱的完整治理链路
-- 当前 public main 门禁：启用不可变 Docker 沙箱测试后 379 passed / 0 skipped；
-  冻结 `v0.1.0` 门禁：375 passed / 3 skipped；clean-clone Lite 证据：
-  339 passed / 0 failed / 3 skipped；Ruff、strict mypy、pip-audit、语法、
-  迁移、Diff 和密钥检查通过
-- Skill 状态：`code-review-and-quality`（上游）和 `patch-scope-validator`（团队原创）
-  为 `PUBLISHED`，另外四个上游 Skill 为 `QUARANTINED`；三次原创 Skill
-  调用均可按完整身份闭包重开
-- 提交状态：P0 提交包、公开 Demo 和 `v0.1.0` Release 已完成；竞赛页面提交待完成
+- Task 24 三案例两模式矩阵完成 6/6；Task 17 证明一条完整受治理 ToolCall 链路
+- 最近一次 public main Full 门禁：启用不可变 Docker 沙箱测试后 379 passed / 0 skipped；
+  冻结 `v0.1.0` 门禁：375 passed / 3 skipped；当前本地 Lite 快照：
+  377 passed / 3 skipped / 0 failed（当前工作树共收集 380 项）；Ruff、strict mypy、pip-audit 通过
+- Skill 状态：`code-review-and-quality` 与团队原创 `patch-scope-validator` v1.0.1
+  为 `PUBLISHED`，其余四个上游 Skill 保持 `QUARANTINED`
 
-当前证据和提交声明索引见[初赛提交记录](docs/competition/agentloom-preliminary-submission.md)。
-最终包的精确文件清单与哈希见[公开提交包 manifest](docs/competition/submission-package-manifest.json)，
-Human 操作步骤见[赛事提交操作清单](docs/competition/submission-operator-checklist.zh-CN.md)。
+完整历史竞赛证据仍见[初赛提交记录](docs/competition/agentloom-preliminary-submission.md)。
+Gateway 的目标边界和迁移计划见[产品规格](docs/specs/agent-tool-policy-gateway.md)。
 
 ## 架构
 
 ```mermaid
 flowchart LR
-    Administrator["Administrator"] --> Manager["AgentTeams Manager"]
-    Manager --> Investigator["Investigator"]
-    Investigator -->|"受治理委派"| Verifier["Verifier"]
-    Verifier --> Higress["已认证 Higress"]
-    Higress --> Broker["AgentLoom Policy Broker"]
-    Broker --> Grant["签名且限定作用域的 Grant"]
-    Broker --> Sandbox["不可变 Docker pytest 沙箱"]
-    Broker --> Evidence["可回放 ToolCall 证据"]
-    Human["Human L2 审批者"] --> Broker
+    Agent["Agent client"] --> Gateway["AgentLoom Policy Gateway"]
+    Gateway --> Grant["Signed, scoped Grant"]
+    Gateway --> Provider["ToolProvider"]
+    Provider --> Sandbox["Docker Sandbox"]
+    Gateway --> Evidence["Replayable Evidence"]
+    AgentTeams["AgentTeams adapter"] -. reference integration .-> Gateway
 ```
 
-Manager 无权调用 Policy Broker，Worker 不持有 Broker 签名密钥。受治理的
-ToolCall 必须同时具备已认证 Worker 身份，以及短时有效、绑定 Consumer、参数和
-单次使用的 `SkillExecutionGrant`。Broker 持久化 nonce 消费记录和可回放事件摘要，
-再把不可信 pytest 放入全新、禁网、只读挂载工作区的 Docker 沙箱运行。Policy、
-身份、沙箱和 Agent 作用域都是运行时控制，不只存在于 Prompt 或文档中。
+Gateway 不信任 Agent 自己声明的身份、路径或成功结果。每次受治理 ToolCall 必须
+同时具备已认证 Principal、短时有效且单次使用的 `SkillExecutionGrant`、规范化参数
+摘要和 Provider 约束。Gateway 持久化 nonce 消费记录和可回放事件摘要，并把不可信
+pytest 放入全新、禁网、只读挂载工作区的 Docker 沙箱运行。
 
 完整设计见 [AgentLoom 架构设计](docs/architecture/agentloom-architecture.md)。
 
@@ -105,11 +103,12 @@ python -m venv .venv
 详见[清洁环境复现指南](docs/deployment/clean-environment-reproduction.md)和
 [五分钟快速开始](docs/deployment/quickstart.md)。
 
-## 完整 AgentTeams 部署
+## AgentTeams 参考集成
 
-部署、Provider 激活、Policy Broker、Higress 和严格 E2E 的权威说明位于
+AgentTeams 部署、Provider 激活、Policy Broker、Higress 和严格 E2E 的历史验证说明位于
 [deploy/agentteams/README.md](deploy/agentteams/README.md)。Full 模式要求预先安装
-锁定版本的 AgentTeams/HiClaw `v1.1.2`；AgentLoom 不提供单容器独立发行版。
+锁定版本的 AgentTeams/HiClaw `v1.1.2`；当前仓库还没有声称提供生产级的独立
+Gateway 发行版。
 
 已固化的维护者付费证据只使用 MiniMax。新的 Live 探测可按场景选择 MiniMax 或
 StepFun，但必须使用唯一 run ID 并记录准确 Provider/模型。下游管理员也可以用
@@ -183,12 +182,15 @@ Profile 配置。
   `scripts/competition-rollback-demo.ps1 -Mode replay`。回放无需模型；Live 模式是独立、
   必须明确付费并授权的操作。
 
-## 后续路线图
+## 项目状态
 
-1. 完成竞赛页面提交并保留平台回执。
-2. 在第二台清洁 Windows/Docker 主机验证 Full bootstrap，并发布兼容性记录。
-3. 评测四个处于隔离状态的上游 Skill；只有通过 Skill Eval 和来源门禁后才发布。
-4. 将受治理修复结果接入一个受控的真实 Issue/PR 工作流。
+项目已完成简历版收尾并冻结功能范围。后续只保留两类工作：
+
+1. 修复可复现的质量门禁或安全问题；
+2. 只有出现真实试用团队时，才继续实现独立 Gateway profile 或新的 Provider。
+
+第二主机 Full bootstrap 和四个隔离 Skill 的评测属于未完成的历史扩展项，
+不作为当前项目完成度或生产能力声明。
 
 ## 开源与来源
 

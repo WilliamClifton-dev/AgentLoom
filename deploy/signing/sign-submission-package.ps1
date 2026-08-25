@@ -3,9 +3,9 @@
     [DEPRECATED] Sign the public submission package with sigstore cosign.
 
 .DESCRIPTION
-    DEPRECATED as of 2026-08-22. The AgentLoom project's third-party
-    trust anchor for the submission package is **GitHub Releases +
-    SHA-256**, not sigstore cosign. See `docs/security/signing-submission.md`
+    DEPRECATED as of 2026-08-22. The AgentLoom project's artifact-integrity
+    reference for the submission package is **GitHub Releases + SHA-256**,
+    not sigstore cosign. See `docs/security/signing-submission.md`
     and `deploy/signing/DEPRECATED.md` for the design rationale.
 
     This script is kept as an opt-in helper for operators with an
@@ -56,7 +56,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-Write-Warning "deploy/signing/sign-submission-package.ps1 is DEPRECATED. See docs/security/signing-submission.md and deploy/signing/DEPRECATED.md. The project's third-party trust anchor is GitHub Releases + SHA-256, not sigstore cosign. This script is kept only as an opt-in helper."
+Write-Warning "deploy/signing/sign-submission-package.ps1 is DEPRECATED. See docs/security/signing-submission.md and deploy/signing/DEPRECATED.md. The project's artifact-integrity reference is GitHub Releases + SHA-256, not sigstore cosign. This script is kept only as an opt-in helper."
 
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $manifestPath = Join-Path $projectRoot "docs/competition/submission-package-manifest.json"

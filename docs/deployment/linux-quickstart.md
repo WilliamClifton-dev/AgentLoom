@@ -21,7 +21,7 @@ reproduction end to end:
 | 4. Lint | `.venv/bin/ruff check .` | Ruff imports the `pyproject.toml` exclude list and skips `**/*.ps1` / `**/*.yml` automatically. |
 | 5. Type-check | `.venv/bin/mypy src tests` | Strict mypy + `pydantic.mypy` plugin over the 93 source files. |
 | 6. Audit | `.venv/bin/pip-audit` | Confirms no known vulnerabilities in the installed dep tree. |
-| 7. Lite tests | `.venv/bin/pytest -q` | Local Lite gate: **376 passed / 3 skipped / 0 failed**. The 3 skips live in `tests/test_docker_sandbox_live.py` and require a live Docker daemon (see below). |
+| 7. Lite tests | `.venv/bin/pytest -q` | Current Lite gate: **377 passed / 3 skipped / 0 failed** (380 collected). The 3 skips live in `tests/test_docker_sandbox_live.py` and require a live Docker daemon (see below). |
 | 8. Refresh snapshot | `pwsh -File scripts/refresh-test-results.ps1` or `.venv/bin/python -m agentloom.cli refresh-test-results` | Regenerates `test-results.txt` with timing, platform, and pytest-version normalized so identical evidence is byte-identical. The committed file is byte-stable; CI uses the same script. |
 
 Steps 4-8 are Linux-native. Step 3 works on Linux because the
@@ -42,11 +42,11 @@ tests/test_docker_sandbox_live.py sss
 
 When Docker Engine is reachable (Linux Docker daemon, Docker Desktop,
 or a remote daemon via `DOCKER_HOST`), the same three tests pass and
-the local count becomes `379 passed / 0 skipped / 0 failed`. The CI
+the current tree is expected to reach `380 passed / 0 skipped / 0 failed`. The CI
 gate in `.github/workflows/ci.yml` already builds the immutable sandbox
 image and exports `AGENTLOOM_TEST_SANDBOX_IMAGE` to exercise those
-three tests, so the public-main GitHub Actions run reports the 379/0/0
-number regardless of the operator host.
+three tests; the latest recorded public-main run reported 379/0/0 before
+the current test-count snapshot.
 
 To opt in on Linux, install Docker Engine ≥ 24.0, ensure the user is
 in the `docker` group, and run `.venv/bin/pytest -q` again. No extra

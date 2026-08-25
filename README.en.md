@@ -6,21 +6,23 @@
 
 [简体中文](README.md) | English
 
-Governed, evidence-first SkillOps for multi-Agent software repair on
-[AgentTeams](https://github.com/agentscope-ai/AgentTeams).
+AgentLoom is an Agent Tool Policy Gateway prototype. It gives Agent tool calls
+identity-bound, short-lived single-use Grants, parameter and path restrictions,
+approval checks, replay protection, and replayable Evidence.
 
-AgentLoom turns third-party Agent Skills into reviewable, authorized, testable,
-and auditable capabilities. Its competition scenario starts with a production-style
-repair task and ends with independently verified, replayable evidence.
+The project originally validated this control path through a software-repair
+scenario on [AgentTeams](https://github.com/agentscope-ai/AgentTeams). AgentTeams,
+Higress, Matrix, and MinIO are reference integrations, not the Gateway's core
+runtime boundary.
 
-> **Current evidence baseline (2026-08-16):** AgentTeams `v1.1.2` completed the
+> **Verification baseline (2026-08-25):** AgentTeams `v1.1.2` completed the
 > `Administrator -> Manager -> Investigator -> Verifier -> authenticated Higress
 > -> Policy Broker -> immutable Docker pytest sandbox` path with
 > `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
 > Historical clean-clone Lite evidence is **339 passed / 0 failed / 3 skipped
 > (opt-in Docker tests)**; the frozen `v0.1.0` gate is **375 passed / 3 skipped**.
-> The current public-main GitHub Actions gate builds the immutable sandbox image
-> and passes **379 tests / 0 skipped**. The
+> The latest recorded public-main GitHub Actions gate built the immutable sandbox
+> image and passed **379 tests / 0 skipped**; the current worktree collects 380 tests. The
 > versioned Task 24 benchmark is **6 PASSED / 0 NOT_RUN**. The Skill catalog is
 > **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
 > has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
@@ -28,56 +30,57 @@ repair task and ends with independently verified, replayable evidence.
 > `OPEN`. The real recording, anonymous public playback, and formal `v0.1.0`
 > Release are verified. The audited eight-entry P0 package is complete with
 > SHA-256 `0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306`;
-> only competition-page submission remains a Human-owned checkpoint.
+> The project is now frozen as a reproducible resume-grade prototype; new
+> AgentTeams features and competition-page work are out of scope.
 
-## Competition Evidence
+## Project Positioning
 
-- Track: Agent Infra
-- Direction: software-development lifecycle collaboration
-- Runtime: AgentTeams/HiClaw `v1.1.2`
-- Current paid evidence Provider: `minimax-cn / MiniMax-M2.5`
-- Current result: the three-case, two-mode Task 24 matrix completed 6/6 cells;
-  Task 17 separately proves one delegated ToolCall through Higress, the Policy
-  Broker, and a fresh Docker sandbox
-- Current public-main gate: 379 passed / 0 skipped with the immutable Docker
+- Problem: Agents can call tools, but usually lack enforceable identity,
+  authorization, and result boundaries
+- Core: Policy Broker, SkillExecutionGrant, ToolProvider, Docker Sandbox, Evidence
+- Reference integration: AgentTeams/HiClaw `v1.1.2`, Higress Streamable HTTP,
+  Matrix, and MinIO
+- Key verification: allowed calls succeed; path escape, parameter tampering,
+  identity mismatch, and Grant replay are rejected
+- Boundary: this is not a code-review product or an Agent orchestrator, and it
+  does not replace OpenCodeReview or AgentTeams
+
+## Verification Evidence
+
+- Paid evidence Provider: `minimax-cn / MiniMax-M2.5`
+- Task 24 completed the three-case, two-mode matrix 6/6; Task 17 proves one
+  complete governed ToolCall path
+- Latest recorded public-main gate: 379 passed / 0 skipped with the immutable Docker
   sandbox tests enabled; frozen `v0.1.0` gate: 375 passed / 3 skipped;
-  clean-clone Lite evidence: 339 passed / 0 failed / 3 skipped; Ruff, strict
-  mypy, pip-audit, syntax, migration, diff, and secret checks passed
-- Skill status: `code-review-and-quality` (upstream) and `patch-scope-validator`
-  (team-original) are `PUBLISHED`; four upstream Skills are `QUARANTINED`; three
-  original-Skill invocation bundles reopen with full identity closure
-- Submission status: P0 package, public Demo, and `v0.1.0` Release complete;
-  competition-page submission pending
+  current local Lite snapshot: 377 passed / 3 skipped / 0 failed (380 collected);
+  Ruff, strict
+  mypy, and pip-audit pass
+- Skill status: `code-review-and-quality` and team-original
+  `patch-scope-validator` v1.0.1 are `PUBLISHED`; four upstream Skills remain
+  `QUARANTINED`
 
-The current evidence and submission claims are indexed in the
+Historical competition evidence remains indexed in the
 [preliminary submission record](docs/competition/agentloom-preliminary-submission.md).
-The exact package inventory and hashes are in the
-[public submission manifest](docs/competition/submission-package-manifest.json),
-and the human-only platform steps are in the
-[submission operator checklist](docs/competition/submission-operator-checklist.zh-CN.md).
+The Gateway boundary and migration plan are in the
+[product specification](docs/specs/agent-tool-policy-gateway.md).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Administrator["Administrator"] --> Manager["AgentTeams Manager"]
-    Manager --> Investigator["Investigator"]
-    Investigator -->|"governed delegation"| Verifier["Verifier"]
-    Verifier --> Higress["Authenticated Higress"]
-    Higress --> Broker["AgentLoom Policy Broker"]
-    Broker --> Grant["Signed, scoped Grant"]
-    Broker --> Sandbox["Immutable Docker pytest sandbox"]
-    Broker --> Evidence["Replayable ToolCall evidence"]
-    Human["Human L2 approver"] --> Broker
+    Agent["Agent client"] --> Gateway["AgentLoom Policy Gateway"]
+    Gateway --> Grant["Signed, scoped Grant"]
+    Gateway --> Provider["ToolProvider"]
+    Provider --> Sandbox["Docker Sandbox"]
+    Gateway --> Evidence["Replayable Evidence"]
+    AgentTeams["AgentTeams adapter"] -. reference integration .-> Gateway
 ```
 
-The Manager is not authorized to call the Policy Broker. Workers do not receive
-the Broker signing key. A governed ToolCall requires an authenticated Worker
-identity plus a short-lived, consumer-bound, parameter-bound, one-time
-`SkillExecutionGrant`. The Broker persists nonce consumption and replayable event
-digests, then runs untrusted pytest only in a fresh, network-disabled Docker
-sandbox with a read-only workspace. Policy, identity, sandboxing, and Agent scope
-are runtime controls rather than prompt-only instructions.
+The Gateway does not trust an Agent's self-declared identity, path, or success
+result. Every governed ToolCall requires an authenticated Principal, a short-lived
+one-time `SkillExecutionGrant`, a canonical parameter digest, and Provider
+constraints. The Gateway persists nonce consumption and replayable event digests,
+then runs untrusted pytest only in a fresh, network-disabled Docker sandbox.
 
 The full design is in the [AgentLoom architecture](docs/architecture/agentloom-architecture.md).
 
@@ -115,12 +118,13 @@ and emits a redacted JSON summary plus SHA-256. See the
 [clean-environment reproduction guide](docs/deployment/clean-environment-reproduction.md)
 and the [five-minute quickstart](docs/deployment/quickstart.md).
 
-## Full AgentTeams Deployment
+## AgentTeams Reference Integration
 
-The authoritative deployment, Provider activation, Policy Broker, Higress, and
-strict E2E instructions are in [deploy/agentteams/README.md](deploy/agentteams/README.md).
-Full mode requires the pinned AgentTeams/HiClaw `v1.1.2` runtime; AgentLoom does
-not provide a standalone one-container distribution.
+The historical AgentTeams deployment, Provider activation, Policy Broker, Higress,
+and strict E2E instructions are in
+[deploy/agentteams/README.md](deploy/agentteams/README.md). This reference
+integration requires the pinned AgentTeams/HiClaw `v1.1.2` runtime; the repository
+does not currently claim to ship a production standalone Gateway distribution.
 
 Maintainer-paid live probes currently use MiniMax. Downstream administrators may
 instead supply their own quota through a validated, public-HTTPS
@@ -206,14 +210,18 @@ Worker, or Provider Profile configuration.
   and `scripts/competition-rollback-demo.ps1 -Mode replay`. Replay is model-free;
   live mode is a separate, explicitly paid and authorized operation.
 
-## Remaining Roadmap
+## Project Status
 
-1. Complete the competition-page submission and retain the platform receipt.
-2. Validate Full bootstrap on a second clean Windows/Docker host and publish a
-   deployment compatibility record.
-3. Evaluate the four quarantined upstream Skills; publish only those that pass
-   the Skill Eval and provenance gates.
-4. Connect the governed repair result to a controlled real Issue/PR workflow.
+The resume-grade prototype is complete and the feature scope is frozen. Future
+work is limited to:
+
+1. Fixing reproducible quality or security issues; and
+2. Implementing a standalone Gateway profile or another Provider only when a
+   real trial user requires it.
+
+The second-host Full bootstrap and evaluation of the four quarantined Skills are
+historical extension items, not claims about current completion or production
+readiness.
 
 ## Provenance
 

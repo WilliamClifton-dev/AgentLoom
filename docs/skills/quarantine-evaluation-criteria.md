@@ -34,8 +34,8 @@ all of the following on the public-main gate:
 3. **Reproducible AgentLoom benchmark.** The Skill has at least one
    `evaluation.agentloomBenchEvidenceRefs` entry pointing to a stable
    pytest node id in the public-main test suite, and that test passes
-   in the current Lite (`376 passed / 3 skipped / 0 failed`) and Full
-   (`379 passed / 0 skipped / 0 failed`) gates.
+   in the current Lite (`377 passed / 3 skipped / 0 failed`, 380 collected)
+   and in the latest recorded Full (`379 passed / 0 skipped / 0 failed`) gate.
 4. **Pinned Tool execution.** Every `allowedTools` entry resolves to
    a bound Tool Provider with a `ToolExecutionGrant` shape (`agent`,
    `skillName`, `skillVersion`, `toolName`, `parameterDigest`) and a

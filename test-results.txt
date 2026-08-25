@@ -1,4 +1,4 @@
-﻿========================================================================
+========================================================================
 AgentLoom test snapshot
 Generated:    2026-08-21 18:28:39 +08:00
 Generator:    scripts/refresh-test-results.ps1
@@ -6,26 +6,26 @@ Source:       D:\Projects\Agent-Infra\.venv\Scripts\python.exe -m pytest -v --tb
 Exit code:    0
 
 Counts parsed from this run:
-  - collected: 379
-  - passed:    376
+  - collected: 380
+  - passed:    377
   - skipped:   3
   - failed:    0
 
 Interpretation:
-  - Local Windows checkout without a live Docker daemon: typically 376
-    passed / 3 skipped / 0 failed. The 3 skipped tests live in
+  - This local run recorded 377 passed / 3 skipped / 0 failed.
+    The Docker-backed tests are expected to account for the skipped cases
     tests/test_docker_sandbox_live.py and need a Docker daemon.
   - Public-main CI builds an immutable sandbox image and exports
-    AGENTLOOM_TEST_SANDBOX_IMAGE, so all 379 tests run: 379 passed /
-    0 skipped / 0 failed.
+    AGENTLOOM_TEST_SANDBOX_IMAGE, so all 380 collected tests are expected to run.
+    CI records the runner-local Full result separately from this Lite file.
   - Timing, platform, and pytest versions are normalized so that two
     runs that produce the same evidence are byte-identical. Only a
     genuine change in pass/skip/fail results or per-test outcomes
     changes this file.
-  - Treat this file as a point-in-time snapshot. The authoritative
-    number is the current pytest exit status on the working tree or
-    in CI. The CI workflow runs this script and fails the PR if the
-    committed test-results.txt drifts from the regenerated one.
+  - Treat this file as a point-in-time local Lite snapshot. The authoritative
+    result is the current pytest exit status on the working tree. The CI
+    workflow records its Docker-backed Full snapshot in runner-local temp
+    storage and does not compare it with this committed Lite file.
 ========================================================================
 ============================= test session starts =============================
 platform normalized -- Python normalized, pytest-normalized, pluggy-normalized
@@ -34,30 +34,30 @@ configfile: pyproject.toml
 testpaths: tests
 plugins: anyio-4.14.2, asyncio-1.4.0
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 379 items
+collected 380 items
 
 tests\test_agentteams_deployment.py .................................    [  8%]
 tests\test_approvals.py .....                                            [ 10%]
 tests\test_approvals_api.py ..                                           [ 10%]
 tests\test_benchmark.py .........                                        [ 12%]
 tests\test_capabilities.py ....                                          [ 13%]
-tests\test_ci_workflow.py .                                              [ 14%]
+tests\test_ci_workflow.py ..                                             [ 14%]
 tests\test_cli.py ...........                                            [ 17%]
 tests\test_contracts.py ...............................                  [ 25%]
 tests\test_demo_case.py ................                                 [ 29%]
-tests\test_deployment_entrypoints.py .........                           [ 31%]
+tests\test_deployment_entrypoints.py .........                           [ 32%]
 tests\test_detection.py .....                                            [ 33%]
 tests\test_docker_sandbox.py .............                               [ 36%]
 tests\test_docker_sandbox_live.py sss                                    [ 37%]
 tests\test_grant_issuer.py ........                                      [ 39%]
 tests\test_internal_policy_api.py ..                                     [ 40%]
 tests\test_l2_approval.py ...............                                [ 44%]
-tests\test_live_evidence.py .......                                      [ 45%]
-tests\test_live_repair.py ...............                                [ 49%]
+tests\test_live_evidence.py .......                                      [ 46%]
+tests\test_live_repair.py ...............                                [ 50%]
 tests\test_live_rollback.py .......                                      [ 51%]
 tests\test_local_test_runner.py ......                                   [ 53%]
 tests\test_migration_rehearsal.py ....                                   [ 54%]
-tests\test_migrations.py ..                                              [ 54%]
+tests\test_migrations.py ..                                              [ 55%]
 tests\test_mock_artifact_e2e.py ..                                       [ 55%]
 tests\test_mock_repair.py ..........                                     [ 58%]
 tests\test_namespace_bridge.py ...............                           [ 62%]
@@ -80,4 +80,4 @@ tests\test_tool_events.py ...                                            [ 94%]
 tests\test_tui.py .............                                          [ 97%]
 tests\test_workflow.py .........                                         [100%]
 
-================= 376 passed, 3 skipped ==================
+================= 377 passed, 3 skipped ==================
