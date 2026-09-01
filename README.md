@@ -6,18 +6,21 @@
 
 简体中文 | [English](README.en.md)
 
+## TL;DR
+
+AgentLoom 是一个 **Agent Tool Policy Gateway** 原型。当 Agent 想调用工具（改代码、跑测试、写文件）时，Gateway 强制校验：调用方身份 / 短时一次性授权 / 参数白名单 / 审批 / 沙箱 / 可回放证据。任何一项不通过 = 拒绝并留证据。
+
+**这个项目展示的工程能力**：多 Agent 系统的边界设计、HMAC 签名授权、防重放 nonce、不可变 Docker 沙箱、可观测证据链、Pydantic 契约测试——所有跑通的 380 项测试 + 6 项 AgentTeams 端到端任务都基于此。
+
+## 为什么做这个
+
+2026 年的 Agent 已经能写代码、改 bug、跑测试。但**它们能不能被信任**，是另一个问题。一次工具调用出错就可能删错文件、跑错测试、泄露密钥。AgentLoom 解决的是 Agent 工具调用层的可治理性——给 Agent 调用工具加上"权限校验 + 不可抵赖的证据"，让 Agent 在工程团队里可被审计、可被回滚、可被审批。
+
+---
+
 AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提供身份绑定、
 短时单次 Grant、参数与路径限制、审批、防重放和可回放 Evidence。
 
-项目最初以 [AgentTeams](https://github.com/agentscope-ai/AgentTeams) 软件修复场景
-验证这条控制链路；AgentTeams、Higress、Matrix 和 MinIO 是参考集成，不是 Gateway
-核心运行时的产品边界。
-
-> **验证基线（2026-08-25）：** AgentTeams `v1.1.2` 使用
-> `minimax-cn / MiniMax-M2.5` 完成了 `Administrator -> Manager -> Investigator
-> -> Verifier -> 已认证 Higress -> Policy Broker -> 不可变 Docker pytest 沙箱`
-> 链路，并产生且仅产生一个受治理的 `SUCCEEDED` ToolCall。历史 clean-clone
-> Lite 证据为 **339 passed / 0 failed / 3 skipped（可选 Docker 测试）**，冻结
 > `v0.1.0` 门禁为 **375 passed / 3 skipped**。当前 public main 的 GitHub Actions
 > 会构建不可变沙箱镜像；最新 Full 证据为 **380 passed / 0 skipped**，当前工作树
 > 收集 380 项测试；Task 24 两模式基准为
@@ -202,3 +205,6 @@ AgentLoom 代码采用 Apache-2.0 许可证。上游运行时、Skill 内容、�
 
 MVP 阶段只使用合成 fixture 和隔离仓库。不要把个人 SSH 目录、生产凭据或无关主机
 路径挂载到 Worker 或沙箱。安全问题请私下联系仓库所有者。
+
+
+
