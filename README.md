@@ -12,6 +12,8 @@ AgentLoom 是一个 **Agent Tool Policy Gateway** 原型。当 Agent 想调用�
 
 **这个项目展示的工程能力**：多 Agent 系统的边界设计、HMAC 签名授权、防重放 nonce、不可变 Docker 沙箱、可观测证据链、Pydantic 契约测试——所有跑通的 380 项测试 + 6 项 AgentTeams 端到端任务都基于此。
 
+**招聘者快速查看**：[两分钟项目速览](docs/portfolio-brief.zh-CN.md) · [公开 Demo（3:41）](docs/demo.html) · [无模型快速开始](#无模型快速开始)
+
 ## 为什么做这个
 
 2026 年的 Agent 已经能写代码、改 bug、跑测试。但**它们能不能被信任**，是另一个问题。一次工具调用出错就可能删错文件、跑错测试、泄露密钥。AgentLoom 解决的是 Agent 工具调用层的可治理性——给 Agent 调用工具加上"权限校验 + 不可抵赖的证据"，让 Agent 在工程团队里可被审计、可被回滚、可被审批。
