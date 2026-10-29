@@ -9,13 +9,20 @@ import pytest_asyncio
 from agentloom.api import create_app
 from agentloom.storage import Database
 
+INTERNAL_API_TOKEN = "local-test-internal-api-token-32-bytes-minimum"
+
 
 @pytest_asyncio.fixture
 async def client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
     database = Database(f"sqlite:///{tmp_path / 'agentloom.db'}")
     database.create_schema()
-    transport = httpx.ASGITransport(app=create_app(database))
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as api_client:
+    transport = httpx.ASGITransport(
+        app=create_app(database, internal_api_token=INTERNAL_API_TOKEN)
+    )
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as api_client:
         yield api_client
 
 
@@ -50,14 +57,19 @@ async def test_approval_api_creates_reads_and_decides_exact_request(
     task = (await client.post("/api/tasks", json=task_payload())).json()
     created_response = await client.post(
         "/internal/approvals",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
         json=approval_payload(task["taskId"]),
     )
 
     assert created_response.status_code == 201
     pending = created_response.json()
-    read_response = await client.get(f"/internal/approvals/{pending['approvalId']}")
+    read_response = await client.get(
+        f"/internal/approvals/{pending['approvalId']}",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+    )
     decision_response = await client.post(
         f"/internal/approvals/{pending['approvalId']}/decisions",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
         json={
             "expectedApprovalVersion": 0,
             "status": "APPROVED",
@@ -79,6 +91,7 @@ async def test_approval_api_rejects_unknown_task_and_stale_decision(
 ) -> None:
     missing_response = await client.post(
         "/internal/approvals",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
         json=approval_payload("task-missing"),
     )
     assert missing_response.status_code == 404
@@ -86,7 +99,11 @@ async def test_approval_api_rejects_unknown_task_and_stale_decision(
 
     task = (await client.post("/api/tasks", json=task_payload())).json()
     approval = (
-        await client.post("/internal/approvals", json=approval_payload(task["taskId"]))
+        await client.post(
+            "/internal/approvals",
+            headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+            json=approval_payload(task["taskId"]),
+        )
     ).json()
     endpoint = f"/internal/approvals/{approval['approvalId']}/decisions"
     request = {
@@ -95,8 +112,18 @@ async def test_approval_api_rejects_unknown_task_and_stale_decision(
         "actor": "agentloom-developer",
         "reason": "External write is not approved.",
     }
-    assert (await client.post(endpoint, json=request)).status_code == 200
-    stale_response = await client.post(endpoint, json={**request, "status": "APPROVED"})
+    assert (
+        await client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+            json=request,
+        )
+    ).status_code == 200
+    stale_response = await client.post(
+        endpoint,
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+        json={**request, "status": "APPROVED"},
+    )
 
     assert stale_response.status_code == 409
     assert stale_response.json()["error"]["code"] == "APPROVAL_VERSION_CONFLICT"

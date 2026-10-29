@@ -15,6 +15,8 @@ from agentloom.contracts import (
 from agentloom.policy import InMemoryNonceStore, SkillGrantAuthorizer
 from agentloom.storage import Database
 
+INTERNAL_API_TOKEN = "local-test-internal-api-token-32-bytes-minimum"
+
 
 def authorizer() -> SkillGrantAuthorizer:
     return SkillGrantAuthorizer(
@@ -97,13 +99,23 @@ async def test_internal_policy_api_verifies_grant_once(tmp_path: Path) -> None:
     grant_authorizer = authorizer()
     database = Database(f"sqlite:///{tmp_path / 'agentloom.db'}")
     database.create_schema()
-    transport = httpx.ASGITransport(app=create_app(database, grant_authorizer))
+    transport = httpx.ASGITransport(
+        app=create_app(
+            database,
+            grant_authorizer,
+            internal_api_token=INTERNAL_API_TOKEN,
+        )
+    )
     request = {
         "signedGrant": signed_grant(grant_authorizer),
         "parameterDigest": "b" * 64,
     }
 
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+    ) as client:
         accepted = await client.post("/internal/policy/grants/verify", json=request)
         replayed = await client.post("/internal/policy/grants/verify", json=request)
 
@@ -118,9 +130,19 @@ async def test_internal_policy_api_rejects_parameter_mismatch(tmp_path: Path) ->
     grant_authorizer = authorizer()
     database = Database(f"sqlite:///{tmp_path / 'agentloom.db'}")
     database.create_schema()
-    transport = httpx.ASGITransport(app=create_app(database, grant_authorizer))
+    transport = httpx.ASGITransport(
+        app=create_app(
+            database,
+            grant_authorizer,
+            internal_api_token=INTERNAL_API_TOKEN,
+        )
+    )
 
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+    ) as client:
         response = await client.post(
             "/internal/policy/grants/verify",
             json={

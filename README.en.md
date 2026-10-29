@@ -13,25 +13,18 @@ approval checks, replay protection, and replayable Evidence.
 The project originally validated this control path through a software-repair
 scenario on [AgentTeams](https://github.com/agentscope-ai/AgentTeams). AgentTeams,
 Higress, Matrix, and MinIO are reference integrations, not the Gateway's core
-runtime boundary.
+runtime boundary. This is a reproducible resume-grade prototype, not a production
+standalone Gateway distribution.
 
-> **Verification baseline (2026-08-25):** AgentTeams `v1.1.2` completed the
-> `Administrator -> Manager -> Investigator -> Verifier -> authenticated Higress
-> -> Policy Broker -> immutable Docker pytest sandbox` path with
-> `minimax-cn / MiniMax-M2.5` and exactly one governed `SUCCEEDED` ToolCall.
-> Historical clean-clone Lite evidence is **339 passed / 0 failed / 3 skipped
-> (opt-in Docker tests)**; the frozen `v0.1.0` gate is **375 passed / 3 skipped**.
-> The latest public-main GitHub Actions gate built the immutable sandbox
-> image and passed **380 tests / 0 skipped**; the current worktree collects 380 tests. The
-> versioned Task 24 benchmark is **6 PASSED / 0 NOT_RUN**. The Skill catalog is
-> **2 PUBLISHED / 4 QUARANTINED**; team-original `patch-scope-validator` v1.0.1
-> has three strictly replayed governed invocations. Human L2 approval is `APPROVED`,
-> and upstream PR [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) remains
-> `OPEN`. The real recording, anonymous public playback, and formal `v0.1.0`
-> Release are verified. The audited eight-entry P0 package is complete with
-> SHA-256 `0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306`;
-> The project is now frozen as a reproducible resume-grade prototype; new
-> AgentTeams features and competition-page work are out of scope.
+## Current Verification
+
+| Scope | Result | Notes |
+| --- | --- | --- |
+| Local Lite | `382 passed / 3 skipped` | Current PR worktree; skipped tests require Docker. Ruff and strict mypy pass. |
+| GitHub Actions Full | `380 passed / 0 skipped` | Latest verified public `main` baseline; this PR is awaiting CI. |
+| Task 24 benchmark | `6 PASSED / 0 NOT_RUN` | Archived three-case, two-mode benchmark. |
+
+These numbers describe different environments. See the [verification baseline and history](docs/verification-baseline.zh-CN.md) for archived integration and release evidence.
 
 ## Project Positioning
 
@@ -44,20 +37,6 @@ runtime boundary.
   identity mismatch, and Grant replay are rejected
 - Boundary: this is not a code-review product or an Agent orchestrator, and it
   does not replace OpenCodeReview or AgentTeams
-
-## Verification Evidence
-
-- Paid evidence Provider: `minimax-cn / MiniMax-M2.5`
-- Task 24 completed the three-case, two-mode matrix 6/6; Task 17 proves one
-  complete governed ToolCall path
-- Latest public-main gate: 380 passed / 0 skipped with the immutable Docker
-  sandbox tests enabled; frozen `v0.1.0` gate: 375 passed / 3 skipped;
-  current local Lite snapshot: 377 passed / 3 skipped / 0 failed (380 collected);
-  Ruff, strict
-  mypy, and pip-audit pass
-- Skill status: `code-review-and-quality` and team-original
-  `patch-scope-validator` v1.0.1 are `PUBLISHED`; four upstream Skills remain
-  `QUARANTINED`
 
 Historical competition evidence remains indexed in the
 [preliminary submission record](docs/competition/agentloom-preliminary-submission.md).
@@ -86,7 +65,7 @@ The full design is in the [AgentLoom architecture](docs/architecture/agentloom-a
 
 ## Model-Free Quick Start
 
-Prerequisites: Python 3.12 and Git. These commands make no model or paid API call.
+Prerequisites: Windows 10/11, PowerShell 7, Python 3.12, and Git. The [Windows quickstart](docs/deployment/quickstart.md) provides one install/demo path, expected output, evidence locations, and troubleshooting. It makes no model or paid API call.
 
 ```powershell
 python -m venv .venv
@@ -105,6 +84,8 @@ Run either deterministic repair case without an LLM or cloud quota:
 ```
 
 Replace `severity-normalization` with `pagination-boundary` for the second case.
+Inspect the independent verification summary at
+`artifacts/demo/severity-normalization/artifacts/test-results.txt`.
 Launch the local evidence control panel with:
 
 ```powershell
@@ -184,31 +165,18 @@ uses the pinned Docker backend and does not export that acknowledgement. Never
 put the signing key, model credentials, or raw provider secrets in committed MCP,
 Worker, or Provider Profile configuration.
 
-## Historical Evidence
+The FastAPI control plane's `/internal/*` routes are also a trusted boundary.
+`create_app` requires a deployment-injected `internal_api_token` of at least 32
+ASCII characters; callers must send `Authorization: Bearer <token>`. Read the
+token from process environment or a secret manager during deployment. If the
+service is network-accessible, restrict it at the gateway and use TLS. Missing
+or invalid tokens receive `401` before task transitions, approvals, or Grant
+verification run.
 
-> The items below are retained for audit and reproduction. They are **not the
-> current evidence baseline**. Qwen and DeepSeek remain disabled because their
-> accounts have no balance. MiniMax and StepFun are authorized subscription
-> Providers, but every new run must use a unique run ID and exact Provider/model
-> evidence. The accepted Task 24 report remains immutable MiniMax history; a
-> future MiniMax or StepFun diagnostic must never overwrite it. Do not replay
-> historical paid paths as if they were new.
-
-- On 2026-08-04, Qwen `qwen3.7-plus` completed an unattended repair that passed
-  independent visible, host-only hidden, and static checks. The generated patch
-  SHA-256 is
-  `7d9d571a833eabaedf97eac73dad50f6290bfa332d3ef504882398ba2e6d0833`.
-  Strict run evidence remains at
-  `artifacts/agentteams/live-repair-pagination-qwen-unattended-03.json`; independent
-  verification remains under
-  `artifacts/live-repair/AL-LIVE-PAGINATION-UNATTENDED-20260804-03/verified/artifacts/`.
-- The earlier StepFun four-role rollback and DeepSeek message-baseline evidence
-  remain historical inputs to the Human L2 approval record. Their redacted
-  summary is in
-  [L2 approval and upstream contribution evidence](docs/competition/l2-approval-and-upstream-contribution-evidence.md).
-- Historical replay entry points remain `scripts/competition-demo.ps1 -Mode replay`
-  and `scripts/competition-rollback-demo.ps1 -Mode replay`. Replay is model-free;
-  live mode is a separate, explicitly paid and authorized operation.
+Historical live evidence is retained for audit. Qwen and DeepSeek remain disabled;
+new paid runs require a unique run ID and exact Provider/model evidence. The
+archived Task 24 report must not be overwritten. Historical replay is model-free;
+live mode is a separate, explicitly paid and authorized operation.
 
 ## Project Status
 
