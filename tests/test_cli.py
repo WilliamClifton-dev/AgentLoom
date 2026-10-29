@@ -32,6 +32,40 @@ def test_tui_command_exposes_local_case_and_output_options() -> None:
     assert "--auto-run" in output
 
 
+def test_serve_requires_token_before_starting_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGENTLOOM_INTERNAL_API_TOKEN", raising=False)
+    result = CliRunner().invoke(app, ["serve"])
+
+    assert result.exit_code == 1
+    assert "AGENTLOOM_INTERNAL_API_TOKEN must be set" in result.output
+
+
+def test_serve_passes_configured_app_to_localhost_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "local-test-internal-api-token-32-bytes-minimum"
+    sentinel = object()
+    captured: dict[str, object] = {}
+    monkeypatch.setenv("AGENTLOOM_INTERNAL_API_TOKEN", token)
+    monkeypatch.setattr("agentloom.cli.create_app_from_env", lambda url: sentinel)
+    monkeypatch.setattr(
+        "uvicorn.run",
+        lambda api, **kwargs: captured.update(api=api, **kwargs),
+    )
+
+    result = CliRunner().invoke(app, ["serve"])
+
+    assert result.exit_code == 0
+    assert captured == {
+        "api": sentinel,
+        "host": "127.0.0.1",
+        "port": 8000,
+        "log_level": "info",
+    }
+
+
 def test_tui_requires_all_live_evidence_layers(tmp_path: Path) -> None:
     result = CliRunner().invoke(
         app,

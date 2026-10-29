@@ -190,6 +190,27 @@ async def test_tui_renders_case_and_completed_evidence(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_tui_surfaces_failure_reason_and_redacted_evidence_path(
+    tmp_path: Path,
+) -> None:
+    service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
+    app = AgentLoomApp(service, public_output=True)
+    artifacts_dir = tmp_path / "private" / "run-123"
+
+    async with app.run_test(size=(90, 44)):
+        app._show_run_error(
+            DemoRunError("verification artifact is invalid", artifacts_dir=artifacts_dir)
+        )
+
+        status = str(app.query_one("#run-status", Static).render())
+        evidence = str(app.query_one("#artifact-details", Static).render())
+        assert "FAILED" in status
+        assert "Reason: verification artifact is invalid" in evidence
+        assert "Evidence: <redacted>" in evidence
+        assert str(tmp_path) not in evidence
+
+
+@pytest.mark.asyncio
 async def test_tui_renders_bound_live_agentteams_evidence(tmp_path: Path) -> None:
     service = DemoRunService(cases_root=CASES, runs_root=tmp_path / "runs")
     role_events = tuple(

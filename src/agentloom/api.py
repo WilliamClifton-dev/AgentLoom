@@ -1,5 +1,6 @@
 """FastAPI control-plane entry point."""
 
+import os
 from hmac import compare_digest
 from typing import Annotated
 
@@ -35,6 +36,8 @@ _INTERNAL_AUTH_ERROR = {
         "details": {},
     }
 }
+
+INTERNAL_API_TOKEN_ENV = "AGENTLOOM_INTERNAL_API_TOKEN"
 
 
 class InternalAPIBearerAuthMiddleware:
@@ -234,6 +237,20 @@ def create_app(
             )
 
     return app
+
+
+def create_app_from_env(database_url: str) -> FastAPI:
+    """Build the control-plane app from process configuration.
+
+    The internal bearer token intentionally has no CLI or URL fallback: it must
+    be supplied through the process environment or an external secret manager.
+    """
+    token = os.environ.get(INTERNAL_API_TOKEN_ENV)
+    if token is None:
+        raise RuntimeError(
+            f"{INTERNAL_API_TOKEN_ENV} must be set to start the internal API"
+        )
+    return create_app(Database(database_url), internal_api_token=token)
 
 
 def _task_not_found(task_id: str) -> JSONResponse:

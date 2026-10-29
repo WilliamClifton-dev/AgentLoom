@@ -166,12 +166,20 @@ put the signing key, model credentials, or raw provider secrets in committed MCP
 Worker, or Provider Profile configuration.
 
 The FastAPI control plane's `/internal/*` routes are also a trusted boundary.
-`create_app` requires a deployment-injected `internal_api_token` of at least 32
-ASCII characters; callers must send `Authorization: Bearer <token>`. Read the
-token from process environment or a secret manager during deployment. If the
-service is network-accessible, restrict it at the gateway and use TLS. Missing
-or invalid tokens receive `401` before task transitions, approvals, or Grant
-verification run.
+Apply database migrations, then inject a token of at least 32 ASCII characters
+through the process environment or a secret manager before starting the service:
+
+```powershell
+.venv\Scripts\alembic upgrade head
+$env:AGENTLOOM_INTERNAL_API_TOKEN = "replace-with-at-least-32-ascii-characters"
+.venv\Scripts\agentloom serve
+```
+
+The service binds only to `127.0.0.1:8000` by default. Bind to another address
+only behind a gateway that restricts sources and configures TLS. Callers must
+send `Authorization: Bearer <token>` to `/internal/*`. A missing token prevents
+startup; missing or invalid request tokens receive `401` before approval,
+transition, or Grant verification logic runs.
 
 Historical live evidence is retained for audit. Qwen and DeepSeek remain disabled;
 new paid runs require a unique run ID and exact Provider/model evidence. The

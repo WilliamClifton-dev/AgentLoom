@@ -5,7 +5,7 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from agentloom.api import create_app
+from agentloom.api import create_app, create_app_from_env
 from agentloom.storage import Database
 
 INTERNAL_API_TOKEN = "local-test-internal-api-token-32-bytes-minimum"
@@ -142,6 +142,15 @@ def test_internal_api_rejects_short_tokens(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="at least 32 ASCII characters"):
         create_app(database, internal_api_token="这是一个超过三十二字符的中文认证密钥")
+
+
+def test_internal_api_env_factory_requires_process_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("AGENTLOOM_INTERNAL_API_TOKEN", raising=False)
+
+    with pytest.raises(RuntimeError, match="AGENTLOOM_INTERNAL_API_TOKEN must be set"):
+        create_app_from_env(f"sqlite:///{tmp_path / 'agentloom.db'}")
 
 
 @pytest.mark.asyncio

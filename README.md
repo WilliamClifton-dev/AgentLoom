@@ -162,11 +162,18 @@ $env:AGENTLOOM_POLICY_SIGNING_KEY = "replace-with-a-local-development-secret"
 签名密钥、模型凭据和 Provider 原始密钥都不得写入已提交的 MCP、Worker 或 Provider
 Profile 配置。
 
-FastAPI 控制面中的 `/internal/*` 路由同样属于受信边界：`create_app` 要求部署方注入
-至少 32 个字符的 `internal_api_token`，调用方必须发送
-`Authorization: Bearer <token>`。该 token 只应通过进程环境或密钥管理注入；如果服务
-被部署到可访问网络，仍需在网关层限制来源并配置 TLS。缺少或错误 token 会返回 `401`，
-不会进入任务迁移、审批或 Grant 验证逻辑。
+FastAPI 控制面中的 `/internal/*` 路由同样属于受信边界。启动服务前先应用数据库迁移，
+再从进程环境或密钥管理注入至少 32 个 ASCII 字符的 token：
+
+```powershell
+.venv\Scripts\alembic upgrade head
+$env:AGENTLOOM_INTERNAL_API_TOKEN = "replace-with-at-least-32-ascii-characters"
+.venv\Scripts\agentloom serve
+```
+
+服务默认只绑定 `127.0.0.1:8000`；只有在网关限制来源并配置 TLS 后才应绑定其他地址。
+调用方访问 `/internal/*` 时必须发送 `Authorization: Bearer <token>`。缺少 token 时服务拒绝
+启动，缺少或错误的请求 token 返回 `401`，不会进入审批、状态迁移或 Grant 验证逻辑。
 
 ## 项目状态
 
