@@ -10,7 +10,7 @@
 
 AgentLoom 是一个 **Agent Tool Policy Gateway** 原型。当 Agent 想调用工具（改代码、跑测试、写文件）时，Gateway 强制校验：调用方身份 / 短时一次性授权 / 参数白名单 / 审批 / 沙箱 / 可回放证据。任何一项不通过 = 拒绝并留证据。
 
-**这个项目展示的工程能力**：多 Agent 系统的边界设计、HMAC 签名授权、防重放 nonce、不可变 Docker 沙箱、可观测证据链、Pydantic 契约测试——所有跑通的 380 项测试 + 6 项 AgentTeams 端到端任务都基于此。
+**这个项目展示的工程能力**：多 Agent 系统的边界设计、HMAC 签名授权、防重放 nonce、不可变 Docker 沙箱、可观测证据链和 Pydantic 契约测试。可以先运行无模型 Demo，再查看分层验证证据。
 
 **招聘者快速查看**：[两分钟项目速览](docs/portfolio-brief.zh-CN.md) · [公开 Demo（3:41）](docs/demo.html) · [无模型快速开始](#无模型快速开始)
 
@@ -18,22 +18,15 @@ AgentLoom 是一个 **Agent Tool Policy Gateway** 原型。当 Agent 想调用�
 
 2026 年的 Agent 已经能写代码、改 bug、跑测试。但**它们能不能被信任**，是另一个问题。一次工具调用出错就可能删错文件、跑错测试、泄露密钥。AgentLoom 解决的是 Agent 工具调用层的可治理性——给 Agent 调用工具加上"权限校验 + 不可抵赖的证据"，让 Agent 在工程团队里可被审计、可被回滚、可被审批。
 
----
+## 当前验证状态
 
-AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提供身份绑定、
-短时单次 Grant、参数与路径限制、审批、防重放和可回放 Evidence。
+| 范围 | 结果 | 说明 |
+| --- | --- | --- |
+| 本地 Lite | `382 passed / 3 skipped` | 当前 PR 工作树的默认测试；跳过项需要 Docker。 |
+| GitHub Actions Full | `380 passed / 0 skipped` | 已验证的 public `main` 基线；本次 PR 尚待 CI 运行。 |
+| Task 24 基准 | `6 PASSED / 0 NOT_RUN` | 三个案例分别在两种模式下完成。 |
 
-> `v0.1.0` 门禁为 **375 passed / 3 skipped**。当前 public main 的 GitHub Actions
-> 会构建不可变沙箱镜像；最新 Full 证据为 **380 passed / 0 skipped**，当前工作树
-> 收集 380 项测试；Task 24 两模式基准为
-> **6 PASSED / 0 NOT_RUN**。Skill 目录状态为 **2 PUBLISHED / 4 QUARANTINED**；
-> 团队原创 `patch-scope-validator` v1.0.1 的三次治理调用均已严格重开。
-> Human L2 审批为 `APPROVED`，上游 PR
-> [#1141](https://github.com/agentscope-ai/AgentTeams/pull/1141) 仍为 `OPEN`。
-> 真人录制、匿名公开播放和正式 `v0.1.0` Release 均已验证。最终八项 P0
-> 提交包已完成审计，SHA-256 为
-> `0c5dfeb0ba6665609a14129a76cc1c239aed882a17e930c144aa5d3b88f6c306`；
-> 项目当前冻结为可复现的简历版原型，不再以竞赛页面或新的 AgentTeams 功能为开发目标。
+这些数字描述不同验证环境，不能互相替代。完整历史记录和发布摘要见[验证证据](docs/verification-baseline.zh-CN.md)。
 
 ## 项目定位
 
@@ -45,16 +38,9 @@ AgentLoom 是一个 Agent Tool Policy Gateway 原型，为 Agent 工具调用提
 
 ## 验证证据
 
-- 当前付费证据 Provider：`minimax-cn / MiniMax-M2.5`
-- Task 24 三案例两模式矩阵完成 6/6；Task 17 证明一条完整受治理 ToolCall 链路
-- 最新 public main Full 门禁：启用不可变 Docker 沙箱测试后 380 passed / 0 skipped；
-  冻结 `v0.1.0` 门禁：375 passed / 3 skipped；当前本地 Lite 快照：
-  377 passed / 3 skipped / 0 failed（当前工作树共收集 380 项）；Ruff、strict mypy、pip-audit 通过
-- Skill 状态：`code-review-and-quality` 与团队原创 `patch-scope-validator` v1.0.1
-  为 `PUBLISHED`，其余四个上游 Skill 保持 `QUARANTINED`
-
-完整历史竞赛证据仍见[初赛提交记录](docs/competition/agentloom-preliminary-submission.md)。
-Gateway 的目标边界和迁移计划见[产品规格](docs/specs/agent-tool-policy-gateway.md)。
+受治理 ToolCall 的端到端记录、Task 24 基准和历史发布证据见
+[验证基线与历史记录](docs/verification-baseline.zh-CN.md)。竞赛材料另见
+[初赛提交记录](docs/competition/agentloom-preliminary-submission.md)。Gateway 的目标边界和迁移计划见[产品规格](docs/specs/agent-tool-policy-gateway.md)。
 
 ## 架构
 
@@ -77,7 +63,10 @@ pytest 放入全新、禁网、只读挂载工作区的 Docker 沙箱运行。
 
 ## 无模型快速开始
 
-前置条件：Python 3.12 和 Git。以下命令不会调用模型或付费 API。
+前置条件：Windows 10/11、PowerShell 7、Python 3.12 和 Git。以下命令不会调用模型或付费 API。
+
+完整的单入口流程（安装、确定性 Demo、预期输出、证据位置和故障排查）见
+[Windows 快速开始](docs/deployment/quickstart.md)。
 
 ```powershell
 python -m venv .venv
@@ -96,6 +85,12 @@ python -m venv .venv
 ```
 
 将 `severity-normalization` 替换成 `pagination-boundary` 即可运行第二个案例。
+查看 Demo 的验证摘要：
+
+```powershell
+Get-Content .\artifacts\demo\severity-normalization\artifacts\test-results.txt
+```
+
 本地证据控制面板的启动方式为：
 
 ```powershell
@@ -167,25 +162,18 @@ $env:AGENTLOOM_POLICY_SIGNING_KEY = "replace-with-a-local-development-secret"
 签名密钥、模型凭据和 Provider 原始密钥都不得写入已提交的 MCP、Worker 或 Provider
 Profile 配置。
 
-## 历史证据
+FastAPI 控制面中的 `/internal/*` 路由同样属于受信边界。启动服务前先应用数据库迁移，
+再从进程环境或密钥管理注入至少 32 个 ASCII 字符的 token：
 
-> 以下内容仅为审计和复现而保留，**不是当前证据基线**。Qwen、DeepSeek 因账户
-> 无余额继续禁用。MiniMax 和 StepFun 均已获得订阅调用授权，但每次新运行必须使用
-> 唯一 run ID 并记录准确 Provider/模型；StepFun 证据不得混入只允许 MiniMax 的
-> Task 24 版本化基准。不得把历史付费链路冒充为新运行。
+```powershell
+.venv\Scripts\alembic upgrade head
+$env:AGENTLOOM_INTERNAL_API_TOKEN = "replace-with-at-least-32-ascii-characters"
+.venv\Scripts\agentloom serve
+```
 
-- 2026-08-04，Qwen `qwen3.7-plus` 曾完成无人值守修复，并通过独立的可见测试、
-  主机专属隐藏测试和静态检查。生成补丁 SHA-256 为
-  `7d9d571a833eabaedf97eac73dad50f6290bfa332d3ef504882398ba2e6d0833`。
-  严格运行证据仍位于
-  `artifacts/agentteams/live-repair-pagination-qwen-unattended-03.json`，独立验证证据仍位于
-  `artifacts/live-repair/AL-LIVE-PAGINATION-UNATTENDED-20260804-03/verified/artifacts/`。
-- 更早的 StepFun 四角色回滚和 DeepSeek 消息基线证据仍作为 Human L2 审批记录的
-  历史输入。脱敏摘要见
-  [L2 审批与上游贡献证据](docs/competition/l2-approval-and-upstream-contribution-evidence.md)。
-- 历史回放入口保留为 `scripts/competition-demo.ps1 -Mode replay` 和
-  `scripts/competition-rollback-demo.ps1 -Mode replay`。回放无需模型；Live 模式是独立、
-  必须明确付费并授权的操作。
+服务默认只绑定 `127.0.0.1:8000`；只有在网关限制来源并配置 TLS 后才应绑定其他地址。
+调用方访问 `/internal/*` 时必须发送 `Authorization: Bearer <token>`。缺少 token 时服务拒绝
+启动，缺少或错误的请求 token 返回 `401`，不会进入审批、状态迁移或 Grant 验证逻辑。
 
 ## 项目状态
 

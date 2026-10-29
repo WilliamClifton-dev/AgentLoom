@@ -9,6 +9,7 @@ from typing import Annotated
 import typer
 from sqlalchemy.exc import SQLAlchemyError
 
+from agentloom.api import create_app_from_env
 from agentloom.l2_approval import (
     L2ApprovalError,
     L2ApprovalVerifier,
@@ -40,6 +41,32 @@ _DEFAULT_RUNS_ROOT = _ROOT / "artifacts" / "tui"
 _DEFAULT_APPROVAL_DATABASE = _DEFAULT_RUNS_ROOT / "control.db"
 _DEFAULT_MIGRATION_REHEARSAL_ROOT = _ROOT / "artifacts" / "migrations" / "rehearsal"
 _DEFAULT_ROUTE_REHEARSAL_ROOT = _ROOT / "artifacts" / "routes" / "rehearsal"
+
+
+@app.command()
+def serve(
+    database: Annotated[
+        str,
+        typer.Option(help="SQLAlchemy URL for the control-plane database."),
+    ] = "sqlite:///agentloom.db",
+    host: Annotated[
+        str,
+        typer.Option(help="Bind address; keep the default on localhost for development."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option(min=1, max=65535, help="HTTP port for the FastAPI control plane."),
+    ] = 8000,
+) -> None:
+    """Start the FastAPI control plane using AGENTLOOM_INTERNAL_API_TOKEN."""
+    try:
+        api = create_app_from_env(database)
+        import uvicorn
+
+        uvicorn.run(api, host=host, port=port, log_level="info")
+    except (RuntimeError, OSError, ImportError) as exc:
+        typer.echo(f"agentloom API failed to start: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 @app.callback()

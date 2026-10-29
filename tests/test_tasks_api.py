@@ -5,15 +5,19 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from agentloom.api import create_app
+from agentloom.api import create_app, create_app_from_env
 from agentloom.storage import Database
+
+INTERNAL_API_TOKEN = "local-test-internal-api-token-32-bytes-minimum"
 
 
 @pytest_asyncio.fixture
 async def client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
     database = Database(f"sqlite:///{tmp_path / 'agentloom.db'}")
     database.create_schema()
-    transport = httpx.ASGITransport(app=create_app(database))
+    transport = httpx.ASGITransport(
+        app=create_app(database, internal_api_token=INTERNAL_API_TOKEN)
+    )
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as api_client:
         yield api_client
 
@@ -92,6 +96,64 @@ async def test_create_task_rejects_unknown_fields(client: httpx.AsyncClient) -> 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "authorization",
+    [None, "Bearer invalid-token", "Basic invalid-token", b"Bearer \xff"],
+)
+async def test_internal_task_transition_requires_bearer_token(
+    client: httpx.AsyncClient,
+    authorization: str | bytes | None,
+) -> None:
+    created = (await client.post("/api/tasks", json=task_payload())).json()
+    headers: dict[str, str] | dict[bytes, bytes]
+    if isinstance(authorization, bytes):
+        headers = {b"Authorization": authorization}
+    elif authorization is None:
+        headers = {}
+    else:
+        headers = {"Authorization": authorization}
+
+    response = await client.post(
+        f"/internal/tasks/{created['taskId']}/transitions",
+        headers=headers,
+        json={
+            "expectedPlanVersion": 0,
+            "status": "PLANNED",
+            "reason": "Coordinator produced a plan.",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "error": {
+            "code": "INTERNAL_AUTHENTICATION_REQUIRED",
+            "message": "A valid internal API bearer token is required.",
+            "details": {},
+        }
+    }
+
+
+def test_internal_api_rejects_short_tokens(tmp_path: Path) -> None:
+    database = Database(f"sqlite:///{tmp_path / 'agentloom.db'}")
+    database.create_schema()
+
+    with pytest.raises(ValueError, match="at least 32 ASCII characters"):
+        create_app(database, internal_api_token="short")
+
+    with pytest.raises(ValueError, match="at least 32 ASCII characters"):
+        create_app(database, internal_api_token="这是一个超过三十二字符的中文认证密钥")
+
+
+def test_internal_api_env_factory_requires_process_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("AGENTLOOM_INTERNAL_API_TOKEN", raising=False)
+
+    with pytest.raises(RuntimeError, match="AGENTLOOM_INTERNAL_API_TOKEN must be set"):
+        create_app_from_env(f"sqlite:///{tmp_path / 'agentloom.db'}")
+
+
+@pytest.mark.asyncio
 async def test_task_transition_advances_state_and_plan_version(
     client: httpx.AsyncClient,
 ) -> None:
@@ -99,6 +161,7 @@ async def test_task_transition_advances_state_and_plan_version(
 
     response = await client.post(
         f"/internal/tasks/{created['taskId']}/transitions",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
         json={
             "expectedPlanVersion": 0,
             "status": "PLANNED",
@@ -122,10 +185,17 @@ async def test_task_transition_rejects_stale_plan_version(
         "status": "PLANNED",
         "reason": "Coordinator produced a plan.",
     }
-    assert (await client.post(endpoint, json=request)).status_code == 200
+    assert (
+        await client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
+            json=request,
+        )
+    ).status_code == 200
 
     response = await client.post(
         endpoint,
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
         json={**request, "status": "INVESTIGATING"},
     )
 
@@ -142,6 +212,7 @@ async def test_task_transition_rejects_invalid_state_edge(
 
     response = await client.post(
         f"/internal/tasks/{created['taskId']}/transitions",
+        headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
         json={
             "expectedPlanVersion": 0,
             "status": "COMPLETED",
@@ -172,6 +243,7 @@ async def test_task_can_finish_as_cancelled_after_approval_rejection(
     for status in transitions:
         response = await client.post(
             endpoint,
+            headers={"Authorization": f"Bearer {INTERNAL_API_TOKEN}"},
             json={
                 "expectedPlanVersion": current["planVersion"],
                 "status": status,

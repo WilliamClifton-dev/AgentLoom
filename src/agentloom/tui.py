@@ -35,6 +35,10 @@ from agentloom.workflow import RepairWorkflow
 class DemoRunError(RuntimeError):
     """Raised when the TUI cannot list or execute a local demo case."""
 
+    def __init__(self, message: str, *, artifacts_dir: Path | None = None) -> None:
+        self.artifacts_dir = artifacts_dir
+        super().__init__(message)
+
 
 class ApprovalQueueError(RuntimeError):
     """Raised when a local Human approval action cannot be recorded safely."""
@@ -120,7 +124,9 @@ class DemoRunService:
             database = Database(f"sqlite:///{output_root / 'agentloom.db'}")
             events = tuple(database.list_task_events(result.task.task_id))
         except (DemoCaseError, MockRepairError, OSError, ValidationError) as exc:
-            raise DemoRunError(str(exc)) from exc
+            raise DemoRunError(
+                str(exc), artifacts_dir=output_root if output_root.exists() else None
+            ) from exc
         return DemoRunSummary(
             case=cases[case_id],
             task_id=result.task.task_id,
@@ -580,11 +586,12 @@ class AgentLoomApp(App[None]):
         )
         self.query_one("#artifact-details", Static).update(
             Text(
-                "ARTIFACTS\n"
+                "RUN EVIDENCE\n"
+                f"Status: {summary.task_status}\n"
                 f"Task: {summary.task_id}\n"
                 f"Root cause: {summary.root_cause}\n"
-                f"Patch SHA-256: {summary.patch_sha256 or 'N/A (state-machine demo)'}\n"
-                f"Path: {self._display_path(summary.artifacts_dir)}"
+                f"Evidence: {self._display_path(summary.artifacts_dir)}\n"
+                f"Patch SHA-256: {summary.patch_sha256 or 'N/A (state-machine demo)'}"
             )
         )
 
@@ -774,7 +781,7 @@ class AgentLoomApp(App[None]):
         try:
             summary = self._service.run_case(case_id)
         except DemoRunError as exc:
-            self.call_from_thread(self._show_run_error, str(exc))
+            self.call_from_thread(self._show_run_error, exc)
             return
         self.call_from_thread(self.show_run_summary, summary)
 
@@ -782,7 +789,7 @@ class AgentLoomApp(App[None]):
         try:
             summary = self._service.run_failure_retry_demo()
         except DemoRunError as exc:
-            self.call_from_thread(self._show_run_error, str(exc))
+            self.call_from_thread(self._show_run_error, exc)
             return
         self.call_from_thread(self.show_run_summary, summary)
 
@@ -803,6 +810,9 @@ class AgentLoomApp(App[None]):
         self.query_one("#run-status", Static).update(
             Text(f"RUNNING  |  validating and repairing {case_id}")
         )
+        self.query_one("#artifact-details", Static).update(
+            Text("RUN EVIDENCE\nWaiting for the run to produce evidence.")
+        )
         self._render_roles(
             (
                 RoleStatus("Manager", "RUNNING", "Task lifecycle started."),
@@ -816,6 +826,9 @@ class AgentLoomApp(App[None]):
         self.query_one("#run-status", Static).update(
             Text("RUNNING  |  failure -> rollback -> one retry")
         )
+        self.query_one("#artifact-details", Static).update(
+            Text("RUN EVIDENCE\nWaiting for the run to produce evidence.")
+        )
         self._render_roles(
             (
                 RoleStatus("Manager", "RUNNING", "Retry budget is bounded to one attempt."),
@@ -825,8 +838,16 @@ class AgentLoomApp(App[None]):
             )
         )
 
-    def _show_run_error(self, message: str) -> None:
-        self.query_one("#run-status", Static).update(Text(f"FAILED  |  {message}"))
+    def _show_run_error(self, error: DemoRunError) -> None:
+        self.query_one("#run-status", Static).update(Text("FAILED  |  run stopped"))
+        evidence = (
+            self._display_path(error.artifacts_dir)
+            if error.artifacts_dir is not None
+            else "Unavailable; failure occurred before evidence was written."
+        )
+        self.query_one("#artifact-details", Static).update(
+            Text(f"RUN FAILED\nReason: {error}\nEvidence: {evidence}")
+        )
         self._render_roles(
             (
                 RoleStatus("Manager", "FAILED", "Task did not complete."),

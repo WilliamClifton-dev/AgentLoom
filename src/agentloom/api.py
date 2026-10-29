@@ -1,9 +1,13 @@
 """FastAPI control-plane entry point."""
 
+import os
+from hmac import compare_digest
 from typing import Annotated
 
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from agentloom.contracts import (
     ApprovalCreate,
@@ -25,12 +29,55 @@ from agentloom.storage import (
     VersionConflict,
 )
 
+_INTERNAL_AUTH_ERROR = {
+    "error": {
+        "code": "INTERNAL_AUTHENTICATION_REQUIRED",
+        "message": "A valid internal API bearer token is required.",
+        "details": {},
+    }
+}
+
+INTERNAL_API_TOKEN_ENV = "AGENTLOOM_INTERNAL_API_TOKEN"
+
+
+class InternalAPIBearerAuthMiddleware:
+    """Require a configured bearer token for every internal control-plane route."""
+
+    def __init__(self, app: ASGIApp, token: bytes) -> None:
+        self._app = app
+        self._token = token
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope.get("path", "").startswith("/internal/"):
+            authorization = Headers(scope=scope).get("authorization", "")
+            scheme, separator, supplied_token = authorization.partition(" ")
+            if (
+                scheme.lower() != "bearer"
+                or not separator
+                or not compare_digest(supplied_token.encode("utf-8"), self._token)
+            ):
+                await JSONResponse(
+                    status_code=401,
+                    content=_INTERNAL_AUTH_ERROR,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )(scope, receive, send)
+                return
+        await self._app(scope, receive, send)
+
 
 def create_app(
     database: Database,
     grant_authorizer: SkillGrantAuthorizer | None = None,
+    *,
+    internal_api_token: str,
 ) -> FastAPI:
+    if not internal_api_token.isascii() or len(internal_api_token) < 32:
+        raise ValueError("internal API token must contain at least 32 ASCII characters")
     app = FastAPI(title="AgentLoom API", version="0.1.0")
+    app.add_middleware(
+        InternalAPIBearerAuthMiddleware,
+        token=internal_api_token.encode("ascii"),
+    )
 
     @app.post("/api/tasks", response_model=TaskRecord, status_code=201)
     def create_task(request: TaskCreate) -> TaskRecord:
@@ -190,6 +237,20 @@ def create_app(
             )
 
     return app
+
+
+def create_app_from_env(database_url: str) -> FastAPI:
+    """Build the control-plane app from process configuration.
+
+    The internal bearer token intentionally has no CLI or URL fallback: it must
+    be supplied through the process environment or an external secret manager.
+    """
+    token = os.environ.get(INTERNAL_API_TOKEN_ENV)
+    if token is None:
+        raise RuntimeError(
+            f"{INTERNAL_API_TOKEN_ENV} must be set to start the internal API"
+        )
+    return create_app(Database(database_url), internal_api_token=token)
 
 
 def _task_not_found(task_id: str) -> JSONResponse:
